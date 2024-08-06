@@ -13,8 +13,8 @@ package main
 */
 
 import (
-	"fmt"
 	"euler"
+	"fmt"
 	// "slices" // Doh not in 1.19
 	// "sort"
 	// "strings"
@@ -33,7 +33,7 @@ func Euler006(start, end int) [3]int {
 
 func main() {
 	// Tests
-	fmt.Println(Factor(nil, 200))
+	fmt.Println(euler.Factor(nil, 200))
 	answer := Euler006(1, 10)
 	fmt.Println(answer[0] == 2640, answer[1] == 385, answer[2] == 3025, ": Tests for 1..10 passed?", answer)
 	// Q
