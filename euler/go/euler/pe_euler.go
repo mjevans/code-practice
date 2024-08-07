@@ -14,6 +14,7 @@ package euler
 import (
 	"fmt"
 	// "slices" // Doh not in 1.19
+	"math/big"
 	"sort"
 	"strings"
 	// "os" // os.Stdout
@@ -77,10 +78,72 @@ func PrintFactors(factors []int) {
 	fmt.Println(strings.Join(strFact, ", "))
 }
 
+func ListSum(scale []int) int {
+	ret := 0
+	for _, val := range scale {
+		ret += val
+	}
+	return ret
+}
+
 func ListMul(scale []int) int {
 	ret := 1
 	for _, val := range scale {
 		ret *= val
+	}
+	return ret
+}
+
+func Factorial(ii int) int {
+	ret := 1
+	for ii > 1 {
+		ret *= ii
+		ii--
+	}
+	return ret
+}
+
+func AddInt64DecDigits(ii int64) int {
+	ret := int64(0)
+	for 0 < ii {
+		ret += ii % 10
+		ii /= 10
+	}
+	return int(ret)
+}
+
+func BigFactorial(ii int64) *big.Int {
+	ret := big.NewInt(int64(1))
+	one := big.NewInt(int64(1))
+	bi := big.NewInt(ii)
+	limit := 0xFFFF
+	for 0 < bi.Cmp(one) {
+		ret.Mul(ret, bi)
+		bi.Sub(bi, one)
+		limit--
+		if 0 == limit {
+			panic("BigFactorial - Iter Limit Reached")
+		}
+	}
+	return ret
+}
+
+func AddBigIntDecDigits(bi *big.Int) int64 {
+	ret := int64(0)
+	b := big.NewInt(ret)
+	b.Set(bi)
+	zero := big.NewInt(int64(0))
+	ten := big.NewInt(int64(10))
+	rem := big.NewInt(int64(0))
+	// limit := 0x7FFF ; && limit > 0 ; limit--
+	limit := 0xFFFF
+	for 0 < b.Cmp(zero) {
+		b.DivMod(b, ten, rem)
+		ret += rem.Int64()
+		limit--
+		if 0 == limit {
+			panic("AddBigIntDecDigits - Iter Limit Reached")
+		}
 	}
 	return ret
 }
@@ -239,3 +302,189 @@ func CompactInts(arr []int) []int {
 	}
 }
 */
+
+func BCDadd(in []string) string {
+	accum := []int{0}
+	for _, line := range in {
+		line = strings.TrimSpace(line)
+		carry := 0
+		a := make([]int, 0, len(accum))
+		for ii := 0; ii < len(accum) || ii < len(line); ii++ {
+			da := 0
+			if ii < len(accum) {
+				da = accum[ii]
+			}
+			dline := 0
+			if ii < len(line) {
+				dline = int(line[len(line)-1-ii]) - int('0')
+			}
+			dsum := da + dline + carry
+			carry = dsum / 10
+			a = append(a, dsum%10)
+		}
+		if carry > 0 {
+			a = append(a, 1)
+		}
+		accum = a
+	}
+	buf := make([]byte, len(accum))
+	for ii := 0; ii < len(accum); ii++ {
+		buf[len(buf)-1-ii] = byte(int('0') + accum[ii])
+	}
+	return string(buf)
+}
+
+var WrittenNumbersLow, WrittenNumbersTens []string
+
+func InitWrittenNumbers() {
+	if nil == WrittenNumbersLow {
+		WrittenNumbersLow = []string{"",
+			"One",
+			"Two",
+			"Three",
+			"Four",
+			"Five",
+			"Six",
+			"Seven",
+			"Eight",
+			"Nine",
+			"Ten",
+			"Eleven",
+			"Twelve",
+			"Thirteen",
+			"Fourteen",
+			"Fiveteen",
+			"Sixteen",
+			"Seventeen",
+			"Eighteen",
+			"Nineteen"}
+	}
+
+	if nil == WrittenNumbersTens {
+		WrittenNumbersTens = []string{"",
+			"",
+			"Twenty",
+			"Thirty",
+			"Fourty",
+			"Fifty",
+			"Sixty",
+			"Sevent",
+			"Eighty",
+			"Ninty"}
+	}
+}
+
+func StringBritishCheckNumber(num int) (int, string) {
+	InitWrittenNumbers()
+	// FIXME: support more than thousands later...
+	var typed int
+	var ret string
+	if num >= 1000 {
+		ths := num / 1000
+		if ths > 19 {
+			panic("StringBritishCheckNumber: Fixme, number greater than 19999.")
+		}
+		ret += " " + WrittenNumbersLow[ths] + " Thousand"
+		typed += len(WrittenNumbersLow[ths]) + len("Thousand")
+		num %= 1000
+	}
+	if num >= 100 {
+		hun := num / 100
+		ret += " " + WrittenNumbersLow[hun] + " Hundred"
+		typed += len(WrittenNumbersLow[hun]) + len("Hundred")
+		num %= 100
+		if num > 0 {
+			ret += " and"
+			typed += 3
+		}
+	}
+	if num > 19 {
+		tens := num / 10
+		ret += " " + WrittenNumbersTens[tens]
+		typed += len(WrittenNumbersTens[tens])
+		num %= 10
+	}
+	ret += " " + WrittenNumbersLow[num]
+	typed += len(WrittenNumbersLow[num])
+	return typed, strings.TrimSpace(ret)
+}
+
+func MaxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func MaximumPathSum(tri [][]int) int {
+	dist := make([]int, len(tri[len(tri)-1])+1)
+	for line := int(len(tri)) - 1; line >= 0; line-- {
+		for ii := 0; ii < len(tri[line]); ii++ {
+			dist[ii] = MaxInt(tri[line][ii]+dist[ii], tri[line][ii]+dist[ii+1])
+		}
+	}
+	return dist[0]
+}
+
+/*
+	DoomsDayRule https://en.wikipedia.org/wiki/Doomsday_rule#Finding_a_year's_anchor_day
+
+For the Gregorian calendar:
+
+	YearAnchor := make(map[int]int,0,7)
+	YearAnchor[1600] = 2
+	YearAnchor[1700] = 0
+	YearAnchor[1800] = 5
+	YearAnchor[1900] = 3
+	YearAnchor[2000] = 2
+	YearAnchor[2100] = 0
+	YearAnchor[2200] = 5
+
+Julian dates only
+
+	Mathematical formula
+	5 × (c mod 4) mod 7 + Tuesday = anchor.
+	Algorithmic
+	Let r = c mod 4
+	if r = 0 then anchor = Tuesday
+	if r = 1 then anchor = Sunday
+	if r = 2 then anchor = Friday
+	if r = 3 then anchor = Wednesday
+
+Next, find the year's anchor day. To accomplish that according to Conway:[11]
+
+1    Divide the year's last two digits (call this y) by 12 and let a be the floor of the quotient.
+2    Let b be the remainder of the same quotient.
+3    Divide that remainder by 4 and let c be the floor of the quotient.
+4    Let d be the sum of the three numbers (d = a + b + c). (It is again possible here to divide by seven and take the remainder. This number is equivalent, as it must be, to y plus the floor of y divided by four.)
+5    Count forward the specified number of days (d or the remainder of ⁠d/7⁠) from the anchor day to get the year's one.
+
+	( ⌊ y 12 ⌋ + y mod 1 2 + ⌊ y mod 1 2 4 ⌋ ) mod 7 + a n c h o r = D o o m s d a y {\displaystyle {\begin{matrix}\left({\left\lfloor {\frac {y}{12}}\right\rfloor +y{\bmod {1}}2+\left\lfloor {\frac {y{\bmod {1}}2}{4}}\right\rfloor }\right){\bmod {7}}+{\rm {{anchor}={\rm {Doomsday}}}}\end{matrix}}}
+
+For the twentieth-century year 1966, for example:
+
+	( ⌊ 66 12 ⌋ + 66 mod 1 2 + ⌊ 66 mod 1 2 4 ⌋ ) mod 7 + W e d n e s d a y = ( 5 + 6 + 1 ) mod 7 + W e d n e s d a y   = M o n d a y {\displaystyle {\begin{matrix}\left({\left\lfloor {\frac {66}{12}}\right\rfloor +66{\bmod {1}}2+\left\lfloor {\frac {66{\bmod {1}}2}{4}}\right\rfloor }\right){\bmod {7}}+{\rm {Wednesday}}&=&\left(5+6+1\right){\bmod {7}}+{\rm {Wednesday}}\\\ &=&{\rm {Monday}}\end{matrix}}}
+
+As described in bullet 4, above, this is equivalent to:
+
+	( 66 + ⌊ 66 4 ⌋ ) mod 7 + W e d n e s d a y = ( 66 + 16 ) mod 7 + W e d n e s d a y   = M o n d a y {\displaystyle {\begin{matrix}\left({66+\left\lfloor {\frac {66}{4}}\right\rfloor }\right){\bmod {7}}+{\rm {Wednesday}}&=&\left(66+16\right){\bmod {7}}+{\rm {Wednesday}}\\\ &=&{\rm {Monday}}\end{matrix}}}
+
+So doomsday in 1966 fell on Monday.
+
+Similarly, doomsday in 2005 is on a Monday:
+
+	( ⌊ 5 12 ⌋ + 5 mod 1 2 + ⌊ 5 mod 1 2 4 ⌋ ) mod 7 + T u e s d a y = M o n d a y {\displaystyle \left({\left\lfloor {\frac {5}{12}}\right\rfloor +5{\bmod {1}}2+\left\lfloor {\frac {5{\bmod {1}}2}{4}}\right\rfloor }\right){\bmod {7}}+{\rm {{Tuesday}={\rm {Monday}}}}}
+*/
+func DoomsDayRule(year int) {
+	cent := (year / 100) * 100 // lossy division
+	centanchor := (5*(cent%4) + 2) % 7
+
+	y := year % 100
+	a, b := y/12, y%12
+	c := b / 4
+	d := a + b + c
+
+	_ = centanchor
+	_ = d
+	// FIXME : This isn't worth the payoff.
+}
