@@ -78,6 +78,22 @@ func PrintFactors(factors []int) {
 	fmt.Println(strings.Join(strFact, ", "))
 }
 
+func FactorsToDivisors(factors []int) []int {
+	if 12 < len(factors) {
+		fmt.Println("FTD: ", ListMul(factors), len(factors), "=~", Factorial(len(factors)))
+		return []int{}
+	}
+	divisors := make([]int, 0, Factorial(len(factors)))
+	divisors = append(divisors, 1)
+	for ii := 0; ii < len(factors); ii++ {
+		mmlim := len(divisors)
+		for mm := 0; mm < mmlim; mm++ {
+			divisors = append(divisors, divisors[mm]*factors[ii])
+		}
+	}
+	return CompactInts(divisors[:len(divisors)-1])
+}
+
 func ListSum(scale []int) int {
 	ret := 0
 	for _, val := range scale {
@@ -203,7 +219,7 @@ CompactIntsOuter:
 			knext++
 		}
 	}
-	fmt.Println(knext, arr)
+	// fmt.Println(knext, arr)
 	arr = arr[:len(arr)-knext]
 	return arr
 }
