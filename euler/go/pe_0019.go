@@ -28,19 +28,28 @@ So 1900 through 2000 (inclusive) two Doomsday_rule periods.
 */
 
 import (
-// "euler"
-// "fmt"
-// "math"
-// "math/big"
-// "slices" // Doh not in 1.19
-// "sort"
-// "strings"
-// "strconv"
-// "os" // os.Stdout
+	// "euler"
+	"fmt"
+	"time"
+	// "math"
+	// "math/big"
+	// "slices" // Doh not in 1.19
+	// "sort"
+	// "strings"
+	// "strconv"
+	// "os" // os.Stdout
 )
 
 func Euler019() int {
-	return 0
+	ret := 0
+	for yy := 1900; yy <= 2000; yy++ {
+		for mm := 1; mm <= 12; mm++ {
+			if time.Sunday == time.Date(yy, time.Month(mm), 1, 0, 0, 0, 0, time.UTC).Weekday() {
+				ret++
+			}
+		}
+	}
+	return ret
 }
 
 func main() {
@@ -48,5 +57,6 @@ func main() {
 	//test
 
 	//run
-	Euler019()
+	// 173 Sundays fall on the first of the month between 1900 and 2000 (inclusive).
+	fmt.Println(Euler019(), "Sundays fall on the first of the month between 1900 and 2000 (inclusive).")
 }
