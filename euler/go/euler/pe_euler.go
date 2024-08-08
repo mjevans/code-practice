@@ -12,6 +12,7 @@ package euler
 */
 
 import (
+	"bitvector"
 	"bufio"
 	"fmt"
 	// "slices" // Doh not in 1.19
@@ -79,7 +80,7 @@ func PrintFactors(factors []int) {
 	fmt.Println(strings.Join(strFact, ", "))
 }
 
-func FactorsToDivisors(factors []int) []int {
+func FactorsToDivisors_old(factors []int) []int {
 	if 12 < len(factors) {
 		fmt.Println("FTD: ", ListMul(factors), len(factors), "=~", Factorial(len(factors)))
 		return []int{}
@@ -93,6 +94,34 @@ func FactorsToDivisors(factors []int) []int {
 		}
 	}
 	return CompactInts(divisors[:len(divisors)-1])
+}
+
+func FactorsToProperDivisors(factors []int) []int {
+	fl := len(factors)
+	if 0 == fl {
+		return factors
+	}
+	if 2 > fl {
+		return []int{1}
+	}
+	if fl > 63 {
+		panic("FtD does not support more than 63 factors.")
+	}
+	limit := (uint64(1) << fl) - 1
+	bitVec := bitvector.NewBitVector(int64(ListMul(factors[1:])))
+	bitVec.Set(uint64(1))
+	for ii := uint64(0); ii < limit; ii++ {
+		div := 1
+		bb := uint64(1)
+		for ff := 0; ff < fl; ff++ {
+			if 0 < ii&bb {
+				div *= factors[ff]
+			}
+			bb <<= 1
+		}
+		bitVec.Set(uint64(div))
+	}
+	return bitVec.GetInts()
 }
 
 func AlphaSum(str string) int64 {

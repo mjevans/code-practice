@@ -40,7 +40,7 @@ func Euler021(start, end int) int64 {
 		var iis, iie int
 		var ok bool
 		if iis, ok = cache[ii]; !ok {
-			iis = euler.ListSum(euler.FactorsToDivisors(euler.Factor(primes, ii)))
+			iis = euler.ListSum(euler.FactorsToProperDivisors(euler.Factor(primes, ii)))
 		} else {
 		}
 		if iis > end {
@@ -48,7 +48,7 @@ func Euler021(start, end int) int64 {
 			oflow += int64(iis)
 		}
 		if iie, ok = cache[iis]; !ok {
-			iie = euler.ListSum(euler.FactorsToDivisors(euler.Factor(primes, iis)))
+			iie = euler.ListSum(euler.FactorsToProperDivisors(euler.Factor(primes, iis)))
 		} else {
 		}
 		// fmt.Println("Loop", ii, iis, iie)
@@ -90,9 +90,9 @@ $ factor 8127
 func main() {
 	// fmt.Println(grid)
 	//test
-	dv := euler.FactorsToDivisors(euler.Factor(nil, 220))
+	dv := euler.FactorsToProperDivisors(euler.Factor(nil, 220))
 	fmt.Println("Euler021 divisors of 220 : ", dv, " sum to ", 284, 284 == euler.ListSum(dv))
-	dv = euler.FactorsToDivisors(euler.Factor(nil, 284))
+	dv = euler.FactorsToProperDivisors(euler.Factor(nil, 284))
 	fmt.Println("Euler021 divisors of 284 : ", dv, " sum to ", 220, 220 == euler.ListSum(dv))
 
 	//run

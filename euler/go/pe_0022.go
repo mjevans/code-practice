@@ -77,7 +77,7 @@ func Euler022(fn string) int64 {
 /*
 Euler022 read  5163  names of 5163 expected.     true
 871198282  score.
- */
+*/
 func main() {
 	// fmt.Println(grid)
 	//test
