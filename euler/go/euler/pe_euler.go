@@ -12,6 +12,7 @@ package euler
 */
 
 import (
+	"bufio"
 	"fmt"
 	// "slices" // Doh not in 1.19
 	"math/big"
@@ -92,6 +93,16 @@ func FactorsToDivisors(factors []int) []int {
 		}
 	}
 	return CompactInts(divisors[:len(divisors)-1])
+}
+
+func AlphaSum(str string) int64 {
+	var ret, limit int64
+	limit = int64(len(str))
+	str = strings.ToUpper(str)
+	for ii := int64(0); ii < limit; ii++ {
+		ret += int64(byte(str[ii]) - 'A' + 1)
+	}
+	return ret
 }
 
 func ListSum(scale []int) int {
@@ -440,6 +451,36 @@ func MaximumPathSum(tri [][]int) int {
 		}
 	}
 	return dist[0]
+}
+
+func ScannerSplitNLDQ(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	isJunk := func(b byte) bool {
+		return '\r' == b || '\n' == b || '"' == b || ',' == b
+	}
+	limit := len(data)
+	if 0 == limit {
+		// fmt.Println("NQDL 0 limit, more data")
+		return 0, nil, nil
+	}
+	var ii int
+	for ii < limit && isJunk(data[ii]) {
+		ii++
+	}
+	start := ii
+	for ii < limit {
+		if isJunk(data[ii]) {
+			// fmt.Println("NQDL + ", ii, " >", string(data[0:ii]), "<")
+			return ii, data[start:ii], nil
+		}
+		ii++
+	}
+	if atEOF && ii > start {
+		fmt.Println("NQDL EOF + ", ii, " >", string(data), "<")
+		return ii, data[start:ii], bufio.ErrFinalToken
+	} else {
+		// fmt.Println("NQDL no token, request more data than ", ii, " >", string(data), "<")
+		return 0, nil, nil
+	}
 }
 
 /*
