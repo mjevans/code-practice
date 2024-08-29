@@ -4,10 +4,31 @@ package euler
 // golang 1.19 is current Debian stable
 // 2024 - Michael J Evans ***REMOVED***
 
-/* https://projecteuler.net/minimal=5
-<p>$2520$ is the smallest number that can be divided by each of the numbers from $1$ to $10$ without any remainder.</p>
-<p>What is the smallest positive number that is <strong class="tooltip">evenly divisible<span class="tooltiptext">divisible with no remainder</span></strong> by all of the numbers from $1$ to $20$?</p>
+/*
 
+module main
+
+require euler v1.0.0
+replace euler v1.0.0 => ./euler
+
+require bitvector v1.0.0
+replace bitvector v1.0.0 => ./bitvector
+
+go 1.19
+
+
+https://go.dev/blog/package-names
+https://google.github.io/styleguide/go/decisions.html
+https://go.dev/ref/spec
+https://pkg.go.dev/std
+
+https://en.wikipedia.org/wiki/C_data_types#inttypes.h
+
+https://projecteuler.net/
+https://projecteuler.net/archives
+https://projecteuler.net/minimal=NUM
+
+export NUM=25 ; export FN="$(printf "pe_%04d.go" $NUM)" ; go fmt "$FN" ; go fmt euler/*.go bitvector/*.go ; go build euler/pe_euler.go ; go run "$FN"
 
 */
 
@@ -166,6 +187,63 @@ func AddInt64DecDigits(ii int64) int {
 		ii /= 10
 	}
 	return int(ret)
+}
+
+/*
+https://en.wikipedia.org/wiki/Fibonacci_sequence#Matrix_form
+https://www.nayuki.io/page/fast-fibonacci-algorithms
+"""
+Given F(k) and F(k+1)
+
+F(2k) = F(k)[2F(k+1)−F(k)]
+F(2k+1) = F(k+1)^2+F(k)^2
+
+Isolate Terms
+F(k) == H
+F(k+1) == J
+F(k)
+F(k+1)
+F(k)
+
+F(2k) = h ( 2j-h )
+F(2k+1) = j^2 + h^2
+
+
+*/
+
+func BigFib(n *big.Int) (*big.Int, *big.Int) {
+	zero := big.NewInt(int64(0))
+	two := big.NewInt(int64(2))
+	if 0 == n.Cmp(zero) {
+		return big.NewInt(int64(0)), big.NewInt(int64(1))
+	}
+	recurse := big.NewInt(int64(0))
+	recurse.Div(n, two)
+	h, j := BigFib(recurse)
+	// fmt.Print("BigFib rec\t", n, recurse, "\t", h, j)
+
+	// BigFib is fed 2k : recurse with k
+
+	// Differnt K, used to avoid X and other common variables
+	k := big.NewInt(int64(0))
+	// F(2k) = h ( 2j-h )
+	k.Mul(j, two)
+	k.Sub(k, h)
+	k.Mul(k, h)
+	// F(2k+1) = j^2 + h^2
+	h.Mul(h, h)
+	j.Mul(j, j)
+	j.Add(j, h)
+	// Clone N : Reuse H for modulus by two
+	h.Set(n)
+	h.Mod(h, two)
+	// fmt.Println("\tresults: ", k, j)
+	// If N was even, F(n) and F(n+1) were the returned terms.
+	if 0 == h.Cmp(zero) {
+		return k, j
+	} else { // Calculated desired term n, but n-1... 
+		return j, k.Add(k, j)
+	}
 }
 
 func BigFactorial(ii int64) *big.Int {
@@ -573,4 +651,27 @@ func DoomsDayRule(year int) {
 	_ = centanchor
 	_ = d
 	// FIXME : This isn't worth the payoff.
+}
+
+
+func PermutationString(perm int, str string) string {
+	end := len(str)
+	tmp := make([]byte, end)
+	copy(tmp, str)
+	res := make([]byte, end)
+	slot := 0
+	for slot < end {
+		fact := Factorial(end - 1 - slot)
+		idx := perm / fact
+		perm %= fact
+		res[slot] = tmp[idx]
+		// fmt.Print(slot, idx, "\t", res, "\t", tmp, "\t")
+		for idx < end - 1 - slot {
+			tmp[idx] = tmp[idx+1]
+			idx++
+		}
+		// fmt.Println(tmp)
+		slot++
+	}
+	return string(res)
 }
