@@ -43,36 +43,36 @@ import (
 	// "os" // os.Stdout
 )
 
-func Factor(primes []int, num int) []int {
+func Factor(primes *[]int, num int) *[]int {
 	// Public school factoring algorithm from memory...
 
 	// With a list of known primes, the largest number that can be factored is Pn * Pn
-	for ; nil == primes || num > primes[len(primes)-1]*primes[len(primes)-1]; primes = GetPrimes(primes, 0) {
+	for ; nil == primes || num > (*primes)[len(*primes)-1]*(*primes)[len(*primes)-1]; primes = GetPrimes(primes, 0) {
 		// fmt.Println(len(primes), primes[len(primes)-1])
 	}
 
-	ret := []int{}
+	ret := &[]int{}
 	if num < 2 {
 		return ret
 	}
-	for _, prime := range primes {
+	for _, prime := range *primes {
 		for ; 0 == num%prime; num /= prime {
-			ret = append(ret, prime)
+			*ret = append(*ret, prime)
 		}
 		if num < prime*prime {
 			break
 		} // break if no more prime factors are possible
 	}
 	if 1 < num {
-		ret = append(ret, num)
+		*ret = append(*ret, num)
 	}
 	// fmt.Println("Factor:\t", num, "\n", ret, primes)
 	return ret
 }
 
-func GetPrimes(primes []int, primehunt int) []int {
+func GetPrimes(primes *[]int, primehunt int) *[]int {
 	if nil == primes {
-		primes = []int{2, 3, 5, 7, 11, 13, 17, 19}
+		primes = &[]int{2, 3, 5, 7, 11, 13, 17, 19}
 	}
 	// Semi-arbitrary expansion target, find 8 more primes (8, 16, 32, 64 it'll fit within the append growth algo)
 	if primehunt < 1 {
@@ -80,11 +80,11 @@ func GetPrimes(primes []int, primehunt int) []int {
 	}
 PrimeHunt:
 	for ; 0 < primehunt; primehunt-- {
-		for ii := primes[len(primes)-1] + 1; ; ii++ {
+		for ii := (*primes)[len(*primes)-1] + 1; ; ii++ {
 			result := Factor(primes, ii)
-			if 1 == len(result) && primes[len(primes)-1] < result[0] {
+			if 1 == len(*result) && (*primes)[len(*primes)-1] < (*result)[0] {
 				//fmt.Println("Found Prime:\t", result[0])
-				primes = append(primes, result[0])
+				*primes = append(*primes, (*result)[0])
 				continue PrimeHunt // I could break once, but this documents the intent
 			}
 		}
@@ -101,42 +101,45 @@ func PrintFactors(factors []int) {
 	fmt.Println(strings.Join(strFact, ", "))
 }
 
-func FactorsToDivisors_old(factors []int) []int {
-	if 12 < len(factors) {
-		fmt.Println("FTD: ", ListMul(factors), len(factors), "=~", Factorial(len(factors)))
+/*
+func FactorsToDivisors_old(factors *[]int) *[]int {
+	fact_len := len(*factors)
+	if 12 < fact_len {
+		fmt.Println("FTD: ", ListMul(*factors), fact_len, "=~", Factorial(fact_len))
 		return []int{}
 	}
-	divisors := make([]int, 0, Factorial(len(factors)))
+	divisors := make([]int, 0, Factorial(fact_len ))
 	divisors = append(divisors, 1)
-	for ii := 0; ii < len(factors); ii++ {
-		mmlim := len(divisors)
+	for ii := 0; ii < fact_len; ii++ {
+		mmlim := fact_len
 		for mm := 0; mm < mmlim; mm++ {
 			divisors = append(divisors, divisors[mm]*factors[ii])
 		}
 	}
-	return CompactInts(divisors[:len(divisors)-1])
+	return CompactInts(divisors[:len(*divisors)-1])
 }
+*/
 
-func FactorsToProperDivisors(factors []int) []int {
-	fl := len(factors)
+func FactorsToProperDivisors(factors *[]int) *[]int {
+	fl := len(*factors)
 	if 0 == fl {
 		return factors
 	}
 	if 2 > fl {
-		return []int{1}
+		return &[]int{1}
 	}
 	if fl > 63 {
 		panic("FtD does not support more than 63 factors.")
 	}
 	limit := (uint64(1) << fl) - 1
-	bitVec := bitvector.NewBitVector(int64(ListMul(factors[1:])))
+	bitVec := bitvector.NewBitVector(uint64(ListMul((*factors)[1:])))
 	bitVec.Set(uint64(1))
 	for ii := uint64(0); ii < limit; ii++ {
 		div := 1
 		bb := uint64(1)
 		for ff := 0; ff < fl; ff++ {
 			if 0 < ii&bb {
-				div *= factors[ff]
+				div *= (*factors)[ff]
 			}
 			bb <<= 1
 		}
@@ -241,7 +244,7 @@ func BigFib(n *big.Int) (*big.Int, *big.Int) {
 	// If N was even, F(n) and F(n+1) were the returned terms.
 	if 0 == h.Cmp(zero) {
 		return k, j
-	} else { // Calculated desired term n, but n-1... 
+	} else { // Calculated desired term n, but n-1...
 		return j, k.Add(k, j)
 	}
 }
@@ -638,8 +641,8 @@ So doomsday in 1966 fell on Monday.
 Similarly, doomsday in 2005 is on a Monday:
 
 	( ⌊ 5 12 ⌋ + 5 mod 1 2 + ⌊ 5 mod 1 2 4 ⌋ ) mod 7 + T u e s d a y = M o n d a y {\displaystyle \left({\left\lfloor {\frac {5}{12}}\right\rfloor +5{\bmod {1}}2+\left\lfloor {\frac {5{\bmod {1}}2}{4}}\right\rfloor }\right){\bmod {7}}+{\rm {{Tuesday}={\rm {Monday}}}}}
-*/
-func DoomsDayRule(year int) {
+
+	func DoomsDayRule(year int) {
 	cent := (year / 100) * 100 // lossy division
 	centanchor := (5*(cent%4) + 2) % 7
 
@@ -653,6 +656,7 @@ func DoomsDayRule(year int) {
 	// FIXME : This isn't worth the payoff.
 }
 
+*/
 
 func PermutationString(perm int, str string) string {
 	end := len(str)
@@ -666,7 +670,7 @@ func PermutationString(perm int, str string) string {
 		perm %= fact
 		res[slot] = tmp[idx]
 		// fmt.Print(slot, idx, "\t", res, "\t", tmp, "\t")
-		for idx < end - 1 - slot {
+		for idx < end-1-slot {
 			tmp[idx] = tmp[idx+1]
 			idx++
 		}

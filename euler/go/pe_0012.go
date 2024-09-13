@@ -36,15 +36,15 @@ import (
 )
 
 func Euler012(minDivisors int) int {
-	var factors []int
+	var factors *[]int
 	primes := euler.GetPrimes(nil, 56)
 	triangle, ii := 0, 0
 	for {
 		triangle += ii
 		factors = euler.Factor(primes, triangle)
-		divisors := euler.Factorial(len(factors))
+		divisors := euler.Factorial(len(*factors))
 		if divisors >= minDivisors {
-			fmt.Println(triangle, ii, divisors, factors)
+			fmt.Println(triangle, ii, divisors, *factors)
 			break
 		}
 		ii++

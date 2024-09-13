@@ -23,19 +23,19 @@ import (
 )
 
 func Euler010(lim int) int {
-	var primes []int
-	for primes = euler.GetPrimes(nil, 0); lim > primes[len(primes)-1]; primes = euler.GetPrimes(primes, 0) {
+	var primes *[]int
+	for primes = euler.GetPrimes(nil, 0); lim > (*primes)[len(*primes)-1]; primes = euler.GetPrimes(primes, 0) {
 	}
-	ii := len(primes) - 1
+	ii := len(*primes) - 1
 	for {
-		if lim < primes[ii-1] {
+		if lim < (*primes)[ii-1] {
 			ii--
 		} else {
 			break
 		}
 	}
 	// fmt.Println(ii, primes[:ii])
-	return euler.ListSum(primes[:ii])
+	return euler.ListSum((*primes)[:ii])
 }
 
 func main() {

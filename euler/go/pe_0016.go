@@ -17,7 +17,7 @@ package main
 import (
 	// "euler"
 	"fmt"
-	"math"
+	// "math"
 	"math/big"
 	// "slices" // Doh not in 1.19
 	// "sort"

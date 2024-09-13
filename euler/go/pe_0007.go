@@ -25,6 +25,6 @@ func main() {
 	// Tests
 	// fmt.Println(euler.Factor(nil, 200))
 	primes := euler.GetPrimes(nil, 10001-8)
-	fmt.Println(primes[6-1])
-	fmt.Println(primes[10001-1])
+	fmt.Println((*primes)[6-1])
+	fmt.Println((*primes)[10001-1])
 }

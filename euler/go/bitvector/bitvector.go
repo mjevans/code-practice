@@ -55,7 +55,7 @@ func (bv *BitVector) TestAndSet(num uint64) bool {
 }
 
 
-func (bv *BitVector) GetInts() []int {
+func (bv *BitVector) GetInts() *[]int {
 	ret := make([]int, 0, 4)
 	limit := bv.Maxset >> 6 + 1
 	for ii := bv.Minset >> 6 ; ii < limit ; ii++ {
@@ -67,22 +67,22 @@ func (bv *BitVector) GetInts() []int {
 			bb <<= 1
 		}
 	}
-	return ret
+	return &ret
 }
 
-func (bv *BitVector) GetUInt64s() []uint64 {
+func (bv *BitVector) GetUInt64s() *[]uint64 {
 	ret := make([]uint64, 0, 4)
 	limit := bv.Maxset >> 6 + 1
 	for ii := bv.Minset >> 6 ; ii < limit ; ii++ {
 		bb := uint64(1)
 		for ff := 0; ff < 64; ff++ {
 			if 0 < bv.vec[ii] & bb {
-				ret = append(ret, ii << 6 + ff )
+				ret = append(ret, ii << 6 + uint64(ff) )
 			}
 			bb <<= 1
 		}
 	}
-	return ret
+	return &ret
 }
 
 
@@ -111,19 +111,19 @@ func (bv *OffsetBitVector) Set(num int64) {
 	bv.vec[offnum>>6] |= uint64(1) << shift
 }
 
-func (bv *OffsetBitVector) Clear(num uint64) {
+func (bv *OffsetBitVector) Clear(num int64) {
 	offnum := uint64(num - bv.Offset)
 	shift := offnum & 0x3f
 	bv.vec[offnum>>6] &^= uint64(1) << shift
 }
 
-func (bv *OffsetBitVector) Test(num uint64) bool {
+func (bv *OffsetBitVector) Test(num int64) bool {
 	offnum := uint64(num - bv.Offset)
 	shift := offnum & 0x3f
 	return 0 < bv.vec[offnum>>6] & uint64(1) << shift
 }
 
-func (bv *OffsetBitVector) TestAndSet(num int64) {
+func (bv *OffsetBitVector) TestAndSet(num int64) bool {
 	offnum := uint64(num - bv.Offset)
 	shift := offnum & 0x3f
 	ret := 0 < bv.vec[offnum>>6] & uint64(1) << shift

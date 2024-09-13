@@ -37,15 +37,15 @@ func Euler023() uint64 {
 	abund := []uint16{12}
 Euler023outer:
 	for ii := uint16(13); ii < 28123; ii++ {
-		iisum := uint16(euler.ListSum(euler.FactorsToProperDivisors(euler.Factor(primes, int(ii)))))
+		iisum := uint16(euler.ListSum(*(euler.FactorsToProperDivisors(euler.Factor(primes, int(ii))))))
 		if iisum > ii {
 			abund = append(abund, ii)
-			fmt.Println(ii, "\tabundant")
+			// fmt.Println(ii, "\tabundant")
 		}
 		for x := 0; x < len(abund); x++ {
 			for y := 0; y < len(abund); y++ {
 				if ii == abund[x]+abund[y] {
-					fmt.Println(ii, "\t2a")
+					// fmt.Println(ii, "\t2a")
 					continue Euler023outer
 				}
 			}
