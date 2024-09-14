@@ -679,3 +679,105 @@ func PermutationString(perm int, str string) string {
 	}
 	return string(res)
 }
+
+func BsearchInt(list *[]int, val int) bool {
+	end := len(*list)
+	if nil == list || 1 > end {
+		return false
+	}
+	left := 0
+	pos := end >> 1
+	end--
+	for left <= pos && pos <= end {
+		if (*list)[pos] == val {
+			// fmt.Printf("BsearchInt: TRUE : %d\n", val)
+			return true
+		}
+		// fmt.Printf("BsearchInt: NOW\t%d <= %d <= %d\t%d <= %d <= %d\n", left, pos, end, (*list)[left], (*list)[pos], (*list)[end])
+		if (*list)[pos] < val {
+			left = pos + 1
+			pos += (end - pos + 1) >> 1
+		} else { // gt
+			end = pos - 1
+			pos -= (pos - left + 1) >> 1
+		}
+		// fmt.Printf("BsearchInt: next\t%d <= %d <= %d\t%d\n", left, pos, end, (*list)[pos])
+	}
+	// fmt.Printf("BsearchInt: false : %d\n", val)
+	return false
+}
+
+type Rational struct {
+	Num int64
+	Den int64
+	Res int
+	Ree int
+	Imp []int8
+	Quo []int8
+}
+
+func NewRational(num, den int64) *Rational {
+	return &Rational{num, den, 0, 0, []int8{}, []int8{}}
+}
+
+func (ra *Rational) Divide() {
+	ra.Imp = []int8{}
+	ra.Quo = []int8{}
+	ra.Res = 0
+	ra.Ree = 0
+	if 0 == ra.Den {
+		return
+	}
+	n := ra.Num
+	d := ra.Den
+	neg := false
+	if n < 0 {
+		n = -n
+		neg = !neg
+	}
+	if d < 0 {
+		d = -d
+		neg = !neg
+	}
+	q := n / d
+	r := n % d
+	for q > 0 {
+		ra.Imp = append(ra.Imp, int8(q%10))
+		q /= 10
+	}
+
+	//	r*10	d	q	r	seen
+	//	-	7	0.	1	-
+	//	10	7	1	3	0
+	//	30	7	4	2	1
+	//	20	7	2	6	2
+	//	60	7	8	4	3
+	//	40	7	5	5	4
+	//	50	7	7	1	5
+	//	!! already seen
+
+	// last remainder pos cache -- FIXME ?? Remainder can't ever be larger than ra.Den, arr possible, but... wasteful for many cases and mem clear performance / human readability.
+	remCache := make(map[int64]int)
+	idx := 0
+	for {
+		if 0 == r {
+			return
+		}
+		if start, seen := remCache[r]; seen {
+			ra.Res = start
+			ra.Ree = idx
+			// if 7 == d {
+			// fmt.Println(remCache)
+			// }
+			return
+		}
+		ra.Quo = append(ra.Quo, int8((r*10)/d))
+		remCache[r] = idx
+		r = (r * 10) % d
+		idx++
+		if idx > 200000 {
+			panic("Limit reached while in .Divide() : " + fmt.Sprint(*ra))
+		}
+	}
+
+}
