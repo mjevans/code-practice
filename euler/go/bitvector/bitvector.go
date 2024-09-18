@@ -164,3 +164,32 @@ func (bv *OffsetBitVector) GetInt64s() []int64 {
 	}
 	return ret
 }
+
+/**
+	Considered a hybrid bucket bitvector (for small ints) + object storage for BigInts...
+	However what I really want is to not constantly compare BigInts if I can avoid it.
+	--- Euler 29 wants a list of unique numbers up to 100**100 (100^100) ... BitVectors don't really work right for this.  However insert sort on a B+ tree could. ---
+
+	B+ Leaf
+	64 bit words ~ 8 byte pointers
+	Probably 4096 page size  512 per page == too many
+	L1 Cache Line ~ quick search is 64 bytes, which is 8 pointers
+	The next cache layer up is 15-20x slower and inserts are annoying so this might be a good size.
+**/
+
+// FIXME: go vet && go test
+
+/*
+type bpBILeaf struct {
+	nums [7](*(big.Int))
+	next *bpBILeaf
+}
+
+type bpBIIdx struct {
+	// *Int	  0	  1	  2
+	// Leaf	0	1	2	3
+	nums [3](*(big.Int))
+	ptr  [4](*(any)) // interface{}
+	next *bpBIIdx
+}
+*/

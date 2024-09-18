@@ -30,6 +30,36 @@ https://projecteuler.net/minimal=NUM
 
 export NUM=25 ; export FN="$(printf "pe_%04d.go" $NUM)" ; go fmt "$FN" ; go fmt euler/*.go bitvector/*.go ; go build euler/pe_euler.go ; go run "$FN"
 
+
+FIXME: REMINDER -- https://go101.org/article/value-part.html
+https://github.com/go101/go101/wiki/About-the-terminology-%22reference-type%22-in-Go
+
+For greater clarity of anyone who thinks in C terms:
+
+Value is Full Copy (single direct value part)
+== single allocation, fully copied
+boolean
+numeric (all ints, floats etc)
+pointer
+unsafe.Pointer
+array
+struct
+
+Value is dangerous shallow copy
+== multiple allocations, management information not copied
+string (len, *bytes) // However the compiler treats strings as immutable, so in practice []byte access allocates it's own copy!
+slice (len, cap, *T) // DANGER: append() can allocate a larger *T (copy of one depth) also len and cap only update on the direct handle.
+
+Value is (all pointers) Shallow Copy (indirect / reference / pointer to something within)
+== Base type is pointer, or struct of only pointers.
+map
+channel
+function
+interface (specification)
+
+
+https://go.dev/wiki/SliceTricks
+
 */
 
 import (
@@ -43,8 +73,25 @@ import (
 	// "os" // os.Stdout
 )
 
+// 1.18+ has generics and a lot of places aren't at 1.21 yet
+
+func maxT[T int](a, b T) T {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func minT[T int](a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func Factor(primes *[]int, num int) *[]int {
 	// Public school factoring algorithm from memory...
+	// Trial Division - https://en.wikipedia.org/wiki/Integer_factorization#Factoring_algorithms
 
 	// With a list of known primes, the largest number that can be factored is Pn * Pn
 	for ; nil == primes || num > (*primes)[len(*primes)-1]*(*primes)[len(*primes)-1]; primes = GetPrimes(primes, 0) {
@@ -780,4 +827,335 @@ func (ra *Rational) Divide() {
 		}
 	}
 
+}
+
+/**
+	https://en.wikipedia.org/wiki/Integer_factorization#Factoring_algorithms
+	Trial Division seems a bit easier and has the benefit of pre-sorting the result array.
+	The other algorithms seem to benefit larger numbers, since I've effectively made an infinite wheel algorithm with the prime list, at the cost of memory.
+	I like how simple Euler's method looks in pseudo-code, however that's a lot of squareroot operations!
+	A https://stackoverflow.com/questions/2267146/what-is-the-fastest-integer-factorization-algorithm
+	B https://stackoverflow.com/questions/1877255/problems-with-prime-numbers
+	<(short)	Lookup Table
+	<2^70		Richard Brent's mod of Pollard's Rho algo http://wwwmaths.anu.edu.au/~brent/pub/pub051.html
+	<10^50		Lenstra Elliptic curve http://en.wikipedia.org/wiki/Lenstra_elliptic_curve_factorization
+	<10^100		Quadratic Sieve http://en.wikipedia.org/wiki/Quadratic_sieve
+	>10^100		GNFS http://en.wikipedia.org/wiki/General_number_field_sieve
+
+	Offhand, from a pragmatic viewpoint, a list of primes betten 0 and the largest under 65536 is _probably_ more memory than a practical program should use, though 0..255 is clearly too limited.
+	[]uint16 might be a good format for the primes list, if not a bitvector directly.
+
+	2..7919 contains 1000 prime numbers; stored as a compressed (inherently 2 is prime so 3..7919) bitvector, that would take 3958 bits or 495 bytes (rounded up)
+	It's entirely practical to throw a 512 or 4096 byte bucket of primes at the issue and simplify life.
+	Page ~= 64 bytes
+	3..130 = Page 0 The highest prime is 127 which has a square root of ~11.27 (121<>144)
+	3..18 == BYTE 0 17,13,11,7,5,3
+**/
+
+// BVpagesize >= BVl1 // Both MUST be a power of 2 ( Pow(2, n) )
+// WARNING: Populate more known primes if increasing BVl1 size
+const BVl1 = 64
+const BVpagesize = 4096
+const BVbitsPerByte = 8
+const BVprimeByteBitMaskPost = BVbitsPerByte - 1
+const BVprimeByteBitMask = BVprimeByteBitMaskPost << 1 // 0b_1110 // The 2^0 = 1s bit is discarded in the compression shift
+// const BVprimeByteBitMask = 0b_1110 // The 2^0 = 1s bit is discarded in the compression shift
+// const BVprimeByteBitMaskPost = BVprimeByteBitMask >> 1
+const BVprimeByteBitShift = 3 + 1 // 3 bits for 8 bit index, plus 1 bit for discard all even numbers
+
+type BVpage [BVpagesize]uint8
+
+type BVPrimes struct {
+	Last uint
+	PV   []*BVpage // starting from bit 0 (set) == 3 (prime), record all odd primes with SET bits
+	// MAYBE primes are any unset bits > Last, unset bits < Last == composite
+}
+
+func NewBVPrimes() *BVPrimes {
+	ov := new(BVpage)
+	// no even 7_31 _753
+	ov[0] = 0b_0100_1000
+	//          19   3 9 // 33 is not prime, but it is the last tested number 33*33 = 1089 the first l1 cacheline is safe to factor in place.
+	ov[1] = 0b_1001_1010
+	// WARNING: Populate more known primes if increasing BVl1 size
+	return &BVPrimes{PV: append(make([]*BVpage, 0, 1), ov), Last: 33}
+}
+
+func (p *BVPrimes) PrimeOrDown(ii uint) uint {
+	if 2 > ii {
+		return 0
+	}
+	if 2 == ii {
+		return 2
+	}
+	// in := ii
+	ii = (ii - 3)
+	bidx := (ii & BVprimeByteBitMask) >> 1
+	ii >>= BVprimeByteBitShift
+	pg, pidx := ii/BVpagesize, ii%BVpagesize
+	// fmt.Printf("PrimeOrDown from [%d][%d]&%x == %d\n", pg, pidx, (uint8(1) << bidx), in)
+	// pg
+	for {
+		// pidx
+		for {
+			// bidx
+			for {
+				if 0 == p.PV[pg][pidx]&(uint8(1)<<bidx) {
+					return ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint(bidx)<<1 + 3
+				}
+				if 0 == bidx {
+					break
+				}
+				bidx--
+			}
+			bidx = BVbitsPerByte - 1 // reset after scanning the initial index bits
+			if 0 == pidx {
+				break
+			}
+			pidx--
+		}
+		if 0 == pg && 0 == pidx {
+			fmt.Println("Hit the floor fallback = 3; PrimeOrDown()")
+			return 3
+		}
+		pg--
+		pidx = BVpagesize - 1
+	}
+}
+
+func (p *BVPrimes) PrimeAfter(ii uint) uint {
+	if 2 > ii {
+		return 2
+	}
+	// Guard an underflow, 2 doesn't really exist to step after
+	if 2 == ii {
+		return 3
+	}
+	lastPrime := p.PrimeOrDown(p.Last)
+	if ii >= lastPrime {
+		newLimit := (((((ii-3)>>1)/uint(BVl1))+uint(1))*uint(BVl1)+uint(BVprimeByteBitMaskPost))<<1 + 3
+		// fmt.Printf("Primes.PAfter .Grow triggered:   \t%d\t< %d\t-> %d\n", ii, p.Last, newLimit)
+		p.Grow(newLimit)
+	}
+	// } else {
+	// fmt.Printf("Prime.PAfter last prime:\t%d\t< %d\n", lastPrime, p.Last)
+	// if 7600 < ii {
+	// fmt.Printf("Prime.PAfter last prime:\t%d\t< %d\n", lastPrime, p.Last)
+	// }
+	// }
+	return p.primeAfterUnsafe(ii, p.Last)
+}
+
+func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
+	ii := (input - 3 + 2) // the prime number AFTER ii, E.G. 6 -> 7
+	bidx := (ii & BVprimeByteBitMask) >> 1
+	ii >>= BVprimeByteBitShift
+	pg, pidx := ii/BVpagesize, ii%BVpagesize
+	pgmax, pmax := uint(len(p.PV)), ((limit-3)>>BVprimeByteBitShift)%BVpagesize
+	if pg <= pgmax {
+		for pidx <= pmax {
+			for ; bidx < BVbitsPerByte; bidx++ {
+				if 0 == p.PV[pg][pidx]&(uint8(1)<<bidx) {
+					return ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint(bidx)<<1 + 3
+				}
+			}
+			bidx = 0 // reset after scanning the initial index bits
+			pidx++
+		}
+		if pidx >= BVpagesize {
+			pg++
+			pidx = 0
+		}
+	}
+	fmt.Printf("Unable to locate prime after %d under %d\t[%d/%d][%d/%d]\t", input, limit, pg, pgmax, pidx, pmax)
+	pg, pidx = ii/BVpagesize, ii%BVpagesize
+	fmt.Printf("started near [%d][%d]\n", pg, pidx)
+	return 0
+}
+
+func (p *BVPrimes) Grow(limit uint) {
+	if p.Last >= limit {
+		fmt.Printf("Already above requested growth limit, %d, at %d\n", limit, p.Last)
+		return
+	}
+	// last l1 cache line
+	cl1z := (((limit - 3) >> BVprimeByteBitShift) / uint(BVl1)) + uint(1)
+
+	// Ensure the bitvector arrays exist
+	pagez := cl1z/(BVpagesize/BVl1) + 1
+	lenpv := uint(len(p.PV))
+	if pagez > lenpv {
+		// Extend Capacity https://go.dev/wiki/SliceTricks
+		p.PV = append(make([]*BVpage, 0, pagez), p.PV...)
+		for lenpv <= pagez {
+			p.PV = append(p.PV, new(BVpage))
+		}
+	}
+
+	// FIXME: test case, end of BVl1 #0 is 1025 (1026 should also get eaten, but not marked since it's compressed)
+	// test case, end of page 1 is 65537 (uint16max + 1)
+
+	base := (p.Last - 3 + 2) // the prime number AFTER ii, E.G. 33 -> 34
+	// bidx := (base & BVprimeByteBitMask) >> 1
+	base >>= BVprimeByteBitShift
+	// pg, pidx := base/BVpagesize, base%BVpagesize
+
+	for line := ((p.Last - 3 + 2) >> BVprimeByteBitShift / uint(BVl1)); line <= cl1z; line++ {
+		// pgmax = len(p.PV) // Extended above, cl1z is backed by real array(s)
+		pg := (line * BVl1) / BVpagesize
+		// inclusive last bit address to set, upper limit
+		cl1max := (((line+1)*BVl1-1)*BVbitsPerByte + (BVbitsPerByte - 1)) % (BVpagesize * BVbitsPerByte)
+		cl1maxNum := ((pg * BVpagesize) << BVprimeByteBitShift) + cl1max<<1 + 3
+
+		// Emperically it didn't take _too_ long to generate up to 4097, however it became a total slog after that point
+		// if 4096 > (line*BVl1<<1)+3 {
+		if true {
+
+			//	Last	Next	Pri	Correct	Diff	FlMod(2p)+p
+			//	33	34	3	39	6	33
+			//	33	34	5	35	2	35
+			//	33	34	7	35	2	35
+			//	33	34	11	55	22	33
+			//	33	34	13	39	6
+			//	33	34	17	51	18
+			//	33	34	19	57	24
+			//	33	34	23	69	36
+			//	33	34	29	87	54
+			//	33	34	31	93	60
+
+			// bit-bit address to start the process, in this case also the 'base bit' beneath which no marks
+			// cl1min := (((p.Last - 3 + 2) >> 1) - (line*uint(BVl1*BVbitsPerByte))%(BVpagesize*BVbitsPerByte))
+			// if pg < pgmax {
+			prime := uint(3)
+			// fmt.Printf("Primes.Grow(%d) INIT [..%d] %d (%d/%d)\n", limit, cl1maxNum, prime, line, cl1z)
+			for {
+				if prime<<1 >= p.Last {
+					newLast := cl1maxNum
+					if prime<<1 < newLast {
+						// fmt.Printf("cl1max newLast was %d\t", newLast)
+						newLast = prime << 1
+					}
+					// if newLast > 960 {
+					if false {
+						lineS := ((pg * BVpagesize) << BVprimeByteBitShift) + ((line*BVl1)%(BVpagesize))<<BVprimeByteBitShift + 3
+						lineE := cl1maxNum
+						fmt.Printf("Adust p.Last %d := %d (%d..%d)\t%d\n", p.Last, newLast, lineS, lineE, prime)
+					}
+					p.Last = newLast
+				}
+				// Modern CPUs prefer a branchless path even with a couple possibly redundant operations
+				// 33 -> 32 -> 33 -> 35  ~~ 34 -> 33 -> 33 -> 35
+				next := uint(((p.Last - 1) | 1) + 2)
+				// calculate the next modulus to mark, this will always be an odd multiple of prime of at least 3 * prime...
+				flMod3p := (next/(prime<<1))*(prime<<1) + prime
+				// cl1bb := (p.Last - 3 + (prime + (prime << 1) - (p.Last % (prime << 1)))) >> 1
+				cl1bb := (flMod3p - 3) >> 1
+				// if 5 == prime || 7 == prime {
+				// fmt.Printf("Start %d ~ %d (at [%d][%d]|%x\n", prime, cl1bb<<1+3, pg, cl1bb>>(BVprimeByteBitShift-1), uint8(1)<<(cl1bb&BVprimeByteBitMaskPost))
+				// }
+				for cl1bb <= cl1max {
+					// fmt.Printf("Mark %d ~ %d (at [%d][%d]|%x\n", prime, cl1bb<<1+3, pg, cl1bb>>(BVprimeByteBitShift-1), uint8(1)<<(cl1bb&BVprimeByteBitMaskPost))
+					// if (5 == prime || 7 == prime) && cl1bb < (64-3)>>1 {
+					// fmt.Printf("Mark %d ~ %d (at [%d][%d]|%x\n", prime, cl1bb<<1+3, pg, cl1bb>>(BVprimeByteBitShift-1), uint8(1)<<(cl1bb&BVprimeByteBitMaskPost))
+					// }
+					p.PV[pg][cl1bb>>(BVprimeByteBitShift-1)] |= uint8(1) << (cl1bb & BVprimeByteBitMaskPost)
+					cl1bb += prime // compressed (/2) prime bitvector, this advances by the prime * 2
+					// if cl1bb > 64 {
+					// 	panic("debug")
+					// }
+				}
+				// if prime > 2000 {
+				// fmt.Printf("Grow prime %d\n", prime)
+				// }
+				prime = p.primeAfterUnsafe(prime, prime<<1)
+				if 0 == prime {
+					panic("primeAfterUnsafe Returned Zero")
+				}
+				if prime<<1 >= cl1maxNum {
+					// fmt.Printf("Primes.Grow(%d) upto %d\tRound %d\n", limit, cl1maxNum, prime)
+					break
+				}
+			}
+			//continue
+		} else {
+			// fmt.Printf("Primes.Grow(%d) reached unsupported quantity, p.Last = %d\n", limit, p.Last)
+			// panic(p.Last)
+		}
+		p.Last = cl1maxNum
+		// fmt.Printf("Primes.Grow(%d) upto %d\t(%d/%d)\n", limit, p.Last, line, cl1z)
+
+	}
+
+}
+
+/*
+func Factor(primes *[]int, num int) *[]int {
+	//
+	// Public school factoring algorithm from memory...
+
+	// With a list of known primes, the largest number that can be factored is Pn * Pn
+	for ; nil == primes || num > (*primes)[len(*primes)-1]*(*primes)[len(*primes)-1]; primes = GetPrimes(primes, 0) {
+		// fmt.Println(len(primes), primes[len(primes)-1])
+	}
+
+	ret := &[]int{}
+	if num < 2 {
+		return ret
+	}
+	for _, prime := range *primes {
+		for ; 0 == num%prime; num /= prime {
+			*ret = append(*ret, prime)
+		}
+		if num < prime*prime {
+			break
+		} // break if no more prime factors are possible
+	}
+	if 1 < num {
+		*ret = append(*ret, num)
+	}
+	// fmt.Println("Factor:\t", num, "\n", ret, primes)
+	return ret
+}
+
+// func GetPrimes(primes *[]int, primehunt int) *[]int
+
+func GetPrimes(primes *[]int, primehunt int) *[]int {
+	if nil == primes {
+		primes = &[]int{2, 3, 5, 7, 11, 13, 17, 19}
+	}
+	// Semi-arbitrary expansion target, find 8 more primes (8, 16, 32, 64 it'll fit within the append growth algo)
+	if primehunt < 1 {
+		primehunt = 8
+	}
+PrimeHunt:
+	for ; 0 < primehunt; primehunt-- {
+		for ii := (*primes)[len(*primes)-1] + 1; ; ii++ {
+			result := Factor(primes, ii)
+			if 1 == len(*result) && (*primes)[len(*primes)-1] < (*result)[0] {
+				//fmt.Println("Found Prime:\t", result[0])
+				*primes = append(*primes, (*result)[0])
+				continue PrimeHunt // I could break once, but this documents the intent
+			}
+		}
+	}
+	return primes
+}
+*/
+
+type Factorpair struct {
+	base  uint16
+	power uint16
+}
+
+type Factorized struct {
+	// Euler 29 wants a list of unique numbers up to 100**100 (100^100) ...
+	// Factorized graduates from a []int type number to a structured number, and also stores the effective lengths ahead of time.
+	// I'd like to make a version something like lenbase uint8 ; lenpow uint24 but the latter doesn't exist and the []uint16 (still worth it for data size in cache lines) is about to utilize abus-width int and pointer anyway...
+	lenbase uint
+	lenpow  uint
+	fact    []Factorpair
+}
+
+func NewFactorized(primes *[]int, n uint) *Factorized {
+	return &Factorized{}
 }

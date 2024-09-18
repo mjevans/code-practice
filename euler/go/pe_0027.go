@@ -123,12 +123,6 @@ func main() {
 
 }
 
-
-
-
-
-
-
 /*
 
 _entirely_ too many, >> 80 primes
