@@ -3,6 +3,7 @@ package euler_test
 
 import (
 	// . "euler" // https://go.dev/wiki/CodeReviewComments#import-dot
+	"container/heap"
 	"euler" // I would __really__ like Go to just support path relative imports E.G. "./euler" means, just look in the CWD, it's here.
 	"testing"
 )
@@ -87,6 +88,75 @@ func TestBVPrimesPrimeAfter(t *testing.T) {
 			t.Errorf("Bad PrimeAfter(%d) %d != %d (expected)\n", tc.q, res, tc.r)
 		} else {
 			// t.Logf("PASS PrimeAfter(%d) == %d\n", tc.q, res)
+		}
+	}
+}
+
+func TestGCDbin(t *testing.T) {
+	tests := [][3]uint{
+		{0, 18, 18},
+		{6, 18, 6},
+		{18, 48, 6},
+		{12, 48, 12},
+	}
+	for ii := 0; ii < len(tests); ii++ {
+		res := euler.GCDbin(tests[ii][0], tests[ii][1])
+		if tests[ii][2] != res {
+			t.Errorf("Bad result: %d != %d (%d, %d)", res, tests[ii][2], tests[ii][0], tests[ii][1])
+		}
+	}
+}
+
+func TestFactorpairQueue(t *testing.T) {
+	fq := &euler.FactorpairQueue{
+		euler.Factorpair{Base: 19, Power: 1},
+		euler.Factorpair{Base: 17, Power: 1},
+		euler.Factorpair{Base: 13, Power: 1},
+		euler.Factorpair{Base: 11, Power: 1},
+		euler.Factorpair{Base: 7, Power: 1},
+		euler.Factorpair{Base: 5, Power: 1},
+		euler.Factorpair{Base: 3, Power: 1},
+		euler.Factorpair{Base: 2, Power: 1},
+	}
+	heap.Init(fq)
+	heap.Push(fq, euler.Factorpair{Base: 23, Power: 1})
+	fqraw := fq.Raw()
+	t.Logf("[0] = %d ~~~ [%d] = %d", (*fqraw)[0].Base, fq.Len(), (*fqraw)[fq.Len()-1].Base)
+	mark := uint16(0)
+	for 0 < fq.Len() {
+		base := heap.Pop(fq).(euler.Factorpair).Base
+		if mark > base {
+			t.Errorf("Bad result, wanted > %d ; got < : %d", mark, base)
+		}
+		mark = base
+	}
+}
+
+func TestFactorizeVsFactorMul(t *testing.T) {
+	// Test cases
+	// 1885 = 5 13 29
+	// 2024 = 2^3 11 23
+	// I _was_ going to use the meme phone number from the song... 8675309 but that's prime (thanks coreutils factor!)
+	// 867 = 3 17^2
+	// 5309 == prime
+	tests := []struct {
+		test uint
+		ans  []uint
+	}{
+		{5309, []uint{5309}},
+		{867, []uint{3, 17, 17}},
+		{2024, []uint{2, 2, 2, 11, 23}},
+		{1885, []uint{5, 13, 29}},
+	}
+	p := euler.NewBVPrimes()
+	for _, test := range tests {
+		left := p.Factorize(test.test)
+		right := p.Factorize(1)
+		for _, subfact := range test.ans {
+			right.Mul(p.Factorize(subfact))
+		}
+		if false == left.Eq(right) || left.Uint64() != right.Uint64() {
+			t.Errorf("Failed Test Case %v\n\t%d != %d\n%v\n%v", t, left.Uint64(), right.Uint64(), left, right)
 		}
 	}
 }

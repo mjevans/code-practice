@@ -71,6 +71,7 @@ import (
 	"sort"
 	"strings"
 	// "os" // os.Stdout
+	"container/heap"
 )
 
 // 1.18+ has generics and a lot of places aren't at 1.21 yet
@@ -888,6 +889,10 @@ func (p *BVPrimes) PrimeOrDown(ii uint) uint {
 	if 2 == ii {
 		return 2
 	}
+	// NOTE: Strictly the 'or' part is in use here, find the last number _known_ to be a prime
+	if ii > p.Last {
+		ii = p.Last
+	}
 	// in := ii
 	ii = (ii - 3)
 	bidx := (ii & BVprimeByteBitMask) >> 1
@@ -1088,6 +1093,314 @@ func (p *BVPrimes) Grow(limit uint) {
 
 }
 
+func (p *BVPrimes) MaybePrime(q uint) bool {
+	// Use base2 storage inherent test for division by 2
+	if 0 == q&0x01 {
+		return false
+	}
+	if q > p.Last {
+		return true
+	}
+	pd := p.PrimeOrDown(q)
+	return pd == q
+}
+
+func (p *BVPrimes) KnownPrime(q uint) bool {
+	// Use base2 storage inherent test for division by 2
+	if 0 == q&0x01 || q > p.Last {
+		return false
+	}
+	pd := p.PrimeOrDown(q)
+	return pd == q
+}
+
+func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
+	if nil == primes {
+		*primes = make([]int, 0, 8+num)
+	} else {
+		*primes = append(make([]int, 0, 8+num), (*primes)...)
+	}
+
+	ii := len(*primes)
+	lim := cap(*primes)
+	prime := uint((*primes)[ii-1])
+	for ; ii < lim; ii++ {
+		prime = p.PrimeAfter(prime)
+		*primes = append(*primes, int(prime))
+	}
+	return primes
+}
+
+func GCDbin(a, b uint) uint {
+	// https://en.wikipedia.org/wiki/Binary_GCD_algorithm
+	// https://pkg.go.dev/math/bits#TrailingZeros
+	// https://cs.opensource.google/go/go/+/go1.23.1:src/math/bits/bits.go;l=59
+	// if x == 0 { return 64 } ; return int(deBruijn64tab[(x&-x)*deBruijn64>>(64-6)])
+	// See http://supertech.csail.mit.edu/papers/debruijn.pdf
+	// const deBruijn32 = 0x077CB531
+	// var deBruijn32tab = [32]byte{		0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,		31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9,	}
+	// const deBruijn64 = 0x03f79d71b4ca8b09
+	// var deBruijn64tab = [64]byte{		0, 1, 56, 2, 57, 49, 28, 3, 61, 58, 42, 50, 38, 29, 17, 4,		62, 47, 59, 36, 45, 43, 51, 22, 53, 39, 33, 30, 24, 18, 12, 5,		63, 55, 48, 27, 60, 41, 37, 16, 46, 35, 44, 21, 52, 32, 23, 11,		54, 26, 40, 15, 34, 20, 31, 10, 25, 14, 19, 9, 13, 8, 7, 6,	}
+
+	// There is a better way to count trailing zeros, but it uses annoying magic numbers or imports "math/bits"
+
+	if 0 == b {
+		return a
+	}
+	if 0 == a {
+		return b
+	}
+
+	k := 0
+	// k == count of common 2 factors
+	for 0 == a&1 && 0 == b&1 {
+		a >>= 1
+		b >>= 1
+		k++
+	}
+	for {
+		if a < b {
+			a, b = b, a
+		}
+		a -= b // a is now even
+		if a == 0 {
+			return b << k
+		}
+		// b is odd, therefore no more common 2 factors, discard
+		for 0 == a&1 {
+			a >>= 1
+		}
+	}
+}
+
+/*
+			fmt.Printf("
+Pollard: %d ??\t (%d >= %d) || (1 < %d)\t%d\t%d\n",
+
+N,			k, r, 		G, 	x, 	y	)
+
+Pollard: 5309 ??         (1 >= 1) || (1 < 1)    0       147
+Pollard: 5309 ??         (1 >= 2) || (1 < 1)    147     4833
+Pollard: 5309 ??         (2 >= 2) || (1 < 1)    147     2626
+Pollard: 5309 ??         (1 >= 4) || (1 < 1)    2626    5021
+Pollard: 5309 ??         (2 >= 4) || (1 < 1)    2626    953
+Pollard: 5309 ??         (3 >= 4) || (1 < 1)    2626    1098
+Pollard: 5309 ??         (4 >= 4) || (1 < 1)    2626    2939
+Pollard: 5309 ??         (1 >= 8) || (1 < 1)    2939    4130
+Pollard: 5309 ??         (2 >= 8) || (1 < 1)    2939    1886
+Pollard: 5309 ??         (3 >= 8) || (1 < 1)    2939    964
+Pollard: 5309 ??         (4 >= 8) || (1 < 1)    2939    2398
+Pollard: 5309 ??         (5 >= 8) || (1 < 1)    2939    4231
+Pollard: 5309 ??         (6 >= 8) || (1 < 1)    2939    1283
+Pollard: 5309 ??         (7 >= 8) || (1 < 1)    2939    954
+Pollard: 5309 ??         (8 >= 8) || (1 < 1)    2939    892
+Pollard: 5309 ??         (1 >= 16) || (1 < 1)   892     60
+Pollard: 5309 ??         (2 >= 16) || (1 < 1)   892     1107
+Pollard: 5309 ??         (3 >= 16) || (1 < 1)   892     4583
+Pollard: 5309 ??         (4 >= 16) || (1 < 1)   892     294
+Pollard: 5309 ??         (5 >= 16) || (1 < 1)   892     5248
+Pollard: 5309 ??         (6 >= 16) || (1 < 1)   892     1071
+Pollard: 5309 ??         (7 >= 16) || (1 < 1)   892     5059
+Pollard: 5309 ??         (8 >= 16) || (1 < 1)   892     2671
+Pollard: 5309 ??         (9 >= 16) || (1 < 1)   892     2435
+Pollard: 5309 ??         (10 >= 16) || (1 < 1)  892     879
+Pollard: 5309 ??         (11 >= 16) || (1 < 1)  892     862
+Pollard: 5309 ??         (12 >= 16) || (1 < 1)  892     2900
+Pollard: 5309 ??         (13 >= 16) || (1 < 1)  892     1908
+Pollard: 5309 ??         (14 >= 16) || (1 < 1)  892     4109
+Pollard: 5309 ??         (15 >= 16) || (1 < 1)  892     4999
+Pollard: 5309 ??         (16 >= 16) || (1 < 1)  892     689
+Pollard: 5309 ??         (1 >= 32) || (1 < 1)   689     1908
+Pollard: 5309 ??         (2 >= 32) || (1 < 1)   689     4109
+Pollard: 5309 ??         (3 >= 32) || (1 < 1)   689     4999
+Pollard: 5309 ??         (4 >= 32) || (1 < 5309)        689     689
+
+*/
+
+// Returns _a_ factor OR 0 on failure (means MAYBE prime, 289 fails) (0 or 1 are never returned on success) 'took x0 := 0 ; m = 1'
+func Factor1980PollardMonteCarlo(N, x0 uint) uint {
+	// https://maths-people.anu.edu.au/~brent/pub/pub051.html
+	// https://maths-people.anu.edu.au/~brent/pd/rpb051i.pdf
+	//if 0 == x0 { x0 = 2 }
+
+	// print pg182-183 p"2
+	fx := func(x, Nin uint) uint {
+		return (x*x + 3) % Nin
+	}
+	umin := func(a, b uint) uint {
+		if a < b {
+			return a
+		}
+		return b
+	}
+	abssub := func(a, b uint) uint {
+		if a < b {
+			return b - a
+		}
+		return b - a
+	}
+
+	// they 'took x0 := 0 ; m = 1' -- pg183 8.
+	//								// Pascal ? https://www.freepascal.org/docs-html/ref/refsu60.html
+	//								y := x0 ; r := 1 ; q := 1 ;
+	//								repeat x := y ;
+	//									for i := 1 to r do y := f(y) ; k := 0 ;
+	//									repeat ys := y ;
+	//										for i := 1 to min(m, r-k) do
+	//											begin y := f(y) ; q := q * abs(x-y) mod N
+	//											end;
+	//										G := GCD(q,N) ; k := k + m
+	//									until (k >= r) or (G > 1) ; r := 2 * r
+	//								until G > 1 ;
+	//								if G == N then
+	//									repeat ys := f(ys) ; G := GCD(abs(x - ys), N)
+	//									until G > 1 ;
+	//								if G == N then {failure} else {success}
+
+	// x := r Round? / Rotate / Roll? (bitshift / pass) (fast hare)
+	// y := k seems to be the slow tortice
+	//
+	//								y := x0 ; r := 1 ; q := 1 ;
+	y, r, q, m := uint(x0), uint(1), uint(1), uint(1)
+	var k, ii, G, x, ys uint
+	//								repeat x := y ;
+	for {
+		x = y
+		//								for i := 1 to r do y := f(y) ; k := 0 ;
+		for ii = 1; ii <= r; ii++ {
+			y = fx(y, N)
+		}
+		k = 0
+		//								repeat ys := y ;
+		for {
+			ys = y
+			//								for i := 1 to min(m, r-k) do
+			iz := umin(m, r-k)
+			for ii = 0; ii <= iz; ii++ {
+				//								begin y := f(y) ; q := q * abs(x-y) mod N
+				y = fx(y, N)
+				q = (q * abssub(x, y)) % N
+			}
+			//									end;
+			//								G := GCD(q,N) ; k := k + m
+			G = GCDbin(q, N)
+			k += m
+			//							until (k >= r) or (G > 1) ; r := 2 * r
+			// fmt.Printf("Pollard: %d ??\t (%d >= %d) || (1 < %d)\t%d\t%d\n", N, k, r, G, x, y)
+			if (k >= r) || (1 < G) {
+				break
+			}
+		}
+		r <<= 1
+		//							until G > 1 ;
+		if 1 < G {
+			break
+		}
+	}
+	//								if G == N then
+	if G == N {
+		//								repeat ys := f(ys) ; G := GCD(abs(x - ys), N)
+		for {
+			ys = fx(ys, N)
+			G = GCDbin(abssub(x, ys), N)
+			//							until G > 1 ;
+			if 1 < G {
+				break
+			}
+		}
+	}
+	//								if G == N then {failure} else {success}
+	if G == N {
+		// fmt.Printf("Pollard: FAILED %d / %d\n", N, G)
+		return 0
+	} // 0 == Failed
+	// fmt.Printf("Pollard: %d / %d\n", N, G)
+	return G
+}
+
+func (p *BVPrimes) Factorize(q uint) *Factorized {
+	qin := q
+	_ = qin
+	// Low hanging fruit first
+	if 2 > q {
+		if 0 == q {
+			return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 0, Power: 1}}}
+		}
+		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 1, Power: 1}}}
+	}
+	// FIXME: insert sorted heap
+	// facts := make([]Factorpair, 0, 8)
+	facts := &FactorpairQueue{}
+	heap.Init(facts)
+	k := 0
+	for 0 == q&1 {
+		q >>= 1
+	}
+	if 0 < k {
+		heap.Push(facts, Factorpair{Base: 2, Power: uint16(k)})
+	}
+	zz := 1000
+	pollard_limit := uint(20) // FIXME: how many seeds attempts are reasonable?
+	pollard := uint(0)
+	for 1 < q && zz > 0 {
+		// known if prime or composite
+		if q <= p.Last && p.KnownPrime(q) {
+			heap.Push(facts, Factorpair{Base: uint16(q), Power: 1})
+			break
+		}
+		unk := Factor1980PollardMonteCarlo(q, pollard)
+		if 0 == unk {
+			if pollard_limit == pollard {
+				// fmt.Printf("Factorize returned 0 for: %d\n", q)
+				heap.Push(facts, Factorpair{Base: uint16(q), Power: 1})
+				break
+			}
+			pollard++
+			continue
+		}
+		pollard = 0
+		q /= unk
+		sf := p.Factorize(unk)
+		for ii := uint(0); ii < sf.Lenbase; ii++ {
+			b := uint(sf.Fact[ii].Base)
+			pow := uint16(0)
+			for 0 == q%b {
+				q /= b
+				pow++
+			}
+			if 0 < pow {
+				sf.Fact[ii].Power += pow
+			}
+			heap.Push(facts, sf.Fact[ii])
+		}
+		// fmt.Printf("Factorize: %d @ %d\n", qin, q)
+		zz--
+	}
+	var base, power uint
+	fact := make([]Factorpair, 0, facts.Len())
+	for 0 < facts.Len() {
+		fp := heap.Pop(facts).(Factorpair)
+		base++
+		power += uint(fp.Power)
+		fact = append(fact, fp)
+	}
+	return &Factorized{Lenbase: base, Lenpow: power, Fact: fact}
+}
+
+// TODO: method functions + shims for these...
+// Factorize
+// TODO: also Ro factor from the 1980s paper PDF
+//
+
+/*
+// inefficient stub, FIXME: global instance?
+func GetPrimes(primes *[]int, num int) *[]int {
+	p = NewBVPrimes()
+	return p.GetPrimesInt(primes, num)
+}
+
+*/
+
 /*
 func Factor(primes *[]int, num int) *[]int {
 	//
@@ -1119,43 +1432,145 @@ func Factor(primes *[]int, num int) *[]int {
 
 // func GetPrimes(primes *[]int, primehunt int) *[]int
 
-func GetPrimes(primes *[]int, primehunt int) *[]int {
-	if nil == primes {
-		primes = &[]int{2, 3, 5, 7, 11, 13, 17, 19}
-	}
-	// Semi-arbitrary expansion target, find 8 more primes (8, 16, 32, 64 it'll fit within the append growth algo)
-	if primehunt < 1 {
-		primehunt = 8
-	}
-PrimeHunt:
-	for ; 0 < primehunt; primehunt-- {
-		for ii := (*primes)[len(*primes)-1] + 1; ; ii++ {
-			result := Factor(primes, ii)
-			if 1 == len(*result) && (*primes)[len(*primes)-1] < (*result)[0] {
-				//fmt.Println("Found Prime:\t", result[0])
-				*primes = append(*primes, (*result)[0])
-				continue PrimeHunt // I could break once, but this documents the intent
-			}
-		}
-	}
-	return primes
-}
+
 */
 
 type Factorpair struct {
-	base  uint16
-	power uint16
+	Base  uint16
+	Power uint16
 }
 
 type Factorized struct {
 	// Euler 29 wants a list of unique numbers up to 100**100 (100^100) ...
 	// Factorized graduates from a []int type number to a structured number, and also stores the effective lengths ahead of time.
 	// I'd like to make a version something like lenbase uint8 ; lenpow uint24 but the latter doesn't exist and the []uint16 (still worth it for data size in cache lines) is about to utilize abus-width int and pointer anyway...
-	lenbase uint
-	lenpow  uint
-	fact    []Factorpair
+	Lenbase uint
+	Lenpow  uint
+	Fact    []Factorpair
 }
 
-func NewFactorized(primes *[]int, n uint) *Factorized {
-	return &Factorized{}
+//func NewFactorized(primes *[]int, n uint) *Factorized {
+//	return &Factorized{}
+//}
+
+func (facts *Factorized) Mul(fin *Factorized) *Factorized {
+	temp := make([]Factorpair, 0, facts.Lenbase+fin.Lenbase)
+	fbuf := (*FactorpairQueue)(&temp)
+	heap.Init(fbuf)
+	var fr, fi uint
+	for fr < facts.Lenbase && fi < fin.Lenbase {
+		// If BOTH have 1 as their base, add it as they're probably both 1...
+		if facts.Fact[fr].Base == fin.Fact[fi].Base {
+			heap.Push(fbuf, Factorpair{Base: facts.Fact[fr].Base, Power: facts.Fact[fr].Power + fin.Fact[fi].Power})
+			fr++
+			fi++
+			continue
+		}
+		if 1 == facts.Fact[fr].Base {
+			fr++
+			continue
+		}
+		if 1 == fin.Fact[fi].Base {
+			fi++
+			continue
+		}
+		if facts.Fact[fr].Base >= fin.Fact[fi].Base {
+			heap.Push(fbuf, fin.Fact[fi])
+			fi++
+		} else {
+			heap.Push(fbuf, facts.Fact[fr])
+			fr++
+		}
+	}
+	for fr < facts.Lenbase {
+		heap.Push(fbuf, facts.Fact[fr])
+		fr++
+	}
+	for fi < fin.Lenbase {
+		heap.Push(fbuf, fin.Fact[fi])
+		fi++
+	}
+	leak := make([]Factorpair, 0, fbuf.Len())
+	power := uint(0)
+	for 0 < fbuf.Len() {
+		fp := heap.Pop(fbuf).(Factorpair)
+		power += uint(fp.Power)
+		leak = append(leak, fp)
+	}
+	// fmt.Printf("Mul base check: %d\n", leak[0].Base)
+	if 0 == leak[0].Base {
+		facts.Lenbase = 0
+		facts.Lenpow = 0
+		power = 1
+		leak = append(make([]Factorpair, 0, 1), Factorpair{Base: 0, Power: 1})
+	}
+	facts.Lenbase, facts.Lenpow, facts.Fact = uint(len(leak)), power, leak
+	return facts
 }
+
+func (fl Factorized) Eq(fr *Factorized) bool {
+	if fl.Lenbase != fr.Lenbase || fl.Lenpow != fr.Lenpow {
+		return false
+	}
+	for ii := uint(0); ii < fl.Lenbase; ii++ {
+		if fl.Fact[ii].Base != fr.Fact[ii].Base || fl.Fact[ii].Power != fr.Fact[ii].Power {
+			return false
+		}
+	}
+	return true
+}
+
+func (fact *Factorized) Uint64() uint64 {
+	ret := uint64(1)
+	for ii := uint(0); ii < fact.Lenbase; ii++ {
+		for ee := uint16(0); ee < fact.Fact[ii].Power; ee++ {
+			ret *= uint64(fact.Fact[ii].Base)
+		}
+	}
+	return ret
+}
+
+// Priority Queue heap https://pkg.go.dev/container/heap@go1.22.6
+
+// Factorpair has no dynamic/reference based storage, simple copy is fine
+type FactorpairQueue []Factorpair
+
+func (pq FactorpairQueue) Raw() *[]Factorpair {
+	conv := ([]Factorpair)(pq)
+	return &conv
+}
+
+// { return &(pq.([]Factorpair)) }
+
+// func (pq FactorpairQueue) Len() int { return len(([]Factorpair)(pq)) }
+func (pq FactorpairQueue) Len() int { return len(pq) }
+
+func (pq FactorpairQueue) Less(quea, queb int) bool {
+	// "less" holds items closer to the base of the array
+	return pq[quea].Base < pq[queb].Base
+}
+
+func (pq FactorpairQueue) Swap(quea, queb int) {
+	pq[quea], pq[queb] = pq[queb], pq[quea]
+	// 'Item' lacks priority and lacks index
+}
+
+func (pq *FactorpairQueue) Push(fp any) {
+	*pq = append(*pq, fp.(Factorpair))
+}
+
+func (pq *FactorpairQueue) Pop() any {
+	n := len(*pq) - 1
+	fp := (*pq)[n]
+	*pq = (*pq)[0:n]
+	return fp
+}
+
+/*
+func (pq FactorpairQueue) ()  {
+}
+
+
+func (pq FactorpairQueue) ()  {
+}
+*/
