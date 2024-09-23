@@ -209,7 +209,7 @@ func TestOverkillSeed(t *testing.T) {
 	p.Grow(limit)
 }
 
-func TestOverkillVerify(t *testing.T) {
+func TestOverkillVerifyFactor1980Pollard(t *testing.T) {
 	const limit = uint(65535)
 	t.Logf("Verify / Profile Factor1980PollardMonteCarlo(p, seed) upto: %d\n", limit)
 	p := euler.Primes
@@ -264,4 +264,21 @@ TestOverkillVerifyOuter:
 		// _ = euler.Factor1980AutoPMC(ii)
 	}
 	t.Logf("Profile complete: successful reseeds: %d\tmaximum: %d\tfailures: %d", reseed, maxseed, failseed)
+}
+
+func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
+	const limit = uint(65535)
+	t.Logf("Verify Factor1980AutoPMC(p) upto: %d\n", limit)
+	p := euler.Primes
+	p.Grow(limit)
+	for ii := uint(2); ii <= limit; ii++ {
+		if 0 == ii&0x3fff {
+			t.Logf("... %d", ii)
+		}
+		f := euler.Factor1980AutoPMC(ii, true)
+		if false == p.KnownPrime(f) {
+			t.Errorf("FAILED to successfully factor: %d ~ %d", ii, f)
+			t.Fatal("")
+		}
+	}
 }

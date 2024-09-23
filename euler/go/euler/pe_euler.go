@@ -1434,12 +1434,21 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 	return G
 }
 
-func Factor1980AutoPMC(q uint) uint {
+func Factor1980AutoPMC(q uint, singlePrimeOnly bool) uint {
 	if 0 == q&1 {
 		return 2
 	}
+	// This test appears to yield a ~200x improvement in factor speed 20.66s vs 0.01s for 2..65535
+	// Primes is a global instance which hopefully knows if small Q are prime or not...
+	if Primes.PrimeOrDown(q) == q {
+		return q
+	}
+
 	unk := Factor1980PollardMonteCarlo(q, 0)
 	if 0 != unk {
+		if singlePrimeOnly {
+			return Factor1980AutoPMC(unk, singlePrimeOnly)
+		}
 		return unk
 	}
 	// Usually works in one pass, but if not...
@@ -1465,6 +1474,9 @@ func Factor1980AutoPMC(q uint) uint {
 	// Test for Sqaure Root factor
 	if q == pollard_limit*pollard_limit {
 		// fmt.Printf("Found squared post at %d (%d)\n", pollard_limit, q)
+		if singlePrimeOnly {
+			return Factor1980AutoPMC(pollard_limit, singlePrimeOnly)
+		}
 		return pollard_limit
 	}
 	// fmt.Printf("pollard_limit(%d) => %d\n", q, pollard_limit)
@@ -1472,6 +1484,9 @@ func Factor1980AutoPMC(q uint) uint {
 	for pollard <= pollard_limit {
 		unk := Factor1980PollardMonteCarlo(q, pollard)
 		if 0 != unk {
+			if singlePrimeOnly {
+				return Factor1980AutoPMC(unk, singlePrimeOnly)
+			}
 			return unk
 		}
 		pollard++
@@ -1489,6 +1504,7 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 		}
 		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 1, Power: 1}}}
 	}
+
 	// FIXME: insert sorted heap
 	// facts := make([]Factorpair, 0, 8)
 	facts := &FactorpairQueue{}
@@ -1521,48 +1537,15 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 			heap.Push(facts, fac)
 		}
 	}
-
-	zz := 1000
-	// pollard_limit := uint(20) // FIXME: how many seeds attempts are reasonable?
-	var pollard_limit uint
-	pollard := uint(0)
-	for 1 < q && zz > 0 {
-		// known if prime or composite
-		if q <= p.Last && p.KnownPrime(q) {
+	// zz := 1000
+	// for 1 < q && zz > 0 {
+	for 1 < q {
+		unk := Factor1980AutoPMC(q, false)
+		// Probably Prime
+		if unk == q {
 			heap.Push(facts, Factorpair{Base: uint16(q), Power: 1})
 			break
 		}
-		unk := Factor1980PollardMonteCarlo(q, pollard)
-		if 0 == unk {
-			if 0 == pollard_limit {
-				// __approximate__ an integer square root, POW(pollard_limit, 2) _MUST_ be >= q
-				pollard_limit = uint(1)
-				for t := q >> 1; pollard_limit < t; t >>= 1 {
-					pollard_limit <<= 1
-				}
-				for dist := pollard_limit >> 1; 0 < dist; dist >>= 1 {
-					t := pollard_limit + dist
-					if t*t < q {
-						pollard_limit += dist
-					}
-				}
-				pollard_limit++
-				// fmt.Printf("pollard_limit(%d) => %d\n", q, pollard_limit)
-			}
-			// likely prime
-			if pollard_limit < pollard {
-				// fmt.Printf("Factor1980PollardMonteCarlo tried %d times, unable to factor likely prime %d\n", pollard, q)
-				heap.Push(facts, Factorpair{Base: uint16(q), Power: 1})
-				break
-			}
-			pollard++
-			continue
-		}
-		// 'refund' the operation limit if a factor is found.
-		if 0 < pollard {
-			zz += int(pollard)
-		}
-		pollard = 0
 		q /= unk
 		sf := p.Factorize(unk)
 		for ii := uint(0); ii < sf.Lenbase; ii++ {
@@ -1578,8 +1561,9 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 			heap.Push(facts, sf.Fact[ii])
 		}
 		// fmt.Printf("Factorize: %d @ %d\n", qin, q)
-		zz--
+		// zz--
 	}
+
 	var base, power uint
 	fact := make([]Factorpair, 0, facts.Len())
 	for 0 < facts.Len() {
