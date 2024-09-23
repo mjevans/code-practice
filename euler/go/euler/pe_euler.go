@@ -70,6 +70,7 @@ import (
 	"math/big"
 	"sort"
 	"strings"
+	"sync"
 	// "os" // os.Stdout
 	"container/heap"
 )
@@ -90,6 +91,26 @@ func minT[T int](a, b T) T {
 	return b
 }
 
+/*	I
+ *	I
+ *	I
+ *	I
+ *	I
+ *	I
+		for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
+*/
+
+// globals
+var (
+	Primes *BVPrimes
+)
+
+func init() {
+	Primes = NewBVPrimes()
+}
+
+/*
+// Deprecated function supported by shim interface to Primes
 func Factor(primes *[]int, num int) *[]int {
 	// Public school factoring algorithm from memory...
 	// Trial Division - https://en.wikipedia.org/wiki/Integer_factorization#Factoring_algorithms
@@ -118,6 +139,7 @@ func Factor(primes *[]int, num int) *[]int {
 	return ret
 }
 
+// Deprecated function supported by shim interface to Primes
 func GetPrimes(primes *[]int, primehunt int) *[]int {
 	if nil == primes {
 		primes = &[]int{2, 3, 5, 7, 11, 13, 17, 19}
@@ -139,6 +161,7 @@ PrimeHunt:
 	}
 	return primes
 }
+*/
 
 func PrintFactors(factors []int) {
 	// Join only takes []string s? fff
@@ -450,7 +473,7 @@ pdqsort
 Pattern-defeating quicksort (pdqsort) is a variant of introsort incorporating the following improvements:[8]
 
     Median-of-three pivoting,
-    "BlockQuicksort" partitioning technique to mitigate branch misprediction penalities,
+    "BlockQuicksort" partitioning technique to mitigate branch misprediction penalties,
     Linear time performance for certain input patterns (adaptive sort),
     Use element shuffling on bad cases before trying the slower heapsort.
 
@@ -868,6 +891,7 @@ type BVpage [BVpagesize]uint8
 
 type BVPrimes struct {
 	Last uint
+	Mu   sync.Mutex
 	PV   []*BVpage // starting from bit 0 (set) == 3 (prime), record all odd primes with SET bits
 	// MAYBE primes are any unset bits > Last, unset bits < Last == composite
 }
@@ -954,11 +978,15 @@ func (p *BVPrimes) PrimeAfter(ii uint) uint {
 func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 	ii := (input - 3 + 2) // the prime number AFTER ii, E.G. 6 -> 7
 	bidx := (ii & BVprimeByteBitMask) >> 1
+	bidx0 := bidx
 	ii >>= BVprimeByteBitShift
 	pg, pidx := ii/BVpagesize, ii%BVpagesize
 	pgmax, pmax := uint(len(p.PV)), ((limit-3)>>BVprimeByteBitShift)%BVpagesize
+	// pg
 	if pg <= pgmax {
-		for pidx <= pmax {
+		// pidx
+		for (pg <= pgmax-1 && pidx < BVpagesize) || (pg == pgmax-1 && pidx <= pmax) {
+			// bidx
 			for ; bidx < BVbitsPerByte; bidx++ {
 				if 0 == p.PV[pg][pidx]&(uint8(1)<<bidx) {
 					return ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint(bidx)<<1 + 3
@@ -974,15 +1002,29 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 	}
 	fmt.Printf("Unable to locate prime after %d under %d\t[%d/%d][%d/%d]\t", input, limit, pg, pgmax, pidx, pmax)
 	pg, pidx = ii/BVpagesize, ii%BVpagesize
-	fmt.Printf("started near [%d][%d]\n", pg, pidx)
+	fmt.Printf("started near [%d][%d]:%d\n", pg, pidx, bidx0)
 	return 0
 }
 
 func (p *BVPrimes) Grow(limit uint) {
+	if 0x10000f < limit {
+		fmt.Printf("Emperically refusing to grow past ~2sec runtime (~2015 era Xeon 1 CPU core) %d < %d", 0x100000, limit)
+		panic("Likely overflow")
+		// https://en.wikipedia.org/wiki/Primality_test#Number-theoretic_methods
+	}
+
 	if p.Last >= limit {
-		fmt.Printf("Already above requested growth limit, %d, at %d\n", limit, p.Last)
+		// fmt.Printf("Already above requested growth limit, %d, at %d\n", limit, p.Last)
 		return
 	}
+
+	// Attempt to lock, if another goroutine (thread) is updating p.Last has probably changed
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
+	if p.Last >= limit {
+		return
+	}
+
 	// last l1 cache line
 	cl1z := (((limit - 3) >> BVprimeByteBitShift) / uint(BVl1)) + uint(1)
 
@@ -994,11 +1036,16 @@ func (p *BVPrimes) Grow(limit uint) {
 		p.PV = append(make([]*BVpage, 0, pagez), p.PV...)
 		for lenpv <= pagez {
 			p.PV = append(p.PV, new(BVpage))
+			lenpv++
 		}
 	}
 
 	// FIXME: test case, end of BVl1 #0 is 1025 (1026 should also get eaten, but not marked since it's compressed)
 	// test case, end of page 1 is 65537 (uint16max + 1)
+
+	// https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
+	// https://en.wikipedia.org/wiki/Sieve_of_Sundaram
+	// https://en.wikipedia.org/wiki/List_of_prime_numbers
 
 	base := (p.Last - 3 + 2) // the prime number AFTER ii, E.G. 33 -> 34
 	// bidx := (base & BVprimeByteBitMask) >> 1
@@ -1012,8 +1059,24 @@ func (p *BVPrimes) Grow(limit uint) {
 		cl1max := (((line+1)*BVl1-1)*BVbitsPerByte + (BVbitsPerByte - 1)) % (BVpagesize * BVbitsPerByte)
 		cl1maxNum := ((pg * BVpagesize) << BVprimeByteBitShift) + cl1max<<1 + 3
 
-		// Emperically it didn't take _too_ long to generate up to 4097, however it became a total slog after that point
-		// if 4096 > (line*BVl1<<1)+3 {
+		// ??? FIXME ???
+		// This might be seen as a refined and optimized version of 'first gear'; extending the concepts of trial division, wheel, and sieves.
+		// As it marks prime repeats (the odd multiples), the repeat of the 'next' prime must extend past the current page of the array.
+		// (duh) More primes must be tested the deeper numbers progress.
+		// FIXME: It's well past the scope of this library (educational / toy work) to quantify the computational growth pattern, or even an approximation, of how quickly the cost grows...
+		// Though it does seem clear that it's well under the number 1,000,000
+		// At some point it must make sense to switch to a different gear
+		//
+		// Gear 2: _partial_ filter pages for primes up to a reasonable cost... Likely less than one cache line's worth of bitfield; probably way less if the growth rate is any indication.
+		//         Then test each not known-composite number on the current page with another algo, E.G. Factor1980PollardMonteCarlo
+		//
+		// Gear 2 might be worth it if there's a major need to know all the primes under a given value, rather than just factoring. This seive cost VS GCDbin VS Pollard?
+
+		// const limit = uint( 0x100000 - 1) // 1M ~ 1.73s on my home NAS/server
+		// const limit = uint( 0x200000 - 1) // 2M ~ 7.45s on my home NAS/server
+		// const limit = uint( 0x400000 - 1) // 4M ~ 30.92s on my home NAS/server
+		// const limit = uint(0x1000000 - 1) // 16777215 ~ 508.46 on my home NAS/server
+		// ... Unless it's REALLY important to quickly know if a number is a prime or not, probably too long.  Only ~8MB of mem though, so easily worth computing once, SAVING, and then loading if doing repeatedly.
 		if true {
 
 			//	Last	Next	Pri	Correct	Diff	FlMod(2p)+p
@@ -1031,8 +1094,8 @@ func (p *BVPrimes) Grow(limit uint) {
 			// bit-bit address to start the process, in this case also the 'base bit' beneath which no marks
 			// cl1min := (((p.Last - 3 + 2) >> 1) - (line*uint(BVl1*BVbitsPerByte))%(BVpagesize*BVbitsPerByte))
 			// if pg < pgmax {
-			prime := uint(3)
 			// fmt.Printf("Primes.Grow(%d) INIT [..%d] %d (%d/%d)\n", limit, cl1maxNum, prime, line, cl1z)
+			prime := uint(3)
 			for {
 				if prime<<1 >= p.Last {
 					newLast := cl1maxNum
@@ -1084,8 +1147,31 @@ func (p *BVPrimes) Grow(limit uint) {
 			//continue
 		} else {
 			// fmt.Printf("Primes.Grow(%d) reached unsupported quantity, p.Last = %d\n", limit, p.Last)
-			// panic(p.Last)
+			panic(p.Last)
 		}
+
+		// debug / verification / extra output
+		/*
+			newPrimes := 0
+			cl1min := (((line) * BVl1) * BVbitsPerByte) % (BVpagesize * BVbitsPerByte)
+			cl1minNum := ((pg * BVpagesize) << BVprimeByteBitShift) + cl1min<<1 + 3
+			for ii := cl1min; ii <= cl1max; ii++ {
+				if 0 == p.PV[pg][ii>>(BVprimeByteBitShift-1)]&(uint8(1)<<(ii&BVprimeByteBitMaskPost)) {
+					newPrimes++
+					pnum := ((pg * BVpagesize) << BVprimeByteBitShift) + ii<<1 + 3
+					fmt.Printf("\t%d,", pnum)
+					pfact := Factor1980PollardMonteCarlo(pnum, 0)
+					if pfact != 0 {
+						fmt.Printf("\n!!! factor %d ? in %d , please check\n", pfact, pnum)
+					}
+				}
+			}
+			fmt.Printf("\nLine: %d primes between %d .. %d\n", newPrimes, cl1minNum, cl1maxNum)
+			if 0 == newPrimes || newPrimes > BVl1*BVbitsPerByte>>1 {
+				panic("Found ZERO primes?  Not correct.")
+			}
+		*/
+
 		p.Last = cl1maxNum
 		// fmt.Printf("Primes.Grow(%d) upto %d\t(%d/%d)\n", limit, p.Last, line, cl1z)
 
@@ -1095,7 +1181,7 @@ func (p *BVPrimes) Grow(limit uint) {
 
 func (p *BVPrimes) MaybePrime(q uint) bool {
 	// Use base2 storage inherent test for division by 2
-	if 0 == q&0x01 {
+	if 0 == q&0x01 && 2 < q {
 		return false
 	}
 	if q > p.Last {
@@ -1107,7 +1193,7 @@ func (p *BVPrimes) MaybePrime(q uint) bool {
 
 func (p *BVPrimes) KnownPrime(q uint) bool {
 	// Use base2 storage inherent test for division by 2
-	if 0 == q&0x01 || q > p.Last {
+	if (0 == q&0x01 && 2 < q) || q > p.Last {
 		return false
 	}
 	pd := p.PrimeOrDown(q)
@@ -1116,7 +1202,9 @@ func (p *BVPrimes) KnownPrime(q uint) bool {
 
 func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
 	if nil == primes {
-		*primes = make([]int, 0, 8+num)
+		primes = &[]int{}
+		//*primes = make([]int, 0, 8+num)
+		*primes = append(make([]int, 0, 8+num), 2)
 	} else {
 		*primes = append(make([]int, 0, 8+num), (*primes)...)
 	}
@@ -1124,10 +1212,12 @@ func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
 	ii := len(*primes)
 	lim := cap(*primes)
 	prime := uint((*primes)[ii-1])
+	// fmt.Printf("GetPrimesInt: cap %d\n", lim)
 	for ; ii < lim; ii++ {
 		prime = p.PrimeAfter(prime)
 		*primes = append(*primes, int(prime))
 	}
+	// fmt.Printf("GetPrimesInt: %v\n", *primes)
 	return primes
 }
 
@@ -1144,6 +1234,10 @@ func GCDbin(a, b uint) uint {
 
 	// There is a better way to count trailing zeros, but it uses annoying magic numbers or imports "math/bits"
 
+	a0, b0 := a, b
+	//fmt.Printf("GCDbin %d, %d\n", a0, b0)
+	//if a0 > 0xffffff || b0 > 0xffffff {
+	//	panic("overflow") }
 	if 0 == b {
 		return a
 	}
@@ -1151,13 +1245,22 @@ func GCDbin(a, b uint) uint {
 		return b
 	}
 
-	k := 0
-	// k == count of common 2 factors
-	for 0 == a&1 && 0 == b&1 {
+	var ka, kb int
+	k := 0 // k == count of common 2 factors
+	for 0 == a&1 {
 		a >>= 1
-		b >>= 1
-		k++
+		ka++
 	}
+	for 0 == b&1 {
+		b >>= 1
+		kb++
+	}
+	if ka > kb {
+		k = kb
+	} else {
+		k = ka
+	}
+
 	for {
 		if a < b {
 			a, b = b, a
@@ -1167,8 +1270,14 @@ func GCDbin(a, b uint) uint {
 			return b << k
 		}
 		// b is odd, therefore no more common 2 factors, discard
+		g := 0
 		for 0 == a&1 {
 			a >>= 1
+			g++
+			if g > 63 {
+				fmt.Printf("GCDbin failed to converge with %d, %d\n", a0, b0)
+				panic("overflow")
+			}
 		}
 	}
 }
@@ -1219,9 +1328,16 @@ Pollard: 5309 ??         (4 >= 32) || (1 < 5309)        689     689
 
 // Returns _a_ factor OR 0 on failure (means MAYBE prime, 289 fails) (0 or 1 are never returned on success) 'took x0 := 0 ; m = 1'
 func Factor1980PollardMonteCarlo(N, x0 uint) uint {
+	// https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
+
 	// https://maths-people.anu.edu.au/~brent/pub/pub051.html
 	// https://maths-people.anu.edu.au/~brent/pd/rpb051i.pdf
 	//if 0 == x0 { x0 = 2 }
+
+	// if x0 > 0xffffff {
+	//	fmt.Printf("x0 unlikely large: %d\n", x0)
+	//	panic("unexpected value")
+	//}
 
 	// print pg182-183 p"2
 	fx := func(x, Nin uint) uint {
@@ -1237,7 +1353,7 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 		if a < b {
 			return b - a
 		}
-		return b - a
+		return a - b
 	}
 
 	// they 'took x0 := 0 ; m = 1' -- pg183 8.
@@ -1258,7 +1374,7 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 	//								if G == N then {failure} else {success}
 
 	// x := r Round? / Rotate / Roll? (bitshift / pass) (fast hare)
-	// y := k seems to be the slow tortice
+	// y := k seems to be the slow tortoise
 	//
 	//								y := x0 ; r := 1 ; q := 1 ;
 	y, r, q, m := uint(x0), uint(1), uint(1), uint(1)
@@ -1268,12 +1384,12 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 		x = y
 		//								for i := 1 to r do y := f(y) ; k := 0 ;
 		for ii = 1; ii <= r; ii++ {
-			y = fx(y, N)
+			y = fx(y, N) // tortoise
 		}
 		k = 0
 		//								repeat ys := y ;
 		for {
-			ys = y
+			ys = y // save Y for GCD extraction?
 			//								for i := 1 to min(m, r-k) do
 			iz := umin(m, r-k)
 			for ii = 0; ii <= iz; ii++ {
@@ -1318,6 +1434,51 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 	return G
 }
 
+func Factor1980AutoPMC(q uint) uint {
+	if 0 == q&1 {
+		return 2
+	}
+	unk := Factor1980PollardMonteCarlo(q, 0)
+	if 0 != unk {
+		return unk
+	}
+	// Usually works in one pass, but if not...
+
+	// __approximate__ an integer square root, POW(pollard_limit, 2) _MUST_ be > q == pl*pl means square root factor
+	pollard := uint(1)
+	pollard_limit := pollard
+	for t := q >> 1; pollard_limit < t; t >>= 1 {
+		pollard_limit <<= 1
+	}
+	for dist := pollard_limit >> 1; 0 < dist; dist >>= 1 {
+		t := pollard_limit + dist
+		if t*t < q {
+			pollard_limit += dist
+		}
+	}
+	// Only found 2 which deserves a guard at the top
+	// if q == pollard_limit*pollard_limit {
+	//	fmt.Printf("Found squared pre at %d (%d)\n", pollard_limit, q)
+	//	return pollard_limit }
+	pollard_limit++
+	// 17 (289) 79 (6241) 139 (19321) 181 (32761)
+	// Test for Sqaure Root factor
+	if q == pollard_limit*pollard_limit {
+		// fmt.Printf("Found squared post at %d (%d)\n", pollard_limit, q)
+		return pollard_limit
+	}
+	// fmt.Printf("pollard_limit(%d) => %d\n", q, pollard_limit)
+
+	for pollard <= pollard_limit {
+		unk := Factor1980PollardMonteCarlo(q, pollard)
+		if 0 != unk {
+			return unk
+		}
+		pollard++
+	}
+	return q
+}
+
 func (p *BVPrimes) Factorize(q uint) *Factorized {
 	qin := q
 	_ = qin
@@ -1332,15 +1493,38 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 	// facts := make([]Factorpair, 0, 8)
 	facts := &FactorpairQueue{}
 	heap.Init(facts)
+
+	// Special test & extract: base2, /2
 	k := 0
 	for 0 == q&1 {
 		q >>= 1
+		k++
 	}
 	if 0 < k {
 		heap.Push(facts, Factorpair{Base: 2, Power: uint16(k)})
 	}
+
+	// pLim := uint(7)
+	// p.Grow(pLim)
+	// for cur := uint(3); 1 < q && cur <= pLim; cur = p.primeAfterUnsafe(cur, pLim) {
+
+	// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
+	smallPrimes := []uint16{3, 5, 7}
+	for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
+		fac := Factorpair{Base: smallPrimes[cur], Power: uint16(0)}
+		qd := uint(smallPrimes[cur])
+		for 0 == q%qd {
+			q /= qd
+			fac.Power++
+		}
+		if 0 < fac.Power {
+			heap.Push(facts, fac)
+		}
+	}
+
 	zz := 1000
-	pollard_limit := uint(20) // FIXME: how many seeds attempts are reasonable?
+	// pollard_limit := uint(20) // FIXME: how many seeds attempts are reasonable?
+	var pollard_limit uint
 	pollard := uint(0)
 	for 1 < q && zz > 0 {
 		// known if prime or composite
@@ -1350,13 +1534,33 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 		}
 		unk := Factor1980PollardMonteCarlo(q, pollard)
 		if 0 == unk {
-			if pollard_limit == pollard {
-				// fmt.Printf("Factorize returned 0 for: %d\n", q)
+			if 0 == pollard_limit {
+				// __approximate__ an integer square root, POW(pollard_limit, 2) _MUST_ be >= q
+				pollard_limit = uint(1)
+				for t := q >> 1; pollard_limit < t; t >>= 1 {
+					pollard_limit <<= 1
+				}
+				for dist := pollard_limit >> 1; 0 < dist; dist >>= 1 {
+					t := pollard_limit + dist
+					if t*t < q {
+						pollard_limit += dist
+					}
+				}
+				pollard_limit++
+				// fmt.Printf("pollard_limit(%d) => %d\n", q, pollard_limit)
+			}
+			// likely prime
+			if pollard_limit < pollard {
+				// fmt.Printf("Factor1980PollardMonteCarlo tried %d times, unable to factor likely prime %d\n", pollard, q)
 				heap.Push(facts, Factorpair{Base: uint16(q), Power: 1})
 				break
 			}
 			pollard++
 			continue
+		}
+		// 'refund' the operation limit if a factor is found.
+		if 0 < pollard {
+			zz += int(pollard)
 		}
 		pollard = 0
 		q /= unk
@@ -1387,53 +1591,26 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 	return &Factorized{Lenbase: base, Lenpow: power, Fact: fact}
 }
 
-// TODO: method functions + shims for these...
-// Factorize
-// TODO: also Ro factor from the 1980s paper PDF
-//
-
-/*
-// inefficient stub, FIXME: global instance?
+// Deprecated function supported by shim interface to Primes
 func GetPrimes(primes *[]int, num int) *[]int {
-	p = NewBVPrimes()
-	return p.GetPrimesInt(primes, num)
+	return Primes.GetPrimesInt(primes, num)
 }
 
-*/
-
-/*
+// Deprecated function supported by shim interface to Primes
 func Factor(primes *[]int, num int) *[]int {
-	//
-	// Public school factoring algorithm from memory...
-
-	// With a list of known primes, the largest number that can be factored is Pn * Pn
-	for ; nil == primes || num > (*primes)[len(*primes)-1]*(*primes)[len(*primes)-1]; primes = GetPrimes(primes, 0) {
-		// fmt.Println(len(primes), primes[len(primes)-1])
+	fp := Primes.Factorize(uint(num))
+	ret := make([]int, 0, fp.Lenpow)
+	iiLim := len(fp.Fact)
+	if int(fp.Lenbase) != iiLim {
+		fmt.Printf("WARNING: malformed factor pair returned by Primes.Factorize(), %d != %d", fp.Lenbase, iiLim)
 	}
-
-	ret := &[]int{}
-	if num < 2 {
-		return ret
-	}
-	for _, prime := range *primes {
-		for ; 0 == num%prime; num /= prime {
-			*ret = append(*ret, prime)
+	for ii := 0; ii < iiLim; ii++ {
+		for kk := 0; kk < int(fp.Fact[ii].Power); kk++ {
+			ret = append(ret, int(fp.Fact[ii].Base))
 		}
-		if num < prime*prime {
-			break
-		} // break if no more prime factors are possible
 	}
-	if 1 < num {
-		*ret = append(*ret, num)
-	}
-	// fmt.Println("Factor:\t", num, "\n", ret, primes)
-	return ret
+	return &ret
 }
-
-// func GetPrimes(primes *[]int, primehunt int) *[]int
-
-
-*/
 
 type Factorpair struct {
 	Base  uint16
@@ -1565,12 +1742,3 @@ func (pq *FactorpairQueue) Pop() any {
 	*pq = (*pq)[0:n]
 	return fp
 }
-
-/*
-func (pq FactorpairQueue) ()  {
-}
-
-
-func (pq FactorpairQueue) ()  {
-}
-*/
