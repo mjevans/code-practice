@@ -202,8 +202,8 @@ func TestOverkillSeed(t *testing.T) {
 	// const limit = uint( 0x400000 - 1) // 4M ~ 30.92s on my home NAS/server
 	// const limit = uint(0x1000000 - 1) // 16777215 ~ 508.46 on my home NAS/server ... Unless it's REALLY important to quickly know if a number is a prime or not, probably too long.  Only ~8MB of mem though, so easily worth computing once, SAVING, and then loading if doing repeatedly.
 
-	// const limit = uint(0x200000 - 1)
-	const limit = uint(65535)
+	const limit = uint(0x100000 - 64)
+	// const limit = uint(65535)
 	t.Logf("Verify / Profile Factor1980PollardMonteCarlo(p, seed) upto: %d\n", limit)
 	p := euler.Primes
 	p.Grow(limit)
@@ -279,6 +279,53 @@ func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
 		if false == p.KnownPrime(f) {
 			t.Errorf("FAILED to successfully factor: %d ~ %d", ii, f)
 			t.Fatal("")
+		}
+	}
+}
+
+func TestFactorizeProperDivisors(t *testing.T) {
+	tests := []struct {
+		test uint64
+		ans  []uint64
+	}{
+		{5309, []uint64{1}},
+		{16, []uint64{1, 2, 4, 8}},
+		{867, []uint64{1, 3, 17, 51, 289}},
+	}
+	// {1885, []uint64{1, 5, 13, 29}},
+	// {2024, []uint64{1, 2, 2, 2, 11, 23}},
+	p := euler.Primes
+	for _, test := range tests {
+		propdiv := *(p.Factorize(uint(test.test)).ProperDivisors())
+		if len(test.ans) != len(propdiv) {
+			t.Errorf("Lengths do not match:\n%v\n%v\n", test.ans, propdiv)
+		}
+		for ii := 0; ii < len(propdiv); ii++ {
+			if test.ans[ii] != propdiv[ii] {
+				t.Errorf("Factor mismatch: [%d] expected %d got %d\n%v\n%v\n", ii, test.ans[ii], propdiv[ii], test.ans, propdiv)
+			}
+		}
+	}
+}
+
+func TestRotateDecDigits(t *testing.T) {
+	tests := []struct {
+		test uint64
+		ans  []uint64
+	}{
+		{5309, []uint64{5309, 9530, 953, 3095}},
+		{16, []uint64{16, 61}},
+		{867, []uint64{867, 786, 678}},
+	}
+	for _, test := range tests {
+		rots := euler.RotateDecDigits(test.test)
+		if len(test.ans) != len(rots) {
+			t.Errorf("Lengths do not match:\n%v\n%v\n", test.ans, rots)
+		}
+		for ii := 0; ii < len(rots); ii++ {
+			if test.ans[ii] != rots[ii] {
+				t.Errorf("Roation mismatch: [%d] expected %d got %d\n%v\n%v\n", ii, test.ans[ii], rots[ii], test.ans, rots)
+			}
 		}
 	}
 }

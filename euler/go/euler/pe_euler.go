@@ -751,6 +751,32 @@ func PermutationString(perm int, str string) string {
 	return string(res)
 }
 
+func RotateDecDigits(x uint64) []uint64 {
+	y := x
+	temp := make([]uint8, 0, 40) // a unit64 needs at most 20 digits but
+	for y > 0 {
+		temp = append(temp, uint8(y%10))
+		y /= 10
+	}
+	rots := len(temp)
+	temp = append(temp, temp...)
+	ret := append(make([]uint64, 0, rots), x)
+	// 0 1 2 3 0 1 2 3 // rots == 4
+	//   1 2 3 4
+	//     1 2 3 4
+	//       1 2 3 4
+	//         1 2 3 4
+	for ii := 0; ii+1 < rots; ii++ {
+		r := uint64(0)
+		for d := rots; 0 < d; d-- {
+			r *= 10
+			r += uint64(temp[ii+d])
+		}
+		ret = append(ret, r)
+	}
+	return ret
+}
+
 func BsearchInt(list *[]int, val int) bool {
 	end := len(*list)
 	if nil == list || 1 > end {
@@ -789,6 +815,17 @@ type Rational struct {
 
 func NewRational(num, den int64) *Rational {
 	return &Rational{num, den, 0, 0, []int8{}, []int8{}}
+}
+
+func (ra *Rational) MulRat(rr *Rational) *Rational {
+	rNum := ra.Num * rr.Num
+	rDen := ra.Den * rr.Den
+	rGCD := int64(GCDbin(uint(rDen), uint(rNum)))
+	if 1 < rGCD {
+		rNum /= rGCD
+		rDen /= rGCD
+	}
+	return &Rational{rNum, rDen, 0, 0, []int8{}, []int8{}}
 }
 
 func (ra *Rational) Divide() {
@@ -1505,8 +1542,6 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 1, Power: 1}}}
 	}
 
-	// FIXME: insert sorted heap
-	// facts := make([]Factorpair, 0, 8)
 	facts := &FactorpairQueue{}
 	heap.Init(facts)
 
@@ -1670,6 +1705,7 @@ func (facts *Factorized) Mul(fin *Factorized) *Factorized {
 }
 
 func (fl Factorized) Eq(fr *Factorized) bool {
+	// I already wrote this and it's good to see that reflect.DeepEqual() is notably slower than a directed codepath. https://stackoverflow.com/a/15312182
 	if fl.Lenbase != fr.Lenbase || fl.Lenpow != fr.Lenpow {
 		return false
 	}
@@ -1681,6 +1717,28 @@ func (fl Factorized) Eq(fr *Factorized) bool {
 	return true
 }
 
+func (fl Factorized) Compare(fr *Factorized) int {
+	// (unverified) Creating and comparing two BigInts is _PROBABLY_ expensive...
+	if fl.Eq(fr) {
+		return 0
+	}
+	left, right := fl.BigInt(), fr.BigInt()
+	return left.Cmp(right)
+}
+
+func (fl Factorized) Cmp(fr *Factorized) int { return fl.Compare(fr) }
+
+func (fl Factorized) BigInt() *big.Int {
+	ret := big.NewInt(int64(1))
+	for ii := uint(0); ii < fl.Lenbase; ii++ {
+		base := big.NewInt(int64(fl.Fact[ii].Base))
+		for ee := uint16(0); ee < fl.Fact[ii].Power; ee++ {
+			ret = ret.Mul(ret, base) // math.Pow(x, y float64) float64 {...}
+		}
+	}
+	return ret
+}
+
 func (fact *Factorized) Uint64() uint64 {
 	ret := uint64(1)
 	for ii := uint(0); ii < fact.Lenbase; ii++ {
@@ -1690,6 +1748,167 @@ func (fact *Factorized) Uint64() uint64 {
 	}
 	return ret
 }
+
+func (fact *Factorized) Copy() *Factorized {
+	// len(Fact) SHOULD == Lenbase ... but this copies even not-normalized versions (without validating)
+	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow, Fact: make([]Factorpair, len(fact.Fact))}
+	copy(ret.Fact, fact.Fact)
+	return ret
+}
+
+// Extract(transitive?)Power E.G.  4[^2] == (2^1, 2)[^2]
+func (fact *Factorized) ExtractPower() (*Factorized, uint) {
+	// Simplify the code at a small memory cost
+	if 0 == fact.Lenbase {
+		return fact.Copy(), 0
+	}
+	buf := make([]uint, 0, fact.Lenbase+1)
+	for ii := uint(0); ii < fact.Lenbase; ii++ {
+		buf = append(buf, uint(fact.Fact[ii].Power))
+	}
+
+	for terms := fact.Lenbase; 1 < terms; terms >>= 1 {
+		// fmt.Printf("ExtractPower() Round: %v\n", buf)
+		var ii uint
+		for ii = 0; ii+1 < terms; ii += 2 {
+			buf[ii>>1] = GCDbin(buf[ii], buf[ii+1])
+			if 1 == buf[ii>>1] {
+				return fact.Copy(), 1
+			}
+		}
+		if ii+1 == terms {
+			if 1 == buf[ii] {
+				return fact.Copy(), 1
+			}
+			buf[ii>>1] = buf[ii]
+		}
+		terms++
+		terms >>= 1 // flooring binary division
+	}
+	// fmt.Printf("ExtractPower() Final: %v\n", buf)
+	if 1 == buf[0] {
+		return fact.Copy(), 1
+	}
+	iiLim := len(fact.Fact)
+	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow / buf[0], Fact: make([]Factorpair, iiLim)}
+	for ii := 0; ii < iiLim; ii++ {
+		ret.Fact[ii].Base = fact.Fact[ii].Base
+		ret.Fact[ii].Power = fact.Fact[ii].Power / uint16(buf[0])
+	}
+	return ret, buf[0]
+}
+
+func (fact *Factorized) Pow(p uint) *Factorized {
+	// Simplify the code at a small memory cost
+	if 0 == p {
+		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: append(make([]Factorpair, 0, 1), Factorpair{Base: 2, Power: 0})}
+	}
+	iiLim := len(fact.Fact)
+	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow * p, Fact: make([]Factorpair, iiLim)}
+	for ii := 0; ii < iiLim; ii++ {
+		ret.Fact[ii].Base = fact.Fact[ii].Base
+		ret.Fact[ii].Power = fact.Fact[ii].Power * uint16(p)
+	}
+	return ret
+}
+
+func (fact *Factorized) PowDivMul(num, den uint) *Factorized {
+	// Simplify the code at a small memory cost
+	// Divide by zero is not legal, this is the closest I've got to NaN at the moment.
+	if 0 == den {
+		return &Factorized{}
+	}
+	if 0 == num {
+		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: append(make([]Factorpair, 0, 1), Factorpair{Base: 2, Power: 0})}
+	}
+	iiLim := len(fact.Fact)
+	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: (fact.Lenpow / den) * num, Fact: make([]Factorpair, iiLim)}
+	for ii := 0; ii < iiLim; ii++ {
+		ret.Fact[ii].Base = fact.Fact[ii].Base
+		ret.Fact[ii].Power = (fact.Fact[ii].Power / uint16(den)) * uint16(num)
+	}
+	return ret
+}
+
+func (f *Factorized) ProperDivisors() *[]uint64 {
+	flen := len(f.Fact)
+	if 0 == flen {
+		return &[]uint64{1}
+	}
+	//if 1 == flen {
+	//	return append(make([]uint, 0, 1), uint(f.Fact[0]))
+	//}
+	if flen > 64 {
+		panic("Factorized.ProperDivisors() does not support more than 64 factors")
+	}
+	if uint(flen) != f.Lenbase {
+		fmt.Printf("ERROR ProperDivisors(): Lenbase != len(Fact): %v\n", f)
+	}
+	sf := make([]uint, 0, f.Lenpow)
+	for ii := uint(0); ii < f.Lenbase; ii++ {
+		for pp := uint16(0); pp < f.Fact[ii].Power; pp++ {
+			sf = append(sf, uint(f.Fact[ii].Base))
+		}
+	}
+	var limit uint64
+	if 64 == f.Lenpow {
+		limit ^= 1
+	} else {
+		limit = (uint64(1) << f.Lenpow) - 1
+	}
+
+	almost := uint64(1)
+	for ff := uint(1); ff < f.Lenpow; ff++ {
+		almost *= uint64(sf[ff])
+	}
+	bitVec := bitvector.NewBitVector(almost)
+	bitVec.Set(1)      // All 0s
+	bitVec.Set(almost) // ^1 // ~1
+	for ii := uint64(1); ii < limit; ii++ {
+		bit := uint64(1)
+		ar := uint64(1)
+		for ff := uint(0); ff < f.Lenpow; ff++ {
+			if 0 < ii&bit {
+				ar *= uint64(sf[ff])
+			}
+			bit <<= 1
+		}
+		bitVec.Set(ar)
+	}
+	res := bitVec.GetUInt64s()
+	// fmt.Printf("ProperDivisors() %d : 1 .. %d ??\t%v\n", f.Lenpow, almost, res)
+	return res
+}
+
+/*
+func FactorsToProperDivisors(factors *[]int) *[]int {
+	fl := len(*factors)
+	if 0 == fl {
+		return factors
+	}
+	if 2 > fl {
+		return &[]int{1}
+	}
+	if fl > 63 {
+		panic("FtD does not support more than 63 factors.")
+	}
+	limit := (uint64(1) << fl) - 1
+	bitVec := bitvector.NewBitVector(uint64(ListMul((*factors)[1:])))
+	bitVec.Set(uint64(1))
+	for ii := uint64(0); ii < limit; ii++ {
+		div := 1
+		bb := uint64(1)
+		for ff := 0; ff < fl; ff++ {
+			if 0 < ii&bb {
+				div *= (*factors)[ff]
+			}
+			bb <<= 1
+		}
+		bitVec.Set(uint64(div))
+	}
+	return bitVec.GetInts()
+}
+*/
 
 // Priority Queue heap https://pkg.go.dev/container/heap@go1.22.6
 
@@ -1724,5 +1943,36 @@ func (pq *FactorpairQueue) Pop() any {
 	n := len(*pq) - 1
 	fp := (*pq)[n]
 	*pq = (*pq)[0:n]
+	return fp
+}
+
+// Factorpair has no dynamic/reference based storage, simple copy is fine
+type UintQueue []uint
+
+func (uq UintQueue) Raw() []uint {
+	conv := ([]uint)(uq)
+	return conv
+}
+
+func (uq UintQueue) Len() int { return len(uq) }
+
+func (uq UintQueue) Less(queA, queB int) bool {
+	// "less" holds items closer to the base of the array
+	return uq[queA] < uq[queB]
+}
+
+func (uq UintQueue) Swap(queA, queB int) {
+	uq[queA], uq[queB] = uq[queB], uq[queA]
+	// 'Item' lacks priority and lacks index
+}
+
+func (uq *UintQueue) Push(fp any) {
+	*uq = append(*uq, fp.(uint))
+}
+
+func (uq *UintQueue) Pop() any {
+	n := len(*uq) - 1
+	fp := (*uq)[n]
+	*uq = (*uq)[0:n]
 	return fp
 }
