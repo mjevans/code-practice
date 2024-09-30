@@ -981,7 +981,7 @@ func (p *BVPrimes) PrimeOrDown(ii uint) uint {
 			pidx--
 		}
 		if 0 == pg && 0 == pidx {
-			fmt.Println("Hit the floor fallback = 3; PrimeOrDown()")
+			// fmt.Println("Hit the floor fallback = 3; PrimeOrDown()")
 			return 3
 		}
 		pg--
