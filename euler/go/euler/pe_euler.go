@@ -1018,11 +1018,19 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 	bidx0 := bidx
 	ii >>= BVprimeByteBitShift
 	pg, pidx := ii/BVpagesize, ii%BVpagesize
-	pgmax, pmax := uint(len(p.PV)), ((limit-3)>>BVprimeByteBitShift)%BVpagesize
+	bbMM := ((limit - 3) & BVprimeByteBitMask) >> 1
+	ooMM := (limit - 3) >> BVprimeByteBitShift
+	pgMM, idxMM := ooMM/BVpagesize, ooMM%BVpagesize
+	pgmax, pimax, pbmax := uint(len(p.PV)), uint(BVpagesize-1), uint(BVprimeByteBitMaskPost)
+	if pgmax < pgMM {
+		pgMM, idxMM, bbMM = pgmax, pimax, pbmax
+	}
+	_ = bbMM // scan the whole byte to simplify the logic check
+
 	// pg
-	if pg <= pgmax {
+	for pg <= pgMM {
 		// pidx
-		for (pg <= pgmax-1 && pidx < BVpagesize) || (pg == pgmax-1 && pidx <= pmax) {
+		for (pg < pgMM && pidx <= pimax) || (pg == pgMM && pidx <= idxMM) {
 			// bidx
 			for ; bidx < BVbitsPerByte; bidx++ {
 				if 0 == p.PV[pg][pidx]&(uint8(1)<<bidx) {
@@ -1037,14 +1045,144 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 			pidx = 0
 		}
 	}
-	fmt.Printf("Unable to locate prime after %d under %d\t[%d/%d][%d/%d]\t", input, limit, pg, pgmax, pidx, pmax)
+	fmt.Printf("Unable to locate prime after %d under %d\t[%d/%d][%d/%d]\t", input, limit, pg, pgMM, pidx, idxMM)
 	pg, pidx = ii/BVpagesize, ii%BVpagesize
-	fmt.Printf("started near [%d][%d]:%d\n", pg, pidx, bidx0)
+	fmt.Printf("started near [%d][%d]:%d (%d)\n", pg, pidx, bidx0, input)
+	var cl, end uint
+	cl = ii / BVl1
+	for end < limit {
+		cl++
+		end = (((cl) * BVl1) << 4) + 1
+		ccount := len(p.PrimesOnPage(end))
+		fmt.Printf("\t{%d, %d},", end, ccount)
+		if 512 == ccount {
+			fmt.Printf("<<<ERROR\t")
+			break
+		}
+		if 0 == cl&7 {
+			fmt.Println()
+		}
+	}
+	fmt.Println()
 	return 0
 }
 
+func (p *BVPrimes) wheelFactCL1Unsafe(start, prime, maxPrime uint) (uint, uint) {
+	// https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
+	// https://en.wikipedia.org/wiki/Sieve_of_Sundaram
+	// https://en.wikipedia.org/wiki/List_of_prime_numbers
+
+	//	Last	Next	Pri	Correct	Diff	FlMod(2p)+p
+	//	33	35	3	39	4	33
+	//	33	35	5	35	0	35
+	//	33	35	7	35	0	35
+	//	33	35	11	55	20	33
+	//	33	35	13	39	4
+	//	33	35	17	51	16
+	//	33	35	19	57	22
+	//	33	35	23	69	34
+	//	33	35	29	87	52
+	//	33	35	31	93	58
+
+	if 0 == start {
+		// Modern CPUs prefer a branchless path even with a couple possibly redundant operations
+		// 2 + (IF even (step back to last odd) ELSE odd noop )
+		start = uint(((p.Last - 1) | 1) + 2)
+	}
+	start |= 1 // Evens inherently compressed out; always odd
+	if 3 > prime {
+		prime = 3
+	}
+	// bits,	 octets (bytes),	 and page / pgLine (line on page)
+	ABS_bbStart := (start - 3) >> 1
+	ABS_ooStart := ABS_bbStart >> (BVprimeByteBitShift - 1)
+	pg, pgLine := ABS_ooStart/BVpagesize, (ABS_ooStart%BVpagesize)/BVl1
+	bbLimit := ((pgLine*BVl1 + BVl1 - 1) << (BVprimeByteBitShift - 1)) | BVprimeByteBitMaskPost
+	ABS_maxPrimeReq := 3 + (bbLimit << 1) + (pg * BVpagesize * BVbitsPerByte << 1)
+	if 0 == maxPrime {
+		// There's... probably a prime on this page?  For page 0 this returns 3 which at least terminates early if uselessly, for any other page it should be sufficient.
+		maxPrime = 3 + (ABS_ooStart << BVprimeByteBitShift)
+	}
+	bbStartPg := ABS_bbStart % (BVpagesize * BVbitsPerByte)
+	//if 0 < pg {
+	//	fmt.Printf("TRACE: [%d][%d]\tprime = %d\tstart=%d\t%d\n", pg, bbStartPg, ABS_maxPrimeReq, start, bbLimit)
+	//}
+	for 0 != prime && prime <= maxPrime && prime<<1 < ABS_maxPrimeReq {
+		// calculate the next modulus to mark, this will always be an odd multiple of prime of at least 3 * prime...
+		startModPr := (((start-prime-1)/(prime<<1))+1)*(prime<<1) + prime
+		if startModPr <= ABS_maxPrimeReq {
+			// pgC, bbPos := ((startModPr-3)>>1)/(BVpagesize*BVbitsPerByte), ((startModPr-3)>>1)%(BVpagesize*BVbitsPerByte)
+			bbPos := ((startModPr - 3) >> 1) % (BVpagesize * BVbitsPerByte)
+			if bbPos < bbStartPg {
+				fmt.Printf("TRACE: %d\tstart=%d\tprime = %d\tsModPr=%d\t[%d][%d]\n", bbPos, start, prime, startModPr, pg, pgLine)
+				fmt.Printf("Logic Error, %d < %d\n", bbPos, bbStartPg)
+				panic("debug")
+			}
+			for bbPos <= bbLimit {
+				// Spot check early problems : 457 509
+				// if 0 == pg && (227 == bbPos || 253 == bbPos) {
+				// 	fmt.Printf("TRACE: %d\tprime = %d\tstart=%d\n", bbPos, prime, start)
+				// }
+				p.PV[pg][bbPos>>(BVprimeByteBitShift-1)] |= uint8(1) << (bbPos & BVprimeByteBitMaskPost)
+				bbPos += prime // compressed (/2) prime bitvector, this advances by the prime * 2
+			}
+		}
+		// else { // Minimum iteration outside this window }
+		prime = p.primeAfterUnsafe(prime, prime<<1)
+		if 0 == prime {
+			fmt.Printf("TRACE: %d .. %d\t%d\t[%d~%d][...]\n", start, ABS_maxPrimeReq, startModPr, pg, pgLine)
+			panic("primeAfterUnsafe Returned Zero")
+		}
+	}
+	return prime, ABS_maxPrimeReq
+}
+
+func (p *BVPrimes) autoFactorPMCforBVl1(start uint) {
+	if 0 == start {
+		// 2 + (IF even (step back to last odd) ELSE odd noop )
+		start = uint(((p.Last - 1) | 1) + 2)
+	}
+	ABS_bbStart := (start - 3) >> 1
+	ABS_ooStart := ABS_bbStart >> (BVprimeByteBitShift - 1)
+	pg, pgLine := ABS_ooStart/BVpagesize, (ABS_ooStart%BVpagesize)/BVl1
+	bbLimit := ((pgLine*BVl1 + BVl1 - 1) << (BVprimeByteBitShift - 1)) | BVprimeByteBitMaskPost
+	bbPos := ABS_bbStart % (BVpagesize * BVbitsPerByte)
+	for bbPos <= bbLimit {
+		if 0 == p.PV[pg][bbPos>>(BVprimeByteBitShift-1)]&(uint8(1)<<(bbPos&BVprimeByteBitMaskPost)) {
+			posPrime := (pg * BVpagesize << BVprimeByteBitShift) + (bbPos << 1) + 3
+			posRes := Factor1980AutoPMC(posPrime, false)
+			if posPrime != posRes {
+				// fmt.Printf(" %d", posPrime)
+				p.PV[pg][bbPos>>(BVprimeByteBitShift-1)] |= uint8(1) << (bbPos & BVprimeByteBitMaskPost)
+			}
+		}
+		bbPos++
+	}
+}
+
+func (p *BVPrimes) PrimesOnPage(start uint) []uint {
+	if 0 == start {
+		// 2 + (IF even (step back to last odd) ELSE odd noop )
+		start = uint(((p.Last - 1) | 1) + 2)
+	}
+	ret := make([]uint, 0, 64)
+	bbStart := (start - 3) >> 1
+	ooStart := bbStart >> (BVprimeByteBitShift - 1)
+	pg, pgLine := ooStart/BVpagesize, (ooStart%BVpagesize)/BVl1
+	bbLimit := ((pgLine*BVl1 + BVl1 - 1) << (BVprimeByteBitShift - 1)) | BVprimeByteBitMaskPost
+
+	bbPos := (pgLine * BVl1) << (BVprimeByteBitShift - 1)
+	for bbPos <= bbLimit {
+		if 0 == p.PV[pg][bbPos>>(BVprimeByteBitShift-1)]&(uint8(1)<<(bbPos&BVprimeByteBitMaskPost)) {
+			ret = append(ret, (pg*BVpagesize<<BVprimeByteBitShift)+(bbPos<<1)+3)
+		}
+		bbPos++
+	}
+	return ret
+}
+
 func (p *BVPrimes) Grow(limit uint) {
-	if 0x10000f < limit {
+	if 0x10000f00 < limit {
 		fmt.Printf("Emperically refusing to grow past ~2sec runtime (~2015 era Xeon 1 CPU core) %d < %d", 0x100000, limit)
 		panic("Likely overflow")
 		// https://en.wikipedia.org/wiki/Primality_test#Number-theoretic_methods
@@ -1076,142 +1214,70 @@ func (p *BVPrimes) Grow(limit uint) {
 			lenpv++
 		}
 	}
+	// for ii := uint(0); ii < pagez; ii++ {
+	//	fmt.Printf("Pointer check Primes Page %4d = %p\n", ii, p.PV[ii])
+	//}
 
-	// FIXME: test case, end of BVl1 #0 is 1025 (1026 should also get eaten, but not marked since it's compressed)
-	// test case, end of page 1 is 65537 (uint16max + 1)
+	next := ((p.Last - 1) | 1) + 2
+	line := ((next - 3) >> BVprimeByteBitShift) / uint(BVl1)
 
-	// https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
-	// https://en.wikipedia.org/wiki/Sieve_of_Sundaram
-	// https://en.wikipedia.org/wiki/List_of_prime_numbers
+	// ??? FIXME ???
+	// This might be seen as a refined and optimized version of 'first gear'; extending the concepts of trial division, wheel, and sieves.
+	// As it marks prime repeats (the odd multiples), the repeat of the 'next' prime must extend past the current page of the array.
+	// (duh) More primes must be tested the deeper numbers progress.
+	// FIXME: It's well past the scope of this library (educational / toy work) to quantify the computational growth pattern, or even an approximation, of how quickly the cost grows...
+	// Though it does seem clear that it's well under the number 1,000,000
+	// At some point it must make sense to switch to a different gear
+	//
 
-	base := (p.Last - 3 + 2) // the prime number AFTER ii, E.G. 33 -> 34
-	// bidx := (base & BVprimeByteBitMask) >> 1
-	base >>= BVprimeByteBitShift
-	// pg, pidx := base/BVpagesize, base%BVpagesize
+	// Gear 1 : wheelFactCL1Unsafe Faster than autoFactorPMC through about 64K
+	// 0x100000 ~= 0.74s
+	// 0x200000 ~= 2.82s
+	// 0x400000 ~= 10.75s // Tried 2048 for the cutoff with this and autoFactorPMCforBVl1 was _still_ slower on a decade old Xeon CPU, it's correct, but the 'need to be 100%sure' spin cycle makes it too slow.  Perceptibly >> 201 seconds (I killed the run) vs 10.78s with the extra logic test.
+	for line <= cl1z && line < 20480 {
+		primeStart := uint(3)
+		var end uint
+		for {
+			maxPrimeCall := p.PrimeOrDown(p.Last)
+			primeStart, end = p.wheelFactCL1Unsafe(next, primeStart, maxPrimeCall)
 
-	for line := ((p.Last - 3 + 2) >> BVprimeByteBitShift / uint(BVl1)); line <= cl1z; line++ {
-		// pgmax = len(p.PV) // Extended above, cl1z is backed by real array(s)
-		pg := (line * BVl1) / BVpagesize
-		// inclusive last bit address to set, upper limit
-		cl1max := (((line+1)*BVl1-1)*BVbitsPerByte + (BVbitsPerByte - 1)) % (BVpagesize * BVbitsPerByte)
-		cl1maxNum := ((pg * BVpagesize) << BVprimeByteBitShift) + cl1max<<1 + 3
-
-		// ??? FIXME ???
-		// This might be seen as a refined and optimized version of 'first gear'; extending the concepts of trial division, wheel, and sieves.
-		// As it marks prime repeats (the odd multiples), the repeat of the 'next' prime must extend past the current page of the array.
-		// (duh) More primes must be tested the deeper numbers progress.
-		// FIXME: It's well past the scope of this library (educational / toy work) to quantify the computational growth pattern, or even an approximation, of how quickly the cost grows...
-		// Though it does seem clear that it's well under the number 1,000,000
-		// At some point it must make sense to switch to a different gear
-		//
-		// Gear 2: _partial_ filter pages for primes up to a reasonable cost... Likely less than one cache line's worth of bitfield; probably way less if the growth rate is any indication.
-		//         Then test each not known-composite number on the current page with another algo, E.G. Factor1980PollardMonteCarlo
-		//
-		// Gear 2 might be worth it if there's a major need to know all the primes under a given value, rather than just factoring. This seive cost VS GCDbin VS Pollard?
-
-		// const limit = uint( 0x100000 - 1) // 1M ~ 1.73s on my home NAS/server
-		// const limit = uint( 0x200000 - 1) // 2M ~ 7.45s on my home NAS/server
-		// const limit = uint( 0x400000 - 1) // 4M ~ 30.92s on my home NAS/server
-		// const limit = uint(0x1000000 - 1) // 16777215 ~ 508.46 on my home NAS/server
-		// ... Unless it's REALLY important to quickly know if a number is a prime or not, probably too long.  Only ~8MB of mem though, so easily worth computing once, SAVING, and then loading if doing repeatedly.
-		if true {
-
-			//	Last	Next	Pri	Correct	Diff	FlMod(2p)+p
-			//	33	34	3	39	6	33
-			//	33	34	5	35	2	35
-			//	33	34	7	35	2	35
-			//	33	34	11	55	22	33
-			//	33	34	13	39	6
-			//	33	34	17	51	18
-			//	33	34	19	57	24
-			//	33	34	23	69	36
-			//	33	34	29	87	54
-			//	33	34	31	93	60
-
-			// bit-bit address to start the process, in this case also the 'base bit' beneath which no marks
-			// cl1min := (((p.Last - 3 + 2) >> 1) - (line*uint(BVl1*BVbitsPerByte))%(BVpagesize*BVbitsPerByte))
-			// if pg < pgmax {
-			// fmt.Printf("Primes.Grow(%d) INIT [..%d] %d (%d/%d)\n", limit, cl1maxNum, prime, line, cl1z)
-			prime := uint(3)
-			for {
-				if prime<<1 >= p.Last {
-					newLast := cl1maxNum
-					if prime<<1 < newLast {
-						// fmt.Printf("cl1max newLast was %d\t", newLast)
-						newLast = prime << 1
-					}
-					// if newLast > 960 {
-					if false {
-						lineS := ((pg * BVpagesize) << BVprimeByteBitShift) + ((line*BVl1)%(BVpagesize))<<BVprimeByteBitShift + 3
-						lineE := cl1maxNum
-						fmt.Printf("Adust p.Last %d := %d (%d..%d)\t%d\n", p.Last, newLast, lineS, lineE, prime)
-					}
-					p.Last = newLast
-				}
-				// Modern CPUs prefer a branchless path even with a couple possibly redundant operations
-				// 33 -> 32 -> 33 -> 35  ~~ 34 -> 33 -> 33 -> 35
-				next := uint(((p.Last - 1) | 1) + 2)
-				// calculate the next modulus to mark, this will always be an odd multiple of prime of at least 3 * prime...
-				flMod3p := (next/(prime<<1))*(prime<<1) + prime
-				// cl1bb := (p.Last - 3 + (prime + (prime << 1) - (p.Last % (prime << 1)))) >> 1
-				cl1bb := (flMod3p - 3) >> 1
-				// if 5 == prime || 7 == prime {
-				// fmt.Printf("Start %d ~ %d (at [%d][%d]|%x\n", prime, cl1bb<<1+3, pg, cl1bb>>(BVprimeByteBitShift-1), uint8(1)<<(cl1bb&BVprimeByteBitMaskPost))
-				// }
-				for cl1bb <= cl1max {
-					// fmt.Printf("Mark %d ~ %d (at [%d][%d]|%x\n", prime, cl1bb<<1+3, pg, cl1bb>>(BVprimeByteBitShift-1), uint8(1)<<(cl1bb&BVprimeByteBitMaskPost))
-					// if (5 == prime || 7 == prime) && cl1bb < (64-3)>>1 {
-					// fmt.Printf("Mark %d ~ %d (at [%d][%d]|%x\n", prime, cl1bb<<1+3, pg, cl1bb>>(BVprimeByteBitShift-1), uint8(1)<<(cl1bb&BVprimeByteBitMaskPost))
-					// }
-					p.PV[pg][cl1bb>>(BVprimeByteBitShift-1)] |= uint8(1) << (cl1bb & BVprimeByteBitMaskPost)
-					cl1bb += prime // compressed (/2) prime bitvector, this advances by the prime * 2
-					// if cl1bb > 64 {
-					// 	panic("debug")
-					// }
-				}
-				// if prime > 2000 {
-				// fmt.Printf("Grow prime %d\n", prime)
-				// }
-				prime = p.primeAfterUnsafe(prime, prime<<1)
-				if 0 == prime {
-					panic("primeAfterUnsafe Returned Zero")
-				}
-				if prime<<1 >= cl1maxNum {
-					// fmt.Printf("Primes.Grow(%d) upto %d\tRound %d\n", limit, cl1maxNum, prime)
-					break
-				}
+			if primeStart<<1 > end {
+				break
 			}
-			//continue
-		} else {
-			// fmt.Printf("Primes.Grow(%d) reached unsupported quantity, p.Last = %d\n", limit, p.Last)
-			panic(p.Last)
+			next = (primeStart << 1) | 1
+			p.Last = next
+			// fmt.Printf("%d:\t%d\t@%d\tmaybe %d\n", line, primeStart, next, p.countPrimesLEUnsafe(end))
 		}
+		// Last = 3 + (((line*BVl1 + BVl1 - 1) << (BVprimeByteBitShift)) | BVprimeByteBitMask)
+		next = 3 + (((line + 1) * BVl1) << BVprimeByteBitShift)
+		p.Last = next - 2
+		ccount := len(p.PrimesOnPage(p.Last))
+		if 512 == ccount {
+			fmt.Printf("%d: %d\t\t%d\tmaybe %d == %d\t\t%d primes on page\n", line, p.Last, primeStart, p.countPrimesLEUnsafe(p.Last), end, ccount)
+			panic("too many primes")
+			// This _reliably_ fails on page !0, why?
+		}
+		if 256 < ccount {
+			fmt.Printf("SUS: about 80%% of the numbers should be filtered as a minimum...\n%d: %d\t\t%d\tmaybe %d == %d\t\t%d primes on page\n", line, p.Last, primeStart, p.countPrimesLEUnsafe(p.Last), end, ccount)
+		}
+		line++
+	}
 
-		// debug / verification / extra output
-		/*
-			newPrimes := 0
-			cl1min := (((line) * BVl1) * BVbitsPerByte) % (BVpagesize * BVbitsPerByte)
-			cl1minNum := ((pg * BVpagesize) << BVprimeByteBitShift) + cl1min<<1 + 3
-			for ii := cl1min; ii <= cl1max; ii++ {
-				if 0 == p.PV[pg][ii>>(BVprimeByteBitShift-1)]&(uint8(1)<<(ii&BVprimeByteBitMaskPost)) {
-					newPrimes++
-					pnum := ((pg * BVpagesize) << BVprimeByteBitShift) + ii<<1 + 3
-					fmt.Printf("\t%d,", pnum)
-					pfact := Factor1980PollardMonteCarlo(pnum, 0)
-					if pfact != 0 {
-						fmt.Printf("\n!!! factor %d ? in %d , please check\n", pfact, pnum)
-					}
-				}
-			}
-			fmt.Printf("\nLine: %d primes between %d .. %d\n", newPrimes, cl1minNum, cl1maxNum)
-			if 0 == newPrimes || newPrimes > BVl1*BVbitsPerByte>>1 {
-				panic("Found ZERO primes?  Not correct.")
-			}
-		*/
+	// Gear 2: _partial_ filter pages for primes up to a reasonable cost... Likely less than one cache line's worth of bitfield; probably way less if the growth rate is any indication.
+	//         Then test each not known-composite number on the current page with another algo, E.G. Factor1980PollardMonteCarlo
+	//
+	// Gear 2 might be worth it if there's a major need to know all the primes under a given value, rather than just factoring. This seive cost VS GCDbin VS Pollard?
 
-		p.Last = cl1maxNum
-		// fmt.Printf("Primes.Grow(%d) upto %d\t(%d/%d)\n", limit, p.Last, line, cl1z)
+	// AFTER 64K this is somehow so fast that I suspect the results... FIXME: Have I added a total torture test to cover up to 1024*1024 yet?
 
+	for line <= cl1z {
+		p.wheelFactCL1Unsafe(next, 3, 509) // 5 = 498062; 503 = 498062
+		p.autoFactorPMCforBVl1(next)
+		next = 3 + (((line + 1) * BVl1) << BVprimeByteBitShift)
+		p.Last = next - 2
+		// ccount := len(p.PrimesOnPage(p.Last))
+		fmt.Printf("%d: %d\n", line, p.Last)
+		line++
 	}
 
 }
@@ -1256,6 +1322,63 @@ func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
 	}
 	// fmt.Printf("GetPrimesInt: %v\n", *primes)
 	return primes
+}
+
+func (p *BVPrimes) CountPrimesLE(ii uint) uint {
+	if 2 > ii {
+		return 0
+	}
+	if 2 == ii {
+		return 1
+	}
+	lastPrime := p.PrimeOrDown(p.Last)
+	if ii >= lastPrime {
+		newLimit := (((((ii-3)>>1)/uint(BVl1))+uint(1))*uint(BVl1)+uint(BVprimeByteBitMaskPost))<<1 + 3
+		// fmt.Printf("Primes.PAfter .Grow triggered:   \t%d\t< %d\t-> %d\n", ii, p.Last, newLimit)
+		p.Grow(newLimit)
+	}
+	return p.countPrimesLEUnsafe(ii)
+}
+func (p *BVPrimes) countPrimesLEUnsafe(ii uint) uint {
+	// 2 isn't in the list, it's implied
+	ret := uint(1)
+	// out := 0
+	// fmt.Printf("\nfactor ")
+
+	ii = (ii - 3)
+	bidx := (ii & BVprimeByteBitMask) >> 1
+	ii >>= BVprimeByteBitShift
+	pg, pidx := ii/BVpagesize, ii%BVpagesize
+	// fmt.Printf("PrimeOrDown from [%d][%d]&%x == %d\n", pg, pidx, (uint8(1) << bidx), in)
+	// pg
+	for {
+		// pidx
+		for {
+			// bidx
+			for {
+				if 0 == p.PV[pg][pidx]&(uint8(1)<<bidx) {
+					ret++
+					// fmt.Printf(" %d", ((pg*BVpagesize+pidx)<<BVprimeByteBitShift)+uint(bidx)<<1+3)
+					// out++
+					// if 20 < out && 0x1000 < ii { panic("debug") }
+				}
+				if 0 == bidx {
+					break
+				}
+				bidx--
+			}
+			bidx = BVbitsPerByte - 1 // reset after scanning the initial index bits
+			if 0 == pidx {
+				break
+			}
+			pidx--
+		}
+		if 0 == pg && 0 == pidx {
+			return ret
+		}
+		pg--
+		pidx = BVpagesize - 1
+	}
 }
 
 func GCDbin(a, b uint) uint {
