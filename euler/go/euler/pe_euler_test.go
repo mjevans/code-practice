@@ -480,10 +480,47 @@ func TestRotateDecDigits(t *testing.T) {
 		}
 		for ii := 0; ii < len(rots); ii++ {
 			if test.ans[ii] != rots[ii] {
-				t.Errorf("Roation mismatch: [%d] expected %d got %d\n%v\n%v\n", ii, test.ans[ii], rots[ii], test.ans, rots)
+				t.Errorf("Rotation mismatch: [%d] expected %d got %d\n%v\n%v\n", ii, test.ans[ii], rots[ii], test.ans, rots)
 			}
 		}
 	}
+}
+
+func TestPalindromeFuncs(t *testing.T) {
+	testFlipBin := []struct {
+		test, ans uint64
+	}{
+		{0, 0},
+		{0b_1, 0b_1},
+		{0b_101, 0b_101},
+		{0b_1001, 0b_1001},
+		{0b_11011, 0b_11011},
+		{0b_10111, 0b_11101},
+		{0xF000000000000000, 0x000000000000000F},
+	}
+	for _, test := range testFlipBin {
+		res := euler.PalindromeFlipBinary(test.test)
+		if res != test.ans {
+			t.Errorf("Flip mismatch: expected %b got %b\n", test.ans, res)
+		}
+	}
+	testMakeDec := []struct {
+		test, even, odd uint64
+	}{
+		{1, 11, 1},
+		{9, 99, 9},
+		{42, 2442, 242},
+		{867, 768867, 76867},
+		{5309, 90355309, 9035309},
+	}
+	for _, test := range testMakeDec {
+		even := euler.PalindromeMakeDec(test.test, false)
+		odd := euler.PalindromeMakeDec(test.test, true)
+		if even != test.even || odd != test.odd {
+			t.Errorf("Even and/or odd failed: Expected %d and %d got %d and %d\n", test.odd, test.even, odd, even)
+		}
+	}
+
 }
 
 /*

@@ -777,6 +777,35 @@ func RotateDecDigits(x uint64) []uint64 {
 	return ret
 }
 
+func PalindromeFlipBinary(x uint64) uint64 {
+	var ret uint64
+	for 0 < x {
+		ret <<= 1
+		ret |= x & 1
+		x >>= 1
+	}
+	return ret
+}
+
+func PalindromeMakeDec(x uint64, odd bool) uint64 {
+	ret := x
+	buf := make([]uint8, 0, 20)
+	pow := uint64(1)
+	for 0 < x {
+		buf = append(buf, uint8(x%10))
+		x /= 10
+		pow *= 10
+	}
+	if true == odd {
+		buf = buf[0 : len(buf)-1]
+	}
+	for ii := len(buf) - 1; 0 <= ii; ii-- {
+		ret += uint64(buf[ii]) * pow
+		pow *= 10
+	}
+	return ret
+}
+
 func BsearchInt(list *[]int, val int) bool {
 	end := len(*list)
 	if nil == list || 1 > end {
