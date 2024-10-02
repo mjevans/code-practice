@@ -1,10 +1,15 @@
 // kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
 package main
 
-// golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// Code in this file is CC BY-SA 4.0, though Euler's problems are under another NC version of the license https://creativecommons.org/licenses/by-sa/4.0/
 
-/* https://projecteuler.net/minimal=13
+/*
+https://projecteuler.net/copyright
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://projecteuler.net/problem=13
+https://projecteuler.net/minimal=13
+
 <p>Work out the first ten digits of the sum of the following one-hundred $50$-digit numbers.</p>
 <div class="monospace center">
 37107287533902102798797998220837590246510135740250<br>

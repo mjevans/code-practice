@@ -1,10 +1,14 @@
 // kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
 package main
 
-// golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// Code in this file is CC BY-SA 4.0, though Euler's problems are under another NC version of the license https://creativecommons.org/licenses/by-sa/4.0/
 
-/* https://projecteuler.net/minimal=35
+/*
+https://projecteuler.net/copyright
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://projecteuler.net/problem=35
+https://projecteuler.net/minimal=35
 
 <p>The number, $197$, is called a circular prime because all rotations of the digits: $197$, $971$, and $719$, are themselves prime.</p>
 <p>There are thirteen such primes below $100$: $2, 3, 5, 7, 11,		13, 17, 31, 37, 71, 	73, 79$, and $97$.</p>

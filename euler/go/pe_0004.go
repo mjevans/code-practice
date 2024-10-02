@@ -1,10 +1,15 @@
 // kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
 package main
 
-// golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// Code in this file is CC BY-SA 4.0, though Euler's problems are under another NC version of the license https://creativecommons.org/licenses/by-sa/4.0/
 
-/* https://projecteuler.net/minimal=4
+/*
+https://projecteuler.net/copyright
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://projecteuler.net/problem=4
+https://projecteuler.net/minimal=4
+
 <p>A palindromic number reads the same both ways. The largest palindrome made from the product of two $2$-digit numbers is $9009 = 91 \times 99$.</p>
 <p>Find the largest palindrome made from the product of two $3$-digit numbers.</p>
 

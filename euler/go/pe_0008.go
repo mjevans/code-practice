@@ -1,10 +1,15 @@
 // kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
 package main
 
-// golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// Code in this file is CC BY-SA 4.0, though Euler's problems are under another NC version of the license https://creativecommons.org/licenses/by-sa/4.0/
 
-/* https://projecteuler.net/minimal=8
+/*
+https://projecteuler.net/copyright
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://projecteuler.net/problem=8
+https://projecteuler.net/minimal=8
+
 <p>The four adjacent digits in the $1000$-digit number that have the greatest product are $9 \times 9 \times 8 \times 9 = 5832$.</p>
 <p class="monospace center">
 73167176531330624919225119674426574742355349194934<br>

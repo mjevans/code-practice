@@ -2,7 +2,11 @@
 package euler
 
 // golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// MOST Code in this file is CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/
+// An algorithm from a public paper over 40 years old has been included in one function, and it's source is cited.
+// This algorithm has been adapted from Pascal to golang, but where possible the original variable names have been kept for academic clarity.
+
 
 /*
 
@@ -932,7 +936,7 @@ func (ra *Rational) Divide() {
 	<10^100		Quadratic Sieve http://en.wikipedia.org/wiki/Quadratic_sieve
 	>10^100		GNFS http://en.wikipedia.org/wiki/General_number_field_sieve
 
-	Offhand, from a pragmatic viewpoint, a list of primes betten 0 and the largest under 65536 is _probably_ more memory than a practical program should use, though 0..255 is clearly too limited.
+	Offhand, from a pragmatic viewpoint, a list of primes between 0 and the largest under 65536 is _probably_ more memory than a practical program should use, though 0..255 is clearly too limited.
 	[]uint16 might be a good format for the primes list, if not a bitvector directly.
 
 	2..7919 contains 1000 prime numbers; stored as a compressed (inherently 2 is prime so 3..7919) bitvector, that would take 3958 bits or 495 bytes (rounded up)
@@ -943,7 +947,6 @@ func (ra *Rational) Divide() {
 **/
 
 // BVpagesize >= BVl1 // Both MUST be a power of 2 ( Pow(2, n) )
-// WARNING: Populate more known primes if increasing BVl1 size
 const BVl1 = 64
 const BVpagesize = 4096
 const BVbitsPerByte = 8
@@ -968,7 +971,7 @@ func NewBVPrimes() *BVPrimes {
 	ov[0] = 0b_0100_1000
 	//          19   3 9 // 33 is not prime, but it is the last tested number 33*33 = 1089 the first l1 cacheline is safe to factor in place.
 	ov[1] = 0b_1001_1010
-	// WARNING: Populate more known primes if increasing BVl1 size
+	// WARNING: Set Last according to last tested value, UNTESTED but 2-7 should work with all 0s as the first three bits (3,5,7) are primes (0).
 	return &BVPrimes{PV: append(make([]*BVpage, 0, 1), ov), Last: 33}
 }
 

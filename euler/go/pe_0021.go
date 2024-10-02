@@ -1,10 +1,15 @@
 // kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
 package main
 
-// golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// Code in this file is CC BY-SA 4.0, though Euler's problems are under another NC version of the license https://creativecommons.org/licenses/by-sa/4.0/
 
-/* https://projecteuler.net/minimal=21
+/*
+https://projecteuler.net/copyright
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://projecteuler.net/problem=21
+https://projecteuler.net/minimal=21
+
 <p>Let $d(n)$ be defined as the sum of proper divisors of $n$ (numbers less than $n$ which divide evenly into $n$).<br>
 If $d(a) = b$ and $d(b) = a$, where $a \ne b$, then $a$ and $b$ are an amicable pair and each of $a$ and $b$ are called amicable numbers.</p>
 <p>For example, the proper divisors of $220$ are $1, 2, 4, 5, 10, 11, 20, 22, 44, 55$ and $110$; therefore $d(220) = 284$. The proper divisors of $284$ are $1, 2, 4, 71$ and $142$; so $d(284) = 220$.</p>

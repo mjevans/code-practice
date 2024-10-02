@@ -1,10 +1,15 @@
 // kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
 package main
 
-// golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// Code in this file is CC BY-SA 4.0, though Euler's problems are under another NC version of the license https://creativecommons.org/licenses/by-sa/4.0/
 
-/* https://projecteuler.net/minimal=9
+/*
+https://projecteuler.net/copyright
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://projecteuler.net/problem=9
+https://projecteuler.net/minimal=9
+
 <p>A Pythagorean triplet is a set of three natural numbers, $a \lt b \lt c$, for which,
 $$a^2 + b^2 = c^2.$$</p>
 <p>For example, $3^2 + 4^2 = 9 + 16 = 25 = 5^2$.</p>

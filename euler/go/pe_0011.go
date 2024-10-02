@@ -1,10 +1,15 @@
 // kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
 package main
 
-// golang 1.19 is current Debian stable
-// 2024 - Michael J Evans ***REMOVED***
+// 2024 - Michael J Evans
+// Code in this file is CC BY-SA 4.0, though Euler's problems are under another NC version of the license https://creativecommons.org/licenses/by-sa/4.0/
 
-/* https://projecteuler.net/minimal=11
+/*
+https://projecteuler.net/copyright
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://projecteuler.net/problem=11
+https://projecteuler.net/minimal=11
+
 <p>In the $20 \times 20$ grid below, four numbers along a diagonal line have been marked in red.</p>
 <p class="monospace center">
 08 02 22 97 38 15 00 40 00 75 04 05 07 78 52 12 50 77 91 08<br>
