@@ -4,7 +4,6 @@ package euler_test
 // 2024 - Michael J Evans
 // Code in this file is CC BY-SA 4.0 license https://creativecommons.org/licenses/by-sa/4.0/
 
-
 import (
 	// . "euler" // https://go.dev/wiki/CodeReviewComments#import-dot
 	"container/heap"

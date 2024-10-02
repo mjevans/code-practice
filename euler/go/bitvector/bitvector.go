@@ -5,7 +5,6 @@ package bitvector
 // 2024 - Michael J Evans
 // Code in this file is CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/
 
-
 import (
 // "math/big" // Do I want a BigIntBitVector?
 )

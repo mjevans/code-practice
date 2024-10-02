@@ -7,7 +7,6 @@ package euler
 // An algorithm from a public paper over 40 years old has been included in one function, and it's source is cited.
 // This algorithm has been adapted from Pascal to golang, but where possible the original variable names have been kept for academic clarity.
 
-
 /*
 
 module main
