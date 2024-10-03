@@ -66,13 +66,14 @@ Euler038Outer:
 		} else {
 			nn = 90 + ii
 		}
-		ncat = nn
+		ncat = 0
 		var used uint16
+		used = 0
 		// fmt.Printf("\ntest:")
-		for jj := uint64(1); used != 0b0000_0001_1111_1110; jj++ {
+		for jj := uint64(1); 0b0000_0011_1111_1110 != used; jj++ {
 			test := nn * jj
 			// fmt.Printf("\t%d", test)
-			digits := uint64(0)
+			digits := uint64(1)
 			for test > 0 {
 				bd := uint16(1) << (test % 10)
 				test /= 10
@@ -86,11 +87,53 @@ Euler038Outer:
 			ncat = ncat*digits + nn*jj
 		}
 		// Pandigital, but is it greater?
-		if max < ncat {
+		if max < ncat && 0b0000_0011_1111_1110 == used {
 			fmt.Printf("Found new max: %d < %d (%d)\n", max, ncat, nn)
 			max = ncat
 		} else {
-			fmt.Printf("SKIP: %d > %d (%d)\n", max, ncat, nn)
+			fmt.Printf("SKIP: %d > %d (%d) ~= %b \n", max, ncat, nn, used)
+		}
+	}
+
+	return max
+}
+
+func Euler038_harder() uint64 {
+	max := uint64(0)
+
+	// Number * 1 cannot include a zero, nor can any other number...
+	// 9 is in front so it can't be used again in the rest of the digits... the first filter case will trap the rest
+Euler038HOuter:
+	for ii := uint64(1); ii <= 10000; ii++ {
+		var nn, ncat uint64
+		nn = ii
+		ncat = 0
+		var used uint16
+		used = 0
+		// fmt.Printf("\ntest:")
+		for jj := uint64(1); 0b0000_0011_1111_1110 != used; jj++ {
+			test := nn * jj
+			// fmt.Printf("\t%d", test)
+			digits := uint64(1)
+			for test > 0 {
+				bd := uint16(1) << (test % 10)
+				test /= 10
+				digits *= 10
+				if 0 < used&bd || bd == 1 {
+					// fmt.Printf("SKIP: %d : dupe or 0 digit : %d\n", nn, test%10)
+					continue Euler038HOuter
+				}
+				used |= bd
+			}
+			// fmt.Printf("%d\t%d : %d\n", ncat, nn*jj, digits)
+			ncat = ncat*digits + nn*jj
+		}
+		// Pandigital, but is it greater?
+		if max < ncat && 0b0000_0011_1111_1110 == used {
+			fmt.Printf("Found new max: %d < %d (%d)\n", max, ncat, nn)
+			max = ncat
+		} else {
+			fmt.Printf("SKIP: %d > %d (%d) ~= %b \n", max, ncat, nn, used)
 		}
 	}
 
@@ -101,7 +144,31 @@ Euler038Outer:
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 38 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-Euler038: Pandigit Multiples (it was 9 x 1..5) :        918273645
+Found new max: 918273645 < 926718534 (9267)
+Found new max: 926718534 < 927318546 (9273)
+Found new max: 927318546 < 932718654 (9327)
+
+Euler038: Pandigit Multiples :  932718654
+Found new max: 0 < 123456789 (1)
+Found new max: 123456789 < 918273645 (9)
+SKIP: 918273645 > 192384576 (192) ~= 1111111110
+SKIP: 918273645 > 219438657 (219) ~= 1111111110
+SKIP: 918273645 > 273546819 (273) ~= 1111111110
+SKIP: 918273645 > 327654981 (327) ~= 1111111110
+SKIP: 918273645 > 672913458 (6729) ~= 1111111110
+SKIP: 918273645 > 679213584 (6792) ~= 1111111110
+SKIP: 918273645 > 692713854 (6927) ~= 1111111110
+SKIP: 918273645 > 726914538 (7269) ~= 1111111110
+SKIP: 918273645 > 729314586 (7293) ~= 1111111110
+SKIP: 918273645 > 732914658 (7329) ~= 1111111110
+SKIP: 918273645 > 769215384 (7692) ~= 1111111110
+SKIP: 918273645 > 792315846 (7923) ~= 1111111110
+SKIP: 918273645 > 793215864 (7932) ~= 1111111110
+Found new max: 918273645 < 926718534 (9267)
+Found new max: 926718534 < 927318546 (9273)
+Found new max: 927318546 < 932718654 (9327)
+
+Euler038: Try harder... :       932718654
 
 
 
@@ -111,6 +178,9 @@ func main() {
 
 	//run
 	r := Euler038()
-	fmt.Printf("\nEuler038: Pandigit Multiples (it was 9 x 1..5) :\t%d\n", r)
+	fmt.Printf("\nEuler038: Pandigit Multiples :\t%d\n", r)
+
+	r = Euler038_harder()
+	fmt.Printf("\nEuler038: Try harder... :\t%d\n", r)
 
 }

@@ -93,7 +93,7 @@ Euler032a:
 				}
 				used |= bd
 			}
-			if _, ex := seen[r]; false == ex {
+			if _, ex := seen[r]; false == ex && 0b0000_0011_1111_1110 == used {
 				combos++
 				sum += r
 				fmt.Printf("Euler032: found\t%d x %d = %d\n", a, b, r)
@@ -119,7 +119,7 @@ Euler032: SKIPPED       483 x 12 = 5796
 Euler032:        5       30424
 
 
- */
+*/
 func main() {
 	//test
 
