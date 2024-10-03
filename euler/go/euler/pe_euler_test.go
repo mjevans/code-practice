@@ -467,6 +467,14 @@ func TestFactorizeProperDivisors(t *testing.T) {
 	}
 }
 
+/*
+func TestMegaTestPrimes0x100000(t *testing.T) {
+	t.Fatalf("TODO: Write this test.")
+	// I manually tweaked the generator to run several passes and identified why any differences happened.
+	// This is now covered by per 'cache line' sized chunk checksums.
+}
+*/
+
 func TestRotateDecDigits(t *testing.T) {
 	tests := []struct {
 		test uint64
@@ -526,10 +534,26 @@ func TestPalindromeFuncs(t *testing.T) {
 
 }
 
-/*
-func TestMegaTestPrimes0x100000(t *testing.T) {
-	t.Fatalf("TODO: Write this test.")
-	// I manually tweaked the generator to run several passes and identified why any differences happened.
-	// This is now covered by per 'cache line' sized chunk checksums.
+func TestPandigital(t *testing.T) {
+	testPan := []struct {
+		test          uint64
+		highest, used uint16
+		DigitShift    uint64
+	}{
+		{0, 0, 0b1, 10},
+		{1, 1, 0b10, 10},
+		{12, 2, 0b110, 100},
+		{123, 3, 0b1110, 1000},
+		{1234, 4, 0b11110, 10_000},
+		{12345, 5, 0b111110, 100_000},
+		{123456789, 9, 0b1111_111110, 1_000_000_000},
+		{1023456789, 0, 0b1111_111111, 10_000_000_000},
+	}
+	for _, test := range testPan {
+		// func Pandigital(test uint64, used uint16) (highest, usedRe uint16, DigitShift uint64) {
+		highest, used, DigitShift := euler.Pandigital(test.test, 0)
+		if used != test.used || highest != test.highest || DigitShift != test.DigitShift {
+			t.Errorf("Pandigital: expected %v got %d, %d, %d\n", test, used, highest, DigitShift)
+		}
+	}
 }
-*/

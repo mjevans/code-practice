@@ -780,6 +780,32 @@ func RotateDecDigits(x uint64) []uint64 {
 	return ret
 }
 
+func Pandigital(test uint64, used uint16) (highest, usedRe uint16, DigitShift uint64) {
+	DigitShift = uint64(1)
+	ok := true
+	if 0 == test {
+		return 0, 1, 10
+	}
+	for test > 0 {
+		bd := uint16(1) << (test % 10)
+		test /= 10
+		DigitShift *= 10
+		if 0 < used&bd || bd == 1 {
+			// fmt.Printf("SKIP: %d : dupe or 0 digit : %d\n", nn, test%10)
+			ok = false
+		}
+		used |= bd
+	}
+	if ok {
+		sz := uint16(0)
+		for t := used >> 1; 0 != t&1; t >>= 1 {
+			sz++
+		}
+		return sz, used, DigitShift
+	}
+	return 0, used, DigitShift
+}
+
 func PalindromeFlipBinary(x uint64) uint64 {
 	var ret uint64
 	for 0 < x {
