@@ -835,6 +835,24 @@ func PalindromeMakeDec(x uint64, odd bool) uint64 {
 	return ret
 }
 
+func SlicePopUint8(deck []uint8, index int) uint8 {
+	// deck is a slice which MAY contain 'blanked' / empty 'card' slots (value 0), that are skipped in the count.
+	// Shuffle would use a random index to obtain the next card
+	// __IMPORTANT__ The size of deck does not mutate, only a VALUE within the pointed to array will change, hence this should work.  Thanks Go... your pain here probably improved Rust.
+	dLen := len(deck)
+	for ii := 0; ii < dLen; ii++ {
+		if 0 != deck[ii] {
+			if 0 == index {
+				ret := deck[ii]
+				deck[ii] = 0
+				return uint8(ret)
+			}
+			index--
+		}
+	}
+	return 0
+}
+
 func BsearchInt(list *[]int, val int) bool {
 	end := len(*list)
 	if nil == list || 1 > end {

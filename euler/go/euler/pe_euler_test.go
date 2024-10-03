@@ -557,3 +557,32 @@ func TestPandigital(t *testing.T) {
 		}
 	}
 }
+
+func TestSlicePop(t *testing.T) {
+	testSlicePop := []struct {
+		deck     []uint8
+		requests []int
+		result   []uint8
+	}{
+		{[]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, []int{0, 0, 0, 0, 0, 0, 0, 0, 0}, []uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}},
+		{[]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, []int{1, 1, 1, 1, 1, 1, 1, 1, 0}, []uint8{2, 3, 4, 5, 6, 7, 8, 9, 1}},
+		{[]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, []int{8, 7, 6, 5, 4, 3, 2, 1, 0}, []uint8{9, 8, 7, 6, 5, 4, 3, 2, 1}},
+		{[]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, []int{4, 4, 4, 3, 0, 0, 0, 0, 0}, []uint8{5, 6, 7, 4, 1, 2, 3, 8, 9}},
+	}
+	for tt, test := range testSlicePop {
+		clone := make([]uint8, len(test.deck))
+		copy(clone, test.deck)
+		res := make([]uint8, 0, len(test.result))
+		for ii := 0; ii < len(test.requests); ii++ {
+			res = append(res, euler.SlicePopUint8(clone, test.requests[ii]))
+		}
+		if len(res) != len(test.result) {
+			t.Errorf("Length mismatch, expected %d, got %d\n", len(test.result), len(res))
+		}
+		for ii := 0; ii < len(res); ii++ {
+			if res[ii] != test.result[ii] {
+				t.Errorf("Item mismatch in test %d index %d: expected %d, got %d\n", tt, ii, test.result[ii], res[ii])
+			}
+		}
+	}
+}
