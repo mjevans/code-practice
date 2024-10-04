@@ -16,6 +16,12 @@ https://projecteuler.net/minimal=10
 
 
 */
+/*
+
+Revisit; I replaced the older naive version with an interface that works OK for a small range, but kind of fails hard with re-allocations on HUGE chunks.
+
+
+*/
 
 import (
 	"euler"
@@ -27,21 +33,58 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler010(lim int) int {
-	var primes *[]int
-	for primes = euler.GetPrimes(nil, 0); lim > (*primes)[len(*primes)-1]; primes = euler.GetPrimes(primes, 0) {
+func Euler010(lim uint) uint {
+	if 2 > lim {
+		return 0
 	}
-	ii := len(*primes) - 1
+	if 2 == lim {
+		return 2
+	}
+
+	if 500000 < lim {
+		fmt.Printf("Euler 010... This might take a while, finding primes to a bit over %d\n", lim)
+	}
+	euler.Primes.Grow(lim)
+	if 500000 < lim {
+		fmt.Println("Euler 010... Time to scan and sum")
+	}
+
+	// 2 is the first prime, and all evens are compressed out
+	var ret, pg, pidx, bidx, prime uint
+	ret = 2
+
 	for {
-		if lim < (*primes)[ii-1] {
-			ii--
-		} else {
-			break
+		if euler.BVbitsPerByte <= bidx {
+			bidx = 0
+			pidx++
+		}
+		if euler.BVpagesize <= pidx {
+			pidx = 0
+			pg++
+		}
+		for ; bidx < euler.BVbitsPerByte; bidx++ {
+			if 0 == euler.Primes.PV[pg][pidx]&(uint8(1)<<bidx) {
+				prime = ((pg*euler.BVpagesize + pidx) << euler.BVprimeByteBitShift) + uint(bidx)<<1 + 3
+				if lim < prime {
+					return ret
+				}
+				ret += prime
+			}
 		}
 	}
-	// fmt.Println(ii, primes[:ii])
-	return euler.ListSum((*primes)[:ii])
 }
+
+/*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 42) ; do go fmt $(printf "pe_%04d.go" "$ii") ; printf "NEXT: %s\n" $ii ; go run $(printf "pe_%04d.go" "$ii") || break ; read JUNK ; done
+
+Euler010:        17 true
+Euler010... This might take a while, finding primes to a bit over 2000000
+Euler010... Time to scan and sum
+Euler010:        142913828922
+
+
+
+*/
 
 func main() {
 	//test

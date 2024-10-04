@@ -124,7 +124,7 @@ Test 10p:        50
 Euler031:        2886726
 
 
- */
+*/
 func main() {
 	//test
 	fmt.Println("Test 10p:\t", Euler031(10))

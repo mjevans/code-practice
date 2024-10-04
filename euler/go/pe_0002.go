@@ -40,14 +40,14 @@ func main() {
 		xx += yy
 		if xx > 4000000 {
 			break
-		} else if 0 == xx & 0x1 {
+		} else if 0 == xx&0x1 {
 			sum += xx
 		}
 		// right
 		yy += xx
 		if yy > 4000000 {
 			break
-		} else if 0 == yy & 0x1 {
+		} else if 0 == yy&0x1 {
 			sum += yy
 		}
 	}

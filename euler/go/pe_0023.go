@@ -16,7 +16,15 @@ https://projecteuler.net/minimal=23
 <p>As $12$ is the smallest abundant number, $1 + 2 + 3 + 4 + 6 = 16$, the smallest number that can be written as the sum of two abundant numbers is $24$. By mathematical analysis, it can be shown that all integers greater than $28123$ can be written as the sum of two abundant numbers. However, this upper limit cannot be reduced any further by analysis even though it is known that the greatest number that cannot be expressed as the sum of two abundant numbers is less than this limit.</p>
 <p>Find the sum of all the positive integers which cannot be written as the sum of two abundant numbers.</p>
 
+*/
+/*
 
+Another Primes revisit, I wasn't happy with the runtime, so I wanted to see if it improved with the updated Primes / Factorization classes.
+
+Just one run, but...
+real    0m12.928s
+user    0m12.963s
+sys     0m0.080s
 
 
 
@@ -37,18 +45,25 @@ import (
 )
 
 func Euler023() uint64 {
-	primes := euler.GetPrimes(nil, 512-8)
-	sum := uint64(1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) //constant+doc
+	euler.Primes.Grow(28123)
+	//sum := uint64(1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 + 11) //constant+doc
+	var sum uint64
 	abund := []uint16{12}
-Euler023outer:
+	fmt.Printf("Euler023 ... Scan for Abundant Numbers...\n")
 	for ii := uint16(13); ii < 28123; ii++ {
-		iisum := uint16(euler.ListSum(*(euler.FactorsToProperDivisors(euler.Factor(primes, int(ii))))))
+		iisum := uint16(euler.ListSumUint64(*(euler.Primes.Factorize(uint(ii)).ProperDivisors())))
 		if iisum > ii {
 			abund = append(abund, ii)
 			// fmt.Println(ii, "\tabundant")
 		}
-		for x := 0; x < len(abund); x++ {
-			for y := 0; y < len(abund); y++ {
+	}
+	fmt.Printf("Euler023 ... Scan for combos...\n")
+	aLim := len(abund)
+Euler023outer:
+	for ii := uint16(0); ii < 28123; ii++ {
+		for x := 0; x < aLim && ii > abund[x]; x++ {
+			xTarget := ii - abund[x]
+			for y := 0; y < len(abund) && xTarget >= abund[y]; y++ {
 				if ii == abund[x]+abund[y] {
 					// fmt.Println(ii, "\t2a")
 					continue Euler023outer
@@ -61,8 +76,18 @@ Euler023outer:
 }
 
 /*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 23 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
+
+Euler023 ... Scan for Abundant Numbers...
+Euler023 ... Scan for combos...
+4179871         the sum of all the positive integers which cannot be written as the sum of two abundant numbers.
+
+real    0m7.858s
+user    0m7.900s
+sys     0m0.071s
+
 4179859         the sum of all the positive integers which cannot be written as the sum of two abundant numbers.
- */
+*/
 func main() {
 	// fmt.Println(grid)
 	//test

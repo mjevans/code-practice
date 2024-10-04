@@ -35,7 +35,7 @@ func Euler016(exp int64) int64 {
 
 	// check := int64(0)
 	// if exp < 64 {
-		// check = int64(math.Pow(2, float64(exp)))
+	// check = int64(math.Pow(2, float64(exp)))
 	// }
 
 	// 1000 is many more bits than are supported by normal machine types...
@@ -46,7 +46,7 @@ func Euler016(exp int64) int64 {
 		b.Mul(b, two)
 	}
 	// if check > 0 {
-		// fmt.Println(check == b.Int64(), check, " == ", b.Int64())
+	// fmt.Println(check == b.Int64(), check, " == ", b.Int64())
 	// }
 
 	ret := int64(0)
@@ -60,6 +60,7 @@ func Euler016(exp int64) int64 {
 	}
 	return ret
 }
+
 /*
 true 32768  ==  32768
 15 26

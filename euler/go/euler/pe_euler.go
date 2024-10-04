@@ -240,6 +240,15 @@ func ListSum(scale []int) int {
 	return ret
 }
 
+func ListSumUint64(scale []uint64) uint64 {
+	ret := uint64(0)
+	ll := len(scale)
+	for ii := 0; ii < ll; ii++ {
+		ret += scale[ii]
+	}
+	return ret
+}
+
 func ListMul(scale []int) int {
 	ret := 1
 	for _, val := range scale {
