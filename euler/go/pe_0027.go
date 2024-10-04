@@ -114,6 +114,6 @@ func main() {
 
 	//run
 	a, b, n = Euler027(1000, 1000, 100, 9)
-	fmt.Println("Euler027: run:\t", "\t0..", n, " FOR n*n + ", a, "*n + ", b, "\tThus\t", a * b)
+	fmt.Println("Euler027: run:\t", "\t0..", n, " FOR n*n + ", a, "*n + ", b, "\tThus\t", a*b)
 
 }

@@ -47,7 +47,7 @@ import (
 
 func Euler019() int {
 	ret := 0
-	for yy := 1900; yy <= 2000; yy++ {
+	for yy := 1901; yy <= 2000; yy++ {
 		for mm := 1; mm <= 12; mm++ {
 			if time.Sunday == time.Date(yy, time.Month(mm), 1, 0, 0, 0, 0, time.UTC).Weekday() {
 				ret++
@@ -63,5 +63,5 @@ func main() {
 
 	//run
 	// 173 Sundays fall on the first of the month between 1900 and 2000 (inclusive).
-	fmt.Println(Euler019(), "Sundays fall on the first of the month between 1900 and 2000 (inclusive).")
+	fmt.Println(Euler019(), "Sundays fall on the first of the month between 1901 and 2000 (inclusive).")
 }

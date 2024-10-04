@@ -60,7 +60,7 @@ func Euler011(lim int, grid [][]int) (int, []int) {
 				max = prod
 				// runbest = nil
 				copy(runbest, grid[gg][ii:ii+lim])
-				// fmt.Println("Horiz\t", max, runbest)
+				fmt.Println("Horiz\t", max, runbest)
 			}
 			runtmp = []int{grid[gg][ii], grid[gg][ii+1], grid[gg][ii+2], grid[gg][ii+3]}
 			prod = euler.ListMul(runtmp)
@@ -68,7 +68,7 @@ func Euler011(lim int, grid [][]int) (int, []int) {
 				max = prod
 				// runbest = nil
 				copy(runbest, runtmp)
-				// fmt.Println("Vert\t", max, runbest)
+				fmt.Println("Vert\t", max, runbest)
 			}
 			runtmp = []int{grid[gg][ii], grid[gg+1][ii+1], grid[gg+2][ii+2], grid[gg+3][ii+3]}
 			prod = euler.ListMul(runtmp)
@@ -79,20 +79,34 @@ func Euler011(lim int, grid [][]int) (int, []int) {
 				max = prod
 				// runbest = nil
 				copy(runbest, runtmp)
-				// fmt.Println("Diag \\\t", max, runbest)
+				fmt.Println("Diag \\\t", max, runbest)
 			}
 			runtmp = []int{grid[gg+3][ii], grid[gg+2][ii+1], grid[gg+1][ii+2], grid[gg][ii+3]}
 			prod = euler.ListMul(runtmp)
-			if false { // prod > max {
+			if prod > max {
 				max = prod
 				// runbest = nil
 				copy(runbest, runtmp)
-				// fmt.Println("Diag /\t", max, runbest)
+				fmt.Println("Diag /\t", max, runbest)
 			}
 		}
 	}
 	return max, runbest
 }
+
+/*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 11 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+
+Horiz    34144 [8 2 22 97]
+Diag \   279496 [8 49 31 23]
+Diag /   24468444 [52 49 99 97]
+Diag /   34826064 [68 67 98 78]
+Diag /   41076896 [92 68 67 98]
+Horiz    48477312 [78 78 96 83]
+Diag /   70600674 [87 97 94 89]
+Euler011:       Max for 4:       70600674
+
+*/
 
 func main() {
 	var grid [][]int

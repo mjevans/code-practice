@@ -368,6 +368,32 @@ func AddBigIntDecDigits(bi *big.Int) int64 {
 	return ret
 }
 
+// Tested by Euler 0015
+func PascalTri(row, index uint64) uint64 {
+	// Pascal Triangle?
+	// Rows and Cols start with 0
+	// A row may be calculated in isolation by: (just roll forward)  NOTE: 'forward' might also be backwards since it's symmetrical!
+	// F(n Row, k Index) = (F(n, k - 1) * ( n + 1 - k) / k )
+	// 0	    1
+	// 1	   1 1
+	// 2	  1 2 1
+	// 3	 1 3 3 1
+	// 4	1 4 6 4 1
+	// F(4 Row, 2 Index) = (F(4, 2 - 1) * ( 4 + 1 - 2) / 2 ) = (1 * ( 4 + 1 - 1) / 1 ) *  ( 4 + 1 - 2) / 2 )
+	// if 0 == index { return 1 }
+	if row+1 < index {
+		return 0
+	}
+	if 0 < row && (row+1)>>1 <= index {
+		index = row - index
+	}
+	ret := uint64(1)
+	for ii := uint64(1); ii <= index; ii++ {
+		ret = (ret * (row + 1 - ii)) / ii
+	}
+	return ret
+}
+
 func IsPalindrome(num int) bool {
 	digits := make([]int, 0, 8)
 	for num != 0 {

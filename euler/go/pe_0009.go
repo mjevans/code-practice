@@ -43,5 +43,6 @@ func Euler009() []int {
 }
 
 func main() {
-	fmt.Println("Euler009:\t", Euler009())
+	arr := Euler009()
+	fmt.Println("Euler009:\t", arr, "\t=\t", arr[0]*arr[1]*arr[2])
 }

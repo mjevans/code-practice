@@ -77,7 +77,7 @@ func main() {
 
 	//run
 	fmt.Println("What is the millionth lexicographic permutation of the digits 0, 1, 2, 3, 4, 5, 6, 7, 8 and 9?\n",
-		999999, euler.PermutationString(999999, "0123456789"), "\n",
+		999999, euler.PermutationString(999999, "0123456789"), "\t<<< This is the 'counting from 1' not '0' answer they want.\n",
 		1000000, euler.PermutationString(1000000, "0123456789"), "\n",
 		1000001, euler.PermutationString(1000001, "0123456789"))
 

@@ -16,16 +16,12 @@ https://projecteuler.net/minimal=15
 <p>How many such routes are there through a $20 \times 20$ grid?</p>
 
 
-
-
-
-
 */
 
 import (
-	// "euler"
+	"euler"
 	"fmt"
-	"math"
+	// "math"
 	// "slices" // Doh not in 1.19
 	// "sort"
 	// "strings"
@@ -33,26 +29,47 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler015(sqsz int64) int64 {
-	return (int64(math.Pow(2, float64(sqsz))) - 1) * 2
+func Euler015(sqsz uint64) uint64 {
+	return euler.PascalTri(sqsz<<1, sqsz)
 }
 
 /*
-Euler15 test: 2 6 true
-Euler15 test: 1 2 true
-Euler15 test: 3 14 false
-Euler15 test: 4 30 false
-Euler15 20:  2097150
+
+Wrong:	return (int64(math.Pow(2, float64(sqsz))) - 1) * 2
+Wrong:	Euler15 test: 2 6 true
+Wrong:	Euler15 test: 1 2 true
+Wrong:	Euler15 test: 3 14 false
+Wrong:	Euler15 test: 4 30 false
+Wrong:	Euler15 20:  2097150
+
+The hint I needed came from LeetCode's rectangle based variation of the same problem, which forced me to think from another angle... looking it up.
+
+I don't often see Pascal's Triangle drawn out as a grid, and the progression of it's sequence is pretty but not so obviously connected to an 8th circle rotation of a rectangle / square, after all it's usually depicted as an equal-lateral or possibly even distorted to render the numbers, triangle; not a right angle at the top triangle.
+
+- Unique Paths - https://leetcode.com/problems/unique-paths/
+Pascal Triangle?
+Rows and Cols start with 0
+A row may be calculated in isolation by: (just roll forward)  NOTE: 'forward' might also be backwards since it's symmetrical!
+F(n Row, k Index) = (F(n, k - 1) * ( n + 1 - k) / k )
+
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 15 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+
+Euler015 test: 2 6 true
+Euler015 test: 1 2 true
+Euler015 test: 3 20 true
+Euler015 test: 4 70 true
+Euler015 20:  137846528820
+
 */
 
 func main() {
 	// fmt.Println(grid)
 	//test
-	fmt.Println("Euler15 test: 2", Euler015(2), Euler015(2) == 6)
-	fmt.Println("Euler15 test: 1", Euler015(1), Euler015(1) == 2)
-	fmt.Println("Euler15 test: 3", Euler015(3), Euler015(3) == 0)
-	fmt.Println("Euler15 test: 4", Euler015(4), Euler015(4) == 0)
+	fmt.Println("Euler015 test: 2", Euler015(2), Euler015(2) == 6)
+	fmt.Println("Euler015 test: 1", Euler015(1), Euler015(1) == 2)
+	fmt.Println("Euler015 test: 3", Euler015(3), Euler015(3) == 20)
+	fmt.Println("Euler015 test: 4", Euler015(4), Euler015(4) == 70)
 
 	//run
-	fmt.Println("Euler15 20: ", Euler015(20))
+	fmt.Println("Euler015 20: ", Euler015(20))
 }
