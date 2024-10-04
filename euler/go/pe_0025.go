@@ -166,4 +166,5 @@ func main() {
 	iter, val := Euler025(int64(1000))
 	fmt.Println("F(", iter, ")\t=>\t", val)
 
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

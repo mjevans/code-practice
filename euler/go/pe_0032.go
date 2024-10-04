@@ -127,4 +127,5 @@ func main() {
 	combos, sum := Euler032()
 	fmt.Println("Euler032:\t", combos, "\t", sum)
 
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

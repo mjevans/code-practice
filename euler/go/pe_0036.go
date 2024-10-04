@@ -120,4 +120,5 @@ func main() {
 	sum = Euler036(1_000_000)
 	fmt.Printf("Euler036: RUN : 1_000_000 ==\t%d\n", sum)
 
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

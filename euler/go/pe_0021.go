@@ -102,4 +102,5 @@ func main() {
 
 	//run
 	fmt.Println("Euler021 ", Euler021(1, 10000))
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

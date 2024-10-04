@@ -46,53 +46,54 @@ func Euler031(change int) int {
 					for c010 := 0; c200*200+c100*100+c050*50+c020*20+c010*10 <= change; c010++ {
 						for c005 := 0; c200*200+c100*100+c050*50+c020*20+c010*10+c005*5 <= change; c005++ {
 							for c002 := 0; c200*200+c100*100+c050*50+c020*20+c010*10+c005*5+c002*2 <= change; c002++ {
-								for c001 := 0; c200*200+c100*100+c050*50+c020*20+c010*10+c005*5+c002*2+c001 <= change; c001++ {
-									combos++
-									if 21 > change {
-										fmt.Printf("%d:\t", combos)
-										/*
-											if 0 < c200 {
-												fmt.Printf("200p%d\t", c200)
-											} else {
-												fmt.Printf("\t")
-											}
-											if 0 < c100 {
-												fmt.Printf("100p%d\t", c100)
-											} else {
-												fmt.Printf("\t")
-											}
-											if 0 < c050 {
-												fmt.Printf("050p%d\t", c050)
-											} else {
-												fmt.Printf("\t")
-											}
-											if 0 < c020 {
-												fmt.Printf("020p%d\t", c020)
-											} else {
-												fmt.Printf("\t")
-											}*/
-										if 0 < c010 {
-											fmt.Printf("010p%d\t", c010)
+								// for c001 := 0; c200*200+c100*100+c050*50+c020*20+c010*10+c005*5+c002*2+c001 <= change; c001++ {
+								c001 := change - (c200*200 + c100*100 + c050*50 + c020*20 + c010*10 + c005*5 + c002*2)
+								combos++
+								if 21 > change {
+									fmt.Printf("%d:\t", combos)
+									/*
+										if 0 < c200 {
+											fmt.Printf("200p%d\t", c200)
 										} else {
 											fmt.Printf("\t")
 										}
-										if 0 < c005 {
-											fmt.Printf("005p%d\t", c005)
+										if 0 < c100 {
+											fmt.Printf("100p%d\t", c100)
 										} else {
 											fmt.Printf("\t")
 										}
-										if 0 < c002 {
-											fmt.Printf("002p%d\t", c002)
+										if 0 < c050 {
+											fmt.Printf("050p%d\t", c050)
 										} else {
 											fmt.Printf("\t")
 										}
-										if 0 < c001 {
-											fmt.Printf("001p%d\n", c001)
+										if 0 < c020 {
+											fmt.Printf("020p%d\t", c020)
 										} else {
-											fmt.Printf("\n")
-										}
+											fmt.Printf("\t")
+										}*/
+									if 0 < c010 {
+										fmt.Printf("010p%d\t", c010)
+									} else {
+										fmt.Printf("\t")
+									}
+									if 0 < c005 {
+										fmt.Printf("005p%d\t", c005)
+									} else {
+										fmt.Printf("\t")
+									}
+									if 0 < c002 {
+										fmt.Printf("002p%d\t", c002)
+									} else {
+										fmt.Printf("\t")
+									}
+									if 0 < c001 {
+										fmt.Printf("001p%d\n", c001)
+									} else {
+										fmt.Printf("\n")
 									}
 								}
+								// }
 							}
 						}
 					}
@@ -106,22 +107,21 @@ func Euler031(change int) int {
 //	for ii in */*.go ; do go fmt "$ii" ; done ; for ii in 31 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 /*
 
-37:             005p1
-38:             005p1           001p1
-39:             005p1           001p2
-40:             005p1           001p3
-41:             005p1           001p4
-42:             005p1           001p5
-43:             005p1   002p1
-44:             005p1   002p1   001p1
-45:             005p1   002p1   001p2
-46:             005p1   002p1   001p3
-47:             005p1   002p2
-48:             005p1   002p2   001p1
-49:             005p2
-50:     010p1
-Test 10p:        50
-Euler031:        2886726
+An obvious mistake when I looked at the code again, 'any number of pennies less than the correct number' is not proper change.
+
+1:                              001p10
+2:                      002p1   001p8
+3:                      002p2   001p6
+4:                      002p3   001p4
+5:                      002p4   001p2
+6:                      002p5
+7:              005p1           001p5
+8:              005p1   002p1   001p3
+9:              005p1   002p2   001p1
+10:             005p2
+11:     010p1
+Test 10p:        11
+Euler031:        73682
 
 
 */
@@ -133,4 +133,5 @@ func main() {
 	permu := Euler031(200)
 	fmt.Println("Euler031:\t", permu)
 
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

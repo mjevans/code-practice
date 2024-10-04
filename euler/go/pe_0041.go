@@ -112,4 +112,5 @@ func main() {
 	ans := Euler041()
 	fmt.Printf("Euler041: Pandigital Prime :\t%d\n", ans)
 
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

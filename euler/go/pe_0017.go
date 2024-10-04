@@ -62,4 +62,5 @@ func main() {
 
 	//run
 	fmt.Println("How many printed characters if 1..1000 are written out like in check numbers? : ", Euler017(1, 1000))
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

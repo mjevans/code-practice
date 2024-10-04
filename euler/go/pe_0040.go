@@ -128,4 +128,5 @@ func main() {
 	r := Euler040()
 	fmt.Printf("\nEuler040: Champernowne's Constant (result) :\t%d\n", r)
 
+	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }
