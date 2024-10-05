@@ -394,6 +394,7 @@ func PascalTri(row, index uint64) uint64 {
 	return ret
 }
 
+/*
 func IsPalindrome(num int) bool {
 	digits := make([]int, 0, 8)
 	for num != 0 {
@@ -408,6 +409,7 @@ func IsPalindrome(num int) bool {
 	}
 	return true
 }
+*/
 
 // CompactInts should behave like slices.Compact(slices.Sort())
 func CompactInts(arr []int) []int {
@@ -815,7 +817,8 @@ func RotateDecDigits(x uint64) []uint64 {
 	return ret
 }
 
-func Pandigital(test uint64, used uint16) (highest, usedRe uint16, DigitShift uint64) {
+// FIXME: Return 'full' uint16((uint64(1)<<(bset+1))-2) == used
+func Pandigital(test uint64, used uint16) (biton, usedRe uint16, DigitShift uint64) {
 	DigitShift = uint64(1)
 	ok := true
 	if 0 == test {
@@ -832,11 +835,12 @@ func Pandigital(test uint64, used uint16) (highest, usedRe uint16, DigitShift ui
 		used |= bd
 	}
 	if ok {
-		sz := uint16(0)
-		for t := used >> 1; 0 != t&1; t >>= 1 {
-			sz++
+		bt := uint16(0)
+		// case 9 := 0b_10_0000_0000 so... what?
+		for t := used >> 1; 0 < t; t >>= 1 {
+			bt++
 		}
-		return sz, used, DigitShift
+		return bt, used, DigitShift
 	}
 	return 0, used, DigitShift
 }
@@ -851,7 +855,27 @@ func PalindromeFlipBinary(x uint64) uint64 {
 	return ret
 }
 
-func PalindromeMakeDec(x uint64, odd bool) uint64 {
+func IsPalindrome(x, base uint64) bool {
+	buf := make([]uint8, 0, 24)
+	if 255 < base || 0 == base {
+		fmt.Printf("ERROR: IsPalindrome does not support base = %d\n", base)
+		return false
+	}
+	for 0 < x {
+		buf = append(buf, uint8(x%base))
+		x /= base
+	}
+	lim := len(buf)
+	for ii := 0; ii<<1 < lim; ii++ {
+		// 0..3 (4) 4-0-1 == 3~0 4-1-1 == 2~1 // (5) 5-0-1 4:0 5-1-1 3:1 5-2-1 2:2
+		if buf[ii] != buf[lim-ii-1] {
+			return false
+		}
+	}
+	return true
+}
+
+func PalindromeMakeDec(x, addZeros uint64, odd bool) uint64 {
 	ret := x
 	buf := make([]uint8, 0, 20)
 	pow := uint64(1)
@@ -860,8 +884,15 @@ func PalindromeMakeDec(x uint64, odd bool) uint64 {
 		x /= 10
 		pow *= 10
 	}
-	if true == odd {
+	if true == odd && 0 == addZeros {
 		buf = buf[0 : len(buf)-1]
+	}
+	if odd && 0 < addZeros {
+		pow /= 10
+	}
+	for 0 < addZeros {
+		pow *= 100
+		addZeros--
 	}
 	for ii := len(buf) - 1; 0 <= ii; ii-- {
 		ret += uint64(buf[ii]) * pow

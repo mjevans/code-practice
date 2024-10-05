@@ -17,6 +17,8 @@ https://projecteuler.net/minimal=36
 */
 /*
 
+585 = 0b10_0100_1001
+
 If it can't include leading zeros, then it can't include trailing zeros either... All even numbers are out.
 
 0 0b_0000
@@ -35,7 +37,9 @@ If it can't include leading zeros, then it can't include trailing zeros either..
 Next there's the flip around issue, E.G. 1 000? 0001 ; naively 111 (dec) except 111 (dec) in binary is 0b_0110_1111
 
 
+Revisit:  Oops, leading zeros... yeah, I can do that.
 
+However it was SO UGLY and convoluted that I just wrote it again from scratch, and tested every decimal number as a palindrome first.
 
 */
 
@@ -53,28 +57,85 @@ import (
 	// "os" // os.Stdout
 )
 
+func Euler036__works_but_ugly(limit uint64) uint64 {
+	if 0 == limit {
+		limit = 1_000_000
+	}
+	var sum, ii, even, odd, res uint64
+	ii = 1
+	for {
+		// Add 00
+		if ii < 100 {
+			even = euler.PalindromeMakeDec(ii, 1, false)
+			odd = euler.PalindromeMakeDec(ii, 1, true)
+			if limit >= even {
+				res = euler.PalindromeFlipBinary(even)
+				if even == res {
+					sum += even
+					fmt.Printf("Found: %d\t\t%d\tEven\n", res, sum)
+				}
+			}
+			res = euler.PalindromeFlipBinary(odd)
+			if limit >= odd {
+				if odd == res {
+					sum += odd
+					fmt.Printf("Found: %d\t\t%d\tOdd\n", res, sum)
+				}
+			} else {
+				break
+			}
+		}
+
+		// Add 0000
+		if ii < 10 {
+			even = euler.PalindromeMakeDec(ii, 2, false)
+			if limit >= even {
+				res = euler.PalindromeFlipBinary(even)
+				if even == res {
+					sum += even
+					fmt.Printf("Found: %d\t\t%d\tEven\n", res, sum)
+				}
+			}
+		}
+
+		// As is
+		even = euler.PalindromeMakeDec(ii, 0, false)
+		odd = euler.PalindromeMakeDec(ii, 0, true)
+		if limit >= even {
+			res = euler.PalindromeFlipBinary(even)
+			if even == res {
+				sum += even
+				fmt.Printf("Found: %d\t\t%d\tEven\n", res, sum)
+			}
+		}
+		res = euler.PalindromeFlipBinary(odd)
+		if limit >= odd {
+			if odd == res {
+				sum += odd
+				fmt.Printf("Found: %d\t\t%d\tOdd\n", res, sum)
+			}
+		} else {
+			break
+		}
+
+		ii += 2
+	}
+	fmt.Printf("Exit conditions: ii = %d\todd = %d\teven = %d\n", ii, odd, even)
+	return sum
+}
+
 func Euler036(limit uint64) uint64 {
 	if 0 == limit {
 		limit = 1_000_000
 	}
-	var sum, ii, even, odd uint64
-	for ii = 1; limit > odd; ii += 2 {
-		var res uint64
-		even = euler.PalindromeMakeDec(ii, false)
-		odd = euler.PalindromeMakeDec(ii, true)
-		if limit > even {
-			res = euler.PalindromeFlipBinary(even)
-			if even == res {
-				sum += even
-				fmt.Printf("Found: %d\t\t%d\n", res, sum)
-			}
-		}
-		res = euler.PalindromeFlipBinary(odd)
-		if odd == res {
-			sum += odd
-			fmt.Printf("Found: %d\t\t%d\n", res, sum)
+	var sum, ii uint64
+	for ii = 1; ii < limit; ii += 2 {
+		if euler.IsPalindrome(ii, 10) && ii == euler.PalindromeFlipBinary(ii) {
+			sum += ii
+			fmt.Printf("Found: %d\t\t%d\n", ii, sum)
 		}
 	}
+	fmt.Printf("Exit conditions: ii = %d\t%d\n", ii, sum)
 	return sum
 }
 
@@ -87,27 +148,29 @@ Found: 3                4
 Found: 5                9
 Found: 7                16
 Found: 9                25
+Exit conditions: ii = 11        25
 Euler036: TEST: 10 == 25?       25
 Found: 1                1
-Found: 33               34
-Found: 3                37
-Found: 5                42
-Found: 7                49
-Found: 99               148
-Found: 9                157
+Found: 3                4
+Found: 5                9
+Found: 7                16
+Found: 9                25
+Found: 33               58
+Found: 99               157
 Found: 313              470
-Found: 717              1187
-Found: 7447             8634
-Found: 585              9219
-Found: 32223            41442
-Found: 53235            94677
-Found: 15351            110028
-Found: 585585           695613
-Found: 73737            769350
-Found: 53835            823185
-Found: 39993            863178
-Euler036: RUN : 1_000_000 ==    863178
-
+Found: 585              1055
+Found: 717              1772
+Found: 7447             9219
+Found: 9009             18228
+Found: 15351            33579
+Found: 32223            65802
+Found: 39993            105795
+Found: 53235            159030
+Found: 53835            212865
+Found: 73737            286602
+Found: 585585           872187
+Exit conditions: ii = 1000001   872187
+Euler036: RUN : 1_000_000 ==    872187
 
 
 */
@@ -119,6 +182,4 @@ func main() {
 	//run
 	sum = Euler036(1_000_000)
 	fmt.Printf("Euler036: RUN : 1_000_000 ==\t%d\n", sum)
-
-	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

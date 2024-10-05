@@ -516,19 +516,38 @@ func TestPalindromeFuncs(t *testing.T) {
 		}
 	}
 	testMakeDec := []struct {
-		test, even, odd uint64
+		test, addZeros, even, odd uint64
 	}{
-		{1, 11, 1},
-		{9, 99, 9},
-		{42, 2442, 242},
-		{867, 768867, 76867},
-		{5309, 90355309, 9035309},
+		{1, 0, 11, 1},
+		{9, 0, 99, 9},
+		{9, 1, 9009, 909},
+		{42, 0, 2442, 242},
+		{867, 0, 768867, 76867},
+		{5309, 0, 90355309, 9035309},
 	}
 	for _, test := range testMakeDec {
-		even := euler.PalindromeMakeDec(test.test, false)
-		odd := euler.PalindromeMakeDec(test.test, true)
+		even := euler.PalindromeMakeDec(test.test, test.addZeros, false)
+		odd := euler.PalindromeMakeDec(test.test, test.addZeros, true)
 		if even != test.even || odd != test.odd {
 			t.Errorf("Even and/or odd failed: Expected %d and %d got %d and %d\n", test.odd, test.even, odd, even)
+		}
+	}
+
+	testPals := []struct {
+		in, base uint64
+		pal      bool
+	}{
+		{11, 10, true},
+		{9009, 10, true},
+		{909, 10, true},
+		{90355309, 10, true},
+		{90353309, 10, false},
+		{0b_11011, 2, true},
+		{0b_111011, 2, false},
+	}
+	for _, test := range testPals {
+		if test.pal != euler.IsPalindrome(test.in, test.base) {
+			t.Errorf("expected %t, got %t for %d\n", test.pal, euler.IsPalindrome(test.in, test.base), test.in)
 		}
 	}
 

@@ -66,8 +66,8 @@ func ChampernowneDigit(ii uint64) uint64 {
 	dig = 1
 	place = 1
 	placeNext = 10
-	for ii >= placeNext-place {
-		ii -= (placeNext - place)
+	for ii >= (placeNext-place)*dig {
+		ii -= (placeNext - place) * dig
 		place = placeNext
 		placeNext *= 10
 		dig += 1
@@ -87,7 +87,7 @@ func Euler040() uint64 {
 	iiLen := len(seq)
 	for ii := 0; ii < iiLen; ii++ {
 		ret *= ChampernowneDigit(seq[ii])
-		fmt.Printf("\t%d:\t%d\t%d", ii, seq[ii], ret)
+		fmt.Printf("\t%d:\t%d\t%d", seq[ii], ChampernowneDigit(seq[ii]), ret)
 	}
 	return ret
 }
@@ -96,9 +96,24 @@ func Euler040() uint64 {
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 40 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-        0:      1       1       1:      10      1       2:      100     1       3:      1000    1       4:      10000   1       5:      100000  1       6:      1000000 1
-Euler040: Champernowne's Constant (result) :    1
-
+1234567891
+:: 10
+0111213141
+:: 20
+9
+:: 170
+0919293949
+:: 180
+5969798991
+:: 190
+0010110210
+:: 200
+3104105106
+:: 210
+1071081091
+:: 220
+        1:      1       1       10:     1       1       100:    5       5       1000:   3       15      10000:  7       105     100000: 2       210     1000000:        1       210
+Euler040: Champernowne's Constant (result) :    210
 
 
 
@@ -124,9 +139,20 @@ func main() {
 		}
 	}
 
+	for ii := uint64(1); ii <= 20; ii++ {
+		fmt.Printf("%d", ChampernowneDigit(ii))
+		if 0 == ii%10 {
+			fmt.Printf("\n:: %d\n", ii)
+		}
+	}
+	for ii := uint64(170); ii <= 220; ii++ {
+		fmt.Printf("%d", ChampernowneDigit(ii))
+		if 0 == ii%10 {
+			fmt.Printf("\n:: %d\n", ii)
+		}
+	}
+
 	//run
 	r := Euler040()
 	fmt.Printf("\nEuler040: Champernowne's Constant (result) :\t%d\n", r)
-
-	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

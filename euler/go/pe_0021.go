@@ -15,8 +15,18 @@ If $d(a) = b$ and $d(b) = a$, where $a \ne b$, then $a$ and $b$ are an amicable 
 <p>For example, the proper divisors of $220$ are $1, 2, 4, 5, 10, 11, 20, 22, 44, 55$ and $110$; therefore $d(220) = 284$. The proper divisors of $284$ are $1, 2, 4, 71$ and $142$; so $d(284) = 220$.</p>
 <p>Evaluate the sum of all the amicable numbers under $10000$.</p>
 
+*/
+/*
 
+d(x) == sum of all _proper divisors_ of N
 
+b := d(a)
+c := d(b)
+a == c && a != b
+==
+Amicable Number (pair)
+
+220 => 284 => 220
 
 */
 
@@ -32,35 +42,36 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler021(start, end int) int64 {
-	var ret, oflow int64
-	cache := make(map[int]int, int(math.Log2(float64(end)))+1)
-	for bb := 64; bb <= end; bb *= 2 {
-		ret += int64(bb - 1)
+func Euler021(start, end uint64) uint64 {
+	var ret, oflow uint64
+	cache := make(map[uint64]uint64, int(math.Log2(float64(end)))+1)
+	/* for bb := 64; bb <= end; bb *= 2 {
+		ret += uint64(bb - 1)
 		cache[bb] = bb - 1
-	}
-	for ii := start; ii <= end; ii++ {
-		var iis, iie int
+	} */
+	for a := start; a <= end; a++ {
+		var b, c uint64
 		var ok bool
-		if iis, ok = cache[ii]; !ok {
-			iis = int(euler.ListSumUint64(*(euler.Primes.Factorize(uint(ii)).ProperDivisors())))
-			cache[ii] = iis
+		if b, ok = cache[a]; !ok {
+			b = euler.ListSumUint64(*(euler.Primes.Factorize(uint(a)).ProperDivisors()))
 		} else {
 			continue
 		}
-		if iie, ok = cache[iis]; !ok {
-			iie = int(euler.ListSumUint64(*(euler.Primes.Factorize(uint(iis)).ProperDivisors())))
-			cache[iis] = iie
+		if c, ok = cache[b]; !ok {
+			c = euler.ListSumUint64(*(euler.Primes.Factorize(uint(b)).ProperDivisors()))
+		} else {
+			continue
 		}
-		// fmt.Println("Loop", ii, iis, iie)
-		if ii != iis && ii == iie {
-			if iis > end || iie > end {
-				// fmt.Println("OVEREND", iis)
-				oflow += int64(iis) + int64(ii)
+		if a != b && a == c {
+			cache[a] = b
+			cache[b] = c
+			if a > end || b > end {
+				fmt.Println("OVEREND: %d or %d\n", a, b)
+				oflow += a + b
 				continue
 			}
-			fmt.Println("Adding ", ii, " (", iis, ")")
-			ret += int64(ii) + int64(iis)
+			fmt.Println("Adding ", a, " (", b, ")")
+			ret += a + b
 		}
 	}
 	fmt.Println("Euler021", ret, "with Overflow:", ret+oflow)
@@ -77,18 +88,19 @@ Adding  1184  ( 1210 )
 Adding  2620  ( 2924 )
 Adding  5020  ( 5564 )
 Adding  6232  ( 6368 )
-Euler021 47938 with Overflow: 47938
-Euler021  47938
+Euler021 31626 with Overflow: 31626
+Euler021  31626
 */
 func main() {
 	// fmt.Println(grid)
 	//test
-	dv := euler.FactorsToProperDivisors(euler.Factor(nil, 220))
-	fmt.Println("Euler021 divisors of 220 : ", *dv, " sum to ", 284, 284 == euler.ListSum(*dv))
-	dv = euler.FactorsToProperDivisors(euler.Factor(nil, 284))
-	fmt.Println("Euler021 divisors of 284 : ", *dv, " sum to ", 220, 220 == euler.ListSum(*dv))
+	//dv := euler.FactorsToProperDivisors(euler.Factor(nil, 220))
+	dv := (*(euler.Primes.Factorize(uint(220)).ProperDivisors()))
+	fmt.Println("Euler021 divisors of 220 : ", dv, " sum to ", 284, 284 == euler.ListSumUint64(dv))
+	//dv = euler.FactorsToProperDivisors(euler.Factor(nil, 284))
+	dv = (*(euler.Primes.Factorize(uint(284)).ProperDivisors()))
+	fmt.Println("Euler021 divisors of 284 : ", dv, " sum to ", 220, 220 == euler.ListSumUint64(dv))
 
 	//run
-	fmt.Println("Euler021 ", Euler021(1, 10000))
-	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
+	fmt.Println("Euler021 ", Euler021(2, 10000))
 }

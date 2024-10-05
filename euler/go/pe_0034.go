@@ -15,12 +15,20 @@ https://projecteuler.net/minimal=34
 <p>Find the sum of all numbers which are equal to the sum of the factorial of their digits.</p>
 <p class="smaller">Note: As $1! = 1$ and $2! = 2$ are not sums they are not included.</p>
 
-9! == 362880 soo things can get big fast.
-9!*6 == 2177280
-9!*7 == 2540160
+*/
+/*
 
+9! == 362880 soooo things can get big fast.
+9!*6 == 2_177_280
+9!*7 == 2_540_160
+9!*8 == 2_903_040
 
+So... 0! == 1 according to some convention about identity multiplicand results
+https://en.wikipedia.org/wiki/Factorial
 
+However It'd be great if the PROBLEM page included that since it isn't easy to infer from the example.  It could have been provided as part of a match fail (but factorial example) number.
+
+This, of course, makes my entire wheel in wheels iterator fail, since leading zeros now 'count' as 1.
 
 */
 
@@ -39,43 +47,37 @@ import (
 )
 
 func Euler034() uint {
-	fa := [10]uint{0, 1, 2}
-	fac := uint(2)
-	for f := uint(3); f < 10; f++ {
+	const limit = 2_540_160
+	fa := [10]uint{1}
+	fac := uint(1)
+	for f := uint(1); f < 10; f++ {
 		fac *= f
 		fa[f] = fac
 	}
-	fmt.Println(fa)
-	var sum uint
-	for i7 := uint(0); i7 < 3; i7++ {
-		for i6 := uint(0); i6 < 10; i6++ {
-			for i5 := uint(0); i5 < 10; i5++ {
-				for i4 := uint(0); i4 < 10; i4++ {
-					for i3 := uint(0); i3 < 10; i3++ {
-						for i2 := uint(0); i2 < 10; i2++ {
-							for i1 := uint(0); i1 < 10; i1++ {
-								faSum := fa[i7] + fa[i6] + fa[i5] + fa[i4] + fa[i3] + fa[i2] + fa[i1]
-								if 2 < faSum && i7*1000000+i6*100000+i5*10000+i4*1000+i3*100+i2*10+i1 == faSum {
-									sum += faSum
-									fmt.Printf("Found: %d\n", faSum)
-								}
-							}
-						}
-					}
-				}
-			}
-			// fmt.Printf("... %d%d....\n", i7, i6)
+	fmt.Println(fa, fa[1], fa[4], fa[5], fa[1]+fa[4]+fa[5])
+	var sum, faSum, iiSum uint
+	for ii := uint(9); ii < limit; ii++ {
+		iiSum = ii
+		faSum = 0
+		for 0 < iiSum {
+			faSum += fa[iiSum%10]
+			iiSum /= 10
+		}
+		if ii == faSum {
+			sum += faSum
+			fmt.Printf("Found: %d\n", faSum)
 		}
 	}
 	return sum
 }
 
-//	for ii in */*.go ; do go fmt "$ii" ; done ; for ii in 34 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 /*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 34 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-Euler034: Sum of Digit Factorials: 145
-
-
+[1 1 2 6 24 120 720 5040 40320 362880] 1 24 120 145
+Found: 145
+Found: 40585
+Euler034: Sum of Digit Factorials: 40730
 */
 func main() {
 	//test
@@ -83,6 +85,4 @@ func main() {
 	//run
 	sum := Euler034()
 	fmt.Printf("Euler034: Sum of Digit Factorials: %d\n", sum)
-
-	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }

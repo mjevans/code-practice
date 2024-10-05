@@ -51,7 +51,7 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler041() uint64 {
+func Euler041_deck_fail() uint64 {
 	// p := euler.NewBVPrimes()
 	// p.Grow(uint(limit))
 	// func Factor1980AutoPMC(q uint, singlePrimeOnly bool) uint
@@ -96,12 +96,33 @@ func Euler041() uint64 {
 	return 0
 }
 
+func Euler041() uint64 {
+	// func Factor1980AutoPMC(q uint, singlePrimeOnly bool) uint
+	// uses euler.Primes to quickly test if a number is a _known_ prime, but that only matters if fully factoring.
+
+	const decksize = 8
+
+	// ii |= 1 // always odd
+	for ii := uint64(87_654_321); 1 < ii; ii -= 2 {
+		// Pandigital test is probably faster than prime test
+		// func Pandigital(test uint64, used uint16) (biton, usedRe uint16, DigitShift uint64) {
+		bset, used, _ := euler.Pandigital(ii, 0)
+		if uint16((uint64(1)<<(bset+1))-2) == used {
+			if uint(ii) == euler.Factor1980AutoPMC(uint(ii), false) {
+				fmt.Printf("Found: %d\n", ii)
+				return ii
+			}
+		}
+	}
+	return 0
+}
+
 //
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 41 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-Found: 8765423
-Euler041: Pandigital Prime :    8765423
+Found: 7652413
+Euler041: Pandigital Prime :    7652413
 
 
 */
@@ -111,6 +132,4 @@ func main() {
 	//run
 	ans := Euler041()
 	fmt.Printf("Euler041: Pandigital Prime :\t%d\n", ans)
-
-	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }
