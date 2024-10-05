@@ -599,7 +599,7 @@ func InitWrittenNumbers() {
 			"Twelve",
 			"Thirteen",
 			"Fourteen",
-			"Fiveteen",
+			"Fifteen",
 			"Sixteen",
 			"Seventeen",
 			"Eighteen",
@@ -611,12 +611,12 @@ func InitWrittenNumbers() {
 			"",
 			"Twenty",
 			"Thirty",
-			"Fourty",
+			"Forty",
 			"Fifty",
 			"Sixty",
-			"Sevent",
+			"Seventy",
 			"Eighty",
-			"Ninty"}
+			"Ninety"}
 	}
 }
 

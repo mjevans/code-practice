@@ -48,8 +48,11 @@ func Euler031(change int) int {
 							for c002 := 0; c200*200+c100*100+c050*50+c020*20+c010*10+c005*5+c002*2 <= change; c002++ {
 								// for c001 := 0; c200*200+c100*100+c050*50+c020*20+c010*10+c005*5+c002*2+c001 <= change; c001++ {
 								c001 := change - (c200*200 + c100*100 + c050*50 + c020*20 + c010*10 + c005*5 + c002*2)
+								if change != c200*200+c100*100+c050*50+c020*20+c010*10+c005*5+c002*2+c001 {
+									fmt.Printf("Logic check failed, why? %d != %d\n", change, c200*200+c100*100+c050*50+c020*20+c010*10+c005*5+c002*2+c001)
+								}
 								combos++
-								if 21 > change {
+								if 11 > change {
 									fmt.Printf("%d:\t", combos)
 									/*
 										if 0 < c200 {
@@ -104,8 +107,52 @@ func Euler031(change int) int {
 	return combos
 }
 
-//	for ii in */*.go ; do go fmt "$ii" ; done ; for ii in 31 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+func Euler031_Alt(change uint16) uint64 {
+	var combos uint64
+	const ccount = 8
+	coins, vals := make([]uint16, 8, 8), []uint16{1, 2, 5, 10, 20, 50, 100, 200} // {1,2,5,10,20,50,100,200} // {200,100,50,20,10,5,2,1}
+	slotLim := func(change uint16, coins, vals []uint16) uint16 {
+		up := uint16(0)
+		for ii := 1; ii < len(vals); ii++ {
+			up += coins[ii] * vals[ii]
+		}
+		return (change - up) / vals[0]
+	}
+
+	for {
+		cur := uint16(0)
+		for ii := 1; ii < ccount; ii++ {
+			cur += coins[ii] * vals[ii]
+		}
+		// The rest are single unit pieces for this currency
+		if cur <= change {
+			combos++
+			if change < 11 {
+				coins[0] = change - cur
+				fmt.Printf("p%d\t%dc\t\t%v\n", change, combos, coins)
+				coins[0] = 0
+			}
+		}
+		// increase coins...
+		for ii := 1; ii < ccount; ii++ {
+			lim := slotLim(change, coins[ii:], vals[ii:])
+			if coins[ii] < lim {
+				coins[ii]++
+				break
+			} else {
+				if ccount == ii+1 {
+					// fmt.Println("exit: coin iter")
+					return combos
+				}
+				coins[ii] = 0
+			}
+		}
+	}
+	return combos
+}
+
 /*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 31 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
 An obvious mistake when I looked at the code again, 'any number of pennies less than the correct number' is not proper change.
 
@@ -122,16 +169,32 @@ An obvious mistake when I looked at the code again, 'any number of pennies less 
 11:     010p1
 Test 10p:        11
 Euler031:        73682
-
-
 */
 func main() {
 	//test
-	fmt.Println("Test 10p:\t", Euler031(10))
+	fmt.Println("Test p5:\t", Euler031(5))
+	fmt.Println("Test p8:\t", Euler031(8))
+	fmt.Println("Test p10:\t", Euler031(10))
+	fmt.Println("Test p20:\t", Euler031(20))
+	fmt.Println("Test p50:\t", Euler031(50))
+	fmt.Println("Test p100:\t", Euler031(100))
+	fmt.Println("Test p200:\t", Euler031(200))
 
 	//run
 	permu := Euler031(200)
 	fmt.Println("Euler031:\t", permu)
+	fmt.Println("Also a more generic variation...")
 
-	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
+	fmt.Println("Test p5:\t", Euler031_Alt(5))
+	fmt.Println("Test p8:\t", Euler031_Alt(8))
+	fmt.Println("Test p10:\t", Euler031_Alt(10))
+	fmt.Println("Test p20:\t", Euler031_Alt(20))
+	fmt.Println("Test p50:\t", Euler031_Alt(50))
+	fmt.Println("Test p100:\t", Euler031_Alt(100))
+	fmt.Println("Test p200:\t", Euler031_Alt(200))
+
+	//run
+	p2 := Euler031_Alt(200)
+	fmt.Println("Euler031_Alt:\t", p2)
+
 }

@@ -42,12 +42,24 @@ func Euler017(start, end int) int {
 }
 
 /*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 17 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+
+Spelling check run on pe_euler.go function...
+
 1 One
 11 Eleven
 19 Nineteen
 186 One Hundred and Eighty Six
 1000 One Thousand
-How many printed characters if 1..1000 are written out like in check numbers? :  21034
+Euler 017
+ref     23      Three Hundred and Forty Two
+TEST    23      three hundred and forty-two
+
+Euler 017
+ref     20      One Hundred and Fifteen
+TEST    20      one hundred and fifteen
+
+How many printed characters if 1..1000 are written out like in check numbers? :  21124
 */
 func SecondIntString(x int, ret string) string { return ret }
 
@@ -59,8 +71,14 @@ func main() {
 	fmt.Println(19, SecondIntString(euler.StringBritishCheckNumber(19)))
 	fmt.Println(186, SecondIntString(euler.StringBritishCheckNumber(186)))
 	fmt.Println(1000, SecondIntString(euler.StringBritishCheckNumber(1000)))
+	l, s := euler.StringBritishCheckNumber(342)
+	lr, sr := 23, "three hundred and forty-two"
+
+	fmt.Printf("Euler 017\nref\t%d\t%s\nTEST\t%d\t%s\n\n", l, s, lr, sr)
+	l, s = euler.StringBritishCheckNumber(115)
+	lr, sr = 20, "one hundred and fifteen"
+	fmt.Printf("Euler 017\nref\t%d\t%s\nTEST\t%d\t%s\n\n", l, s, lr, sr)
 
 	//run
 	fmt.Println("How many printed characters if 1..1000 are written out like in check numbers? : ", Euler017(1, 1000))
-	fmt.Printf("\t\t\t*** TODO correct answer before new Euler problems ***\n")
 }
