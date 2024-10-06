@@ -106,7 +106,7 @@ func Euler041() uint64 {
 	for ii := uint64(87_654_321); 1 < ii; ii -= 2 {
 		// Pandigital test is probably faster than prime test
 		// func Pandigital(test uint64, used uint16) (biton, usedRe uint16, DigitShift uint64) {
-		fullPD, _, _, _ := euler.Pandigital(ii, 0)
+		fullPD, _, _, _ := euler.Pandigital(ii, 0, 1)
 		if fullPD {
 			if uint(ii) == euler.Factor1980AutoPMC(uint(ii), false) {
 				fmt.Printf("Found: %d\n", ii)

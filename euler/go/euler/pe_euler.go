@@ -817,7 +817,7 @@ func RotateDecDigits(x uint64) []uint64 {
 	return ret
 }
 
-func Pandigital(test uint64, used uint16) (fullPD bool, biton, usedRe uint16, DigitShift uint64) {
+func Pandigital(test uint64, used, reserved uint16) (fullPD bool, biton, usedRe uint16, DigitShift uint64) {
 	DigitShift = uint64(1)
 	ok := true
 	if 0 == test {
@@ -827,7 +827,7 @@ func Pandigital(test uint64, used uint16) (fullPD bool, biton, usedRe uint16, Di
 		bd := uint16(1) << (test % 10)
 		test /= 10
 		DigitShift *= 10
-		if 0 < used&bd || bd == 1 {
+		if 0 < used&bd || 1 == reserved&bd {
 			// fmt.Printf("SKIP: %d : dupe or 0 digit : %d\n", nn, test%10)
 			ok = false
 		}
@@ -835,8 +835,8 @@ func Pandigital(test uint64, used uint16) (fullPD bool, biton, usedRe uint16, Di
 	}
 	if ok {
 		bt := uint16(0)
-		// case 9 := 0b_10_0000_0000 so... what?
-		for t := used >> 1; 0 < t; t >>= 1 {
+		// t := used AND (allowed) (XOR reserved)
+		for t := used & (^reserved) >> 1; 0 < t; t >>= 1 {
 			bt++
 		}
 		// Turn the bitcount into a binary similar to 0b_xxxx_xxx0 by shifting one more bit left, then subtracting the zero bit, and the bit to make it a 2s compliment negative number.

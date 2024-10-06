@@ -22,6 +22,8 @@ import (
 
 	https://go.dev/src/strings/search_test.go
 
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 42) ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
 -*/
 
@@ -555,22 +557,22 @@ func TestPalindromeFuncs(t *testing.T) {
 
 func TestPandigital(t *testing.T) {
 	testPan := []struct {
-		test       uint64
-		bset, used uint16
-		DigitShift uint64
+		test                 uint64
+		reserved, bset, used uint16
+		DigitShift           uint64
 	}{
-		{0, 0, 0b1, 10},
-		{1, 1, 0b10, 10},
-		{12, 2, 0b110, 100},
-		{123, 3, 0b1110, 1000},
-		{1234, 4, 0b11110, 10_000},
-		{12345, 5, 0b111110, 100_000},
-		{123456789, 9, 0b1111_111110, 1_000_000_000},
-		{1023456789, 0, 0b1111_111111, 10_000_000_000},
+		{0, 1, 0, 0b1, 10},
+		{1, 1, 1, 0b10, 10},
+		{12, 1, 2, 0b110, 100},
+		{123, 1, 3, 0b1110, 1000},
+		{1234, 1, 4, 0b11110, 10_000},
+		{12345, 1, 5, 0b111110, 100_000},
+		{123456789, 1, 9, 0b1111_111110, 1_000_000_000},
+		{1023456789, 1, 0, 0b1111_111111, 10_000_000_000},
 	}
 	for _, test := range testPan {
-		// func Pandigital(test uint64, used uint16) (highest, usedRe uint16, DigitShift uint64) {
-		fullPD, bset, used, DigitShift := euler.Pandigital(test.test, 0)
+		// func Pandigital(test uint64, used, reserved uint16) (fullPD bool, biton, usedRe uint16, DigitShift uint64) {
+		fullPD, bset, used, DigitShift := euler.Pandigital(test.test, 0, test.reserved)
 		if used != test.used || bset != test.bset || DigitShift != test.DigitShift || (uint16((uint64(1)<<(bset+1))-2) == used) != fullPD {
 			t.Errorf("Pandigital: expected %v got %d, %d, %d\n", test, used, bset, DigitShift)
 		}
