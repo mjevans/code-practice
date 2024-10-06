@@ -75,7 +75,7 @@ Euler032a:
 			}
 			used_a := used
 		*/
-		bts, used_a, _ := euler.Pandigital(uint64(a), 0)
+		_, bts, used_a, _ := euler.Pandigital(uint64(a), 0)
 		if 0 == bts {
 			continue Euler032a
 		}
@@ -94,7 +94,7 @@ Euler032a:
 					used |= bd
 				}
 			*/
-			bts, used, _ = euler.Pandigital(uint64(b), used_a)
+			_, bts, used, _ = euler.Pandigital(uint64(b), used_a)
 			if 0 == bts {
 				continue Euler032b
 			}
@@ -115,7 +115,7 @@ Euler032a:
 					used |= bd
 				}
 			*/
-			bts, used, _ = euler.Pandigital(uint64(r), used)
+			_, bts, used, _ = euler.Pandigital(uint64(r), used)
 			if 9 != bts {
 				continue Euler032b
 			}
@@ -131,12 +131,12 @@ Euler032a:
 	}
 	for a = 1234; a <= 9876; a++ {
 		// func Pandigital(test uint64, used uint16) (highest, usedRe uint16, DigitShift uint64) {
-		bts, used_a, _ := euler.Pandigital(uint64(a), 0)
+		_, bts, used_a, _ := euler.Pandigital(uint64(a), 0)
 		if 0 == bts {
 			continue
 		}
 		for b = 1; b <= 9; b++ {
-			bts, used, _ = euler.Pandigital(uint64(b), used_a)
+			_, bts, used, _ = euler.Pandigital(uint64(b), used_a)
 			if 0 == bts {
 				continue
 			}
@@ -145,7 +145,7 @@ Euler032a:
 				fmt.Printf("Skip too big: %d\n", r)
 				continue
 			}
-			bts, used, _ = euler.Pandigital(uint64(r), used)
+			_, bts, used, _ = euler.Pandigital(uint64(r), used)
 			if 9 != bts {
 				continue
 			}

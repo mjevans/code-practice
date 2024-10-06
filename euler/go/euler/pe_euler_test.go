@@ -555,9 +555,9 @@ func TestPalindromeFuncs(t *testing.T) {
 
 func TestPandigital(t *testing.T) {
 	testPan := []struct {
-		test          uint64
-		highest, used uint16
-		DigitShift    uint64
+		test       uint64
+		bset, used uint16
+		DigitShift uint64
 	}{
 		{0, 0, 0b1, 10},
 		{1, 1, 0b10, 10},
@@ -570,9 +570,9 @@ func TestPandigital(t *testing.T) {
 	}
 	for _, test := range testPan {
 		// func Pandigital(test uint64, used uint16) (highest, usedRe uint16, DigitShift uint64) {
-		highest, used, DigitShift := euler.Pandigital(test.test, 0)
-		if used != test.used || highest != test.highest || DigitShift != test.DigitShift {
-			t.Errorf("Pandigital: expected %v got %d, %d, %d\n", test, used, highest, DigitShift)
+		fullPD, bset, used, DigitShift := euler.Pandigital(test.test, 0)
+		if used != test.used || bset != test.bset || DigitShift != test.DigitShift || (uint16((uint64(1)<<(bset+1))-2) == used) != fullPD {
+			t.Errorf("Pandigital: expected %v got %d, %d, %d\n", test, used, bset, DigitShift)
 		}
 	}
 }

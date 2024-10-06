@@ -817,12 +817,11 @@ func RotateDecDigits(x uint64) []uint64 {
 	return ret
 }
 
-// FIXME: Return 'full' uint16((uint64(1)<<(bset+1))-2) == used
-func Pandigital(test uint64, used uint16) (biton, usedRe uint16, DigitShift uint64) {
+func Pandigital(test uint64, used uint16) (fullPD bool, biton, usedRe uint16, DigitShift uint64) {
 	DigitShift = uint64(1)
 	ok := true
 	if 0 == test {
-		return 0, 1, 10
+		return false, 0, 1, 10
 	}
 	for test > 0 {
 		bd := uint16(1) << (test % 10)
@@ -840,9 +839,10 @@ func Pandigital(test uint64, used uint16) (biton, usedRe uint16, DigitShift uint
 		for t := used >> 1; 0 < t; t >>= 1 {
 			bt++
 		}
-		return bt, used, DigitShift
+		// Turn the bitcount into a binary similar to 0b_xxxx_xxx0 by shifting one more bit left, then subtracting the zero bit, and the bit to make it a 2s compliment negative number.
+		return uint16((uint64(1)<<(bt+1))-2) == used, bt, used, DigitShift
 	}
-	return 0, used, DigitShift
+	return false, 0, used, DigitShift
 }
 
 func PalindromeFlipBinary(x uint64) uint64 {
