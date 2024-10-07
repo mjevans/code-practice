@@ -70,6 +70,7 @@ import (
 	"bufio"
 	"fmt"
 	// "slices" // Doh not in 1.19
+	"math"
 	"math/big"
 	"sort"
 	"strings"
@@ -402,6 +403,72 @@ func PascalTri(row, index uint64) uint64 {
 	}
 	return ret
 }
+
+func TriangleNumber(n uint64) uint64 {
+	// Euler 45
+	// n*(n+1) / 2
+	return (n * (n + 1)) >> 1
+}
+
+func TriangleNumberReverseFloor(n uint64) uint64 {
+	// (n * (n + 1)) / 2
+	// 1/2 * n*n + 1/2 * n == Tn
+	// n*n + n - 2Tn == 0
+	// a = 1 ; b = 1 ; c = -2Tn
+	// n == ( -1 [+/-] sqrt(1 + 8 * Tn) ) / ( 2 )
+	// n == ( -1 + sqrt(1 + 8 * Tn) ) / ( 2 )
+	return (uint64(math.Sqrt(float64(1)+float64(8)*float64(n))) - 1) >> 1
+}
+
+func IsTriangleNumber(n uint64) bool {
+	return n == TriangleNumber(TriangleNumberReverseFloor(n))
+}
+
+func PentagonalNumber(n uint64) uint64 {
+	// Euler 44
+	// ( n * ( 3*n - 1 ) ) / 2
+	return (n * (3*n - 1)) >> 1
+}
+
+func PentagonalNumberReverseFloor(n uint64) uint64 {
+	// Euler 44
+	// Quadratic Formula (looked up)
+	// Given a*x*x + b*x + c == 0
+	// Xn == ( -b [+,-] sqrt(b*b - 4 * a * c) ) / ( 2 * a )
+	// (n * (3*n - 1)) >> 1 == Pn
+	// (3*n*n / 2) - n/2 == Pn
+	// 3*n*n - n == 2 * Pn
+	// 3*n*n - n - 2 * Pn == 0
+	// c = -2*Pn ; b = -1 ; a = 3
+	// Only care about positive answers so...
+	// n == ( 1 + sqrt(1 + 24 * Pn) ) / ( 6 )
+	return (1 + uint64(math.Sqrt(float64(1)+float64(24)*float64(n)))) / uint64(6)
+}
+
+func IsPentagonalNumber(n uint64) bool {
+	return n == PentagonalNumber(PentagonalNumberReverseFloor(n))
+}
+
+func HexagonalNumber(n uint64) uint64 {
+	// Euler 45
+	// n*(2*n - 1)
+	return ((n * n) << 1) - n
+}
+
+func HexagonalNumberReverseFloor(n uint64) uint64 {
+	// 2 * n*n - n - Hn == 0
+	// a = 2 ; b = -1 ; c = - Hn
+	// Xn == ( -b [+,-] sqrt(b*b - 4 * a * c) ) / ( 2 * a )
+	// n == ( 1 + sqrt(1 + 8 * Hn ) ) / ( 4 )
+	return (uint64(math.Sqrt(float64(1)+float64(8)*float64(n))) + 1) >> 2
+}
+
+func IsHexagonalNumber(n uint64) bool {
+	return n == HexagonalNumber(HexagonalNumberReverseFloor(n))
+}
+
+
+
 
 /*
 func IsPalindrome(num int) bool {

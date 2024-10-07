@@ -607,3 +607,24 @@ func TestSlicePop(t *testing.T) {
 		}
 	}
 }
+
+func TestNgonalNumbers(t *testing.T) {
+	var ii, pi, pfi uint64
+	for ii = 0; ii < 101; ii++ {
+		pi = euler.TriangleNumber(ii)
+		pfi = euler.TriangleNumberReverseFloor(pi)
+		if ii != pfi {
+			t.Errorf("Loop failed: %d == TriangleNumberReverseFloor( TriangleNumber() ~ %d ) got %d\n", ii, pi, pfi)
+		}
+		pi = euler.PentagonalNumber(ii)
+		pfi = euler.PentagonalNumberReverseFloor(pi)
+		if ii != pfi {
+			t.Errorf("Loop failed: %d == PentagonalNumberReverseFloor( PentagonalNumber() ~ %d ) got %d\n", ii, pi, pfi)
+		}
+		pi = euler.HexagonalNumber(ii)
+		pfi = euler.HexagonalNumberReverseFloor(pi)
+		if ii != pfi {
+			t.Errorf("Loop failed: %d == HexagonalNumberReverseFloor( HexagonalNumber() ~ %d ) got %d\n", ii, pi, pfi)
+		}
+	}
+}
