@@ -769,6 +769,55 @@ Similarly, doomsday in 2005 is on a Monday:
 
 */
 
+/*
+// 64 bit / 8 byte points don't make sense for shuffling a deck on a modern CPU
+type DLLuint64 struct {
+	prev, next *DLLuint64
+	data uint64
+}
+*/
+/*
+Shuffles / Factorial Permutations
+
+	// PermutationString answered Euler 24 sufficiently as such, but is it optimal?
+	for slot := 0 ; slot < end ; slot++ {
+		fact := Factorial(end - 1 - slot)
+		idx := perm / fact
+		perm %= fact
+		pull card and shrink the deck by shift copy ;	}
+
+More research yields Wikipedia's article hum, that's similar
+https://en.wikipedia.org/wiki/Factorial_number_system#Definition
+
+#24 asked; Permutation(1_000_000 - 1 , "0123456789")
+
+*/
+
+// CPU Timing tested in ex_permutation.go but needs platform specific "syscall"
+// Usually ~20% faster, may require a temp buffer if unable to store the index to use in the output array.
+func PermutationSlUint8(perm uint64, con []uint8) []uint8 {
+	end := len(con)
+	tmp := make([]uint8, end)
+	copy(tmp, con)
+	res := make([]uint8, end)
+	mod := uint64(1)
+	seed := perm
+	for ii := end; 0 < ii; ii-- {
+		res[uint64(end)-mod] = uint8(seed % mod)
+		seed /= mod
+		mod++
+	}
+	for ii := 0; ii < end; ii++ {
+		idx := res[ii]
+		res[ii] = tmp[idx]
+		for idx < uint8(end-1-ii) {
+			tmp[idx] = tmp[idx+1]
+			idx++
+		}
+	}
+	return res
+}
+
 func PermutationString(perm int, str string) string {
 	end := len(str)
 	tmp := make([]byte, end)

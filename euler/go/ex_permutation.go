@@ -157,7 +157,7 @@ func CompareMethods(perm uint64, arr []uint8) bool {
 }
 
 /*
-for ii in *\/*.go ; do go fmt "$ii" ; done ; go fmt ex_permutation.go ; go run ex_permutation.go
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; go fmt ex_permutation.go ; go run ex_permutation.go
 */
 func main() {
 	//test
