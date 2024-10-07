@@ -266,6 +266,15 @@ func Factorial(ii int) int {
 	return ret
 }
 
+func FactorialUint64(ii uint64) uint64 {
+	ret := uint64(1)
+	for ii > 1 {
+		ret *= ii
+		ii--
+	}
+	return ret
+}
+
 func AddInt64DecDigits(ii int64) int {
 	ret := int64(0)
 	for 0 < ii {
@@ -816,6 +825,16 @@ func PermutationSlUint8(perm uint64, con []uint8) []uint8 {
 		}
 	}
 	return res
+}
+
+func Uint8DigitsToUint64(sl []uint8, base uint64) uint64 {
+	var ret uint64
+	lim := len(sl)
+	for ii := 0; ii < lim; ii++ {
+		ret *= base
+		ret += uint64(sl[ii])
+	}
+	return ret
 }
 
 func PermutationString(perm int, str string) string {

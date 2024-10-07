@@ -40,6 +40,8 @@ func Euler024() string {
 }
 
 /*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 24 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+
 euler.PermutationString(int64())
 
 321
@@ -80,5 +82,6 @@ func main() {
 		999999, euler.PermutationString(999999, "0123456789"), "\t<<< This is the 'counting from 1' not '0' answer they want.\n",
 		1000000, euler.PermutationString(1000000, "0123456789"), "\n",
 		1000001, euler.PermutationString(1000001, "0123456789"))
+	fmt.Printf("Cross-validate new func: %v\n", euler.PermutationSlUint8(999_999, []uint8{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}))
 
 }
