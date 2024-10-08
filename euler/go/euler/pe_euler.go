@@ -467,9 +467,6 @@ func IsHexagonalNumber(n uint64) bool {
 	return n == HexagonalNumber(HexagonalNumberReverseFloor(n))
 }
 
-
-
-
 /*
 func IsPalindrome(num int) bool {
 	digits := make([]int, 0, 8)
