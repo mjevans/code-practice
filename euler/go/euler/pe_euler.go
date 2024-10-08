@@ -901,6 +901,18 @@ func Uint8DigitsToUint64(sl []uint8, base uint64) uint64 {
 	return ret
 }
 
+func Uint64ToDigitsUint8(n, base uint64) []uint8 {
+	ret := make([]uint8, 0, 8)
+	if 0 == n {
+		ret = append(ret, 0)
+	}
+	for n > 0 {
+		ret = append(ret, uint8(n%base))
+		n /= base
+	}
+	return ret
+}
+
 func PermutationString(perm int, str string) string {
 	end := len(str)
 	tmp := make([]byte, end)
@@ -1260,6 +1272,22 @@ func (p *BVPrimes) PrimeOrDown(ii uint) uint {
 		pg--
 		pidx = BVpagesize - 1
 	}
+}
+
+func (p *BVPrimes) PrimeRemove(ii uint) {
+	// testII := ii
+	if ii > p.Last {
+		return
+	}
+	ii = (ii - 3)
+	bidx := (ii & BVprimeByteBitMask) >> 1
+	ii >>= BVprimeByteBitShift
+	pg, pidx := ii/BVpagesize, ii%BVpagesize
+	// test := ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint(bidx)<<1 + 3
+	// if 1487 == testII {
+	// fmt.Printf("PrimeRemove: %d = %d\n", testII, test)
+	// }
+	p.PV[pg][pidx] |= (uint8(1) << bidx)
 }
 
 func (p *BVPrimes) PrimeAfter(ii uint) uint {
