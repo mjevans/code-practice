@@ -628,3 +628,14 @@ func TestNgonalNumbers(t *testing.T) {
 		}
 	}
 }
+
+func TestBaseConversions(t *testing.T) {
+	for ii := uint64(1); ii < 0xFFFFFF; ii *= 3 * 5 * 7 {
+		for bb := uint64(2); bb <= 16; bb++ {
+			tt := euler.Uint8DigitsToUint64(euler.Uint64ToDigitsUint8(ii, bb), bb)
+			if ii != tt {
+				t.Errorf("Loop Convert: %d base %d : expected %d got %d\n", ii, bb, ii, tt)
+			}
+		}
+	}
+}

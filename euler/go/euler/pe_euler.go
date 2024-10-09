@@ -893,8 +893,9 @@ func PermutationSlUint8(perm uint64, con []uint8) []uint8 {
 
 func Uint8DigitsToUint64(sl []uint8, base uint64) uint64 {
 	var ret uint64
-	lim := len(sl)
-	for ii := 0; ii < lim; ii++ {
+	ii := len(sl)
+	for 0 < ii {
+		ii--
 		ret *= base
 		ret += uint64(sl[ii])
 	}
