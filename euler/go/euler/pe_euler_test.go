@@ -638,4 +638,51 @@ func TestBaseConversions(t *testing.T) {
 			}
 		}
 	}
+	testUint8Sort := []struct {
+		src  []uint8
+		res  []uint8
+		same bool
+	}{
+		{[]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, []uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, true},
+		{[]uint8{2, 3, 4, 5, 6, 7, 8, 9, 1}, []uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, true},
+		{[]uint8{9, 8, 7, 6, 5, 4, 3, 2, 1}, []uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, true},
+		{[]uint8{5, 6, 7, 4, 1, 2, 3, 8, 0}, []uint8{0, 1, 2, 3, 4, 5, 6, 7, 8}, true},
+		{[]uint8{5, 6, 7, 4, 1, 2, 3, 8, 0}, []uint8{1, 2, 3, 4, 5, 6, 7, 8, 9}, false},
+	}
+	for _, test := range testUint8Sort {
+		res := euler.Uint8CopyInsertSort(test.src)
+		cmp := euler.Uint8Compare(res, test.res)
+		if test.same != (0 == cmp) {
+			t.Errorf("Expected results: %t %v ~~ got %v %t\n", test.same, test.res, res, 0 == cmp)
+		}
+	}
 }
+
+func TestFactorial(t *testing.T) {
+	testFactorial := []struct {
+		in, div, res uint64
+	}{
+		{2, 1, 2},
+		{9, 1, 362_880},
+		{9, 5, 3024},
+	}
+	var res uint64
+	for _, test := range testFactorial {
+		res = euler.FactorialDivFactU64toBig(test.in, test.div).Uint64()
+		if res != test.res {
+			t.Errorf("FactorialDivFactU64toBig: Expected results: %d got %d\n", test.res, res)
+		}
+		res = uint64(euler.FactorialUint64(test.in) / euler.FactorialUint64(test.div))
+		if res != test.res {
+			t.Errorf("FactorialUint64: Expected results: %d got %d\n", test.res, res)
+		}
+		res = uint64(euler.Factorial(int(test.in)) / euler.Factorial(int(test.div)))
+		if res != test.res {
+			t.Errorf("Factorial: Expected results: %d got %d\n", test.res, res)
+		}
+	}
+}
+
+/*
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
+/*/

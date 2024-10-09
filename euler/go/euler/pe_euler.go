@@ -276,6 +276,29 @@ func FactorialUint64(ii uint64) uint64 {
 	return ret
 }
 
+func FactorialDivFactU64toBig(ii, div uint64) *big.Int {
+	// fmt.Println(ii, div)
+	ret := big.NewInt(int64(1))
+	one := big.NewInt(int64(1))
+	if 1 > div {
+		div = 1
+	}
+	if 1 > ii {
+		ii = 1
+	}
+	bifl := big.NewInt(int64(div))
+	bi := big.NewInt(int64(ii))
+	// limit := 0xFFFF
+	// Cmp == -  =>  bifl - bi
+	for 0 > bifl.Cmp(bi) {
+		ret.Mul(ret, bi)
+		bi.Sub(bi, one)
+		// limit--
+		// if 0 == limit { 			panic("BigFactorial - Iter Limit Reached")		}
+	}
+	return ret
+}
+
 func AddInt64DecDigits(ii int64) int {
 	ret := int64(0)
 	for 0 < ii {
@@ -914,6 +937,35 @@ func Uint64ToDigitsUint8(n, base uint64) []uint8 {
 	return ret
 }
 
+func Uint8CopyInsertSort(con []uint8) []uint8 {
+	l := len(con)
+	ret := make([]uint8, 0, l)
+	for ii := 0; ii < l; ii++ {
+		ret = append(ret, con[ii])
+		for jj := ii; jj > 0; jj-- {
+			if ret[jj] < ret[jj-1] {
+				ret[jj], ret[jj-1] = ret[jj-1], ret[jj]
+			} else {
+				break // jj
+			}
+		}
+	}
+	return ret
+}
+
+func Uint8Compare(a, b []uint8) int {
+	la, lb := len(a), len(b)
+	if la != lb {
+		return la - lb
+	}
+	for ii := 0; ii < la; ii++ {
+		if a[ii] != b[ii] {
+			return int(a[ii]) - int(b[ii])
+		}
+	}
+	return 0
+}
+
 func PermutationString(perm int, str string) string {
 	end := len(str)
 	tmp := make([]byte, end)
@@ -1080,10 +1132,10 @@ func BsearchInt(list *[]int, val int) bool {
 		// fmt.Printf("BsearchInt: NOW\t%d <= %d <= %d\t%d <= %d <= %d\n", left, pos, end, (*list)[left], (*list)[pos], (*list)[end])
 		if (*list)[pos] < val {
 			left = pos + 1
-			pos += (end - pos + 1) >> 1
+			pos += (end + 1 - pos) >> 1
 		} else { // gt
 			end = pos - 1
-			pos -= (pos - left + 1) >> 1
+			pos -= (pos + 1 - left) >> 1
 		}
 		// fmt.Printf("BsearchInt: next\t%d <= %d <= %d\t%d\n", left, pos, end, (*list)[pos])
 	}
