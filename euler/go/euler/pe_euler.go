@@ -95,6 +95,93 @@ func minT[T int](a, b T) T {
 	return b
 }
 
+// Go 1.18+ ALMOST has C style 'casting' but these all copy...
+
+func Uint64[T ~uint64](c T) uint64 {
+	return uint64(c)
+}
+
+func Uint[T ~uint](c T) uint {
+	return uint(c)
+}
+
+func Uint32[T ~uint32](c T) uint32 {
+	return uint32(c)
+}
+
+func Uint16[T ~uint16](c T) uint16 {
+	return uint16(c)
+}
+
+func Uint8[T ~uint8](c T) uint8 {
+	return uint8(c)
+}
+
+func Int64[T ~int64](c T) int64 {
+	return int64(c)
+}
+
+func Int[T ~int](c T) int {
+	return int(c)
+}
+
+func Int32[T ~int32](c T) int32 {
+	return int32(c)
+}
+
+func Int16[T ~int16](c T) int16 {
+	return int16(c)
+}
+
+func Int8[T ~int8](c T) int8 {
+	return int8(c)
+}
+
+// These don't work though...
+// Another work around:
+// func (o []Card) SLUint8() []uint8 { return []uint8(o) }
+/*
+func SLUint64[T ~[]uint64](c T) []uint64 {
+	return []uint64(c)
+}
+
+func SLUint[T ~[]uint](c T) []uint {
+	return []uint(c)
+}
+
+func SLUint32[T ~[]uint32](c T) []uint32 {
+	return []uint32(c)
+}
+
+func SLUint16[T ~[]uint16](c T) []uint16 {
+	return []uint16(c)
+}
+
+func SLUint8[T ~[]uint8](c T) []uint8 {
+	return []uint8(c)
+}
+
+func SLInt64[T ~[]int64](c T) []int64 {
+	return []int64(c)
+}
+
+func SLInt[T ~[]int](c T) []int {
+	return []int(c)
+}
+
+func SLInt32[T ~[]int32](c T) []int32 {
+	return []int32(c)
+}
+
+func SLInt16[T ~[]int16](c T) []int16 {
+	return []int16(c)
+}
+
+func SLInt8[T ~[]int8](c T) []int8 {
+	return []int8(c)
+}
+*/
+
 /*	I
  *	I
  *	I
@@ -283,7 +370,7 @@ func FactorialDivFactU64toBig(ii, div uint64) *big.Int {
 	if 1 > div {
 		div = 1
 	}
-	if 1 > ii {
+	if 1 > ii || ii < div {
 		ii = 1
 	}
 	bifl := big.NewInt(int64(div))
@@ -579,6 +666,194 @@ func PrimeLCD(a, b []int) []int {
 	}
 	// fmt.Println("Prime LCD\n", a, "\n", b, "\n", ret)
 	return ret
+}
+
+// Euler 0054 - Cards!
+// I was going to // type Card uint8 // but a raw uint8 will work with my existing library better and present less issues...
+// card & 0xF == 4 bits for NON SUITE value E.G. 2 = 2 9=9 10=10 11=Jack ... ? 12=Queen 13=King 14=Ace OR 1=Ace depending on game rules...
+// Unicode went with Spades, Hearts, Diamonds, and Clubs https://en.wikipedia.org/wiki/Playing_cards_in_Unicode
+
+const (
+	CardSpade   = 0x10
+	CardHeart   = 0x20
+	CardDiamond = 0x30
+	CardClub    = 0x40
+	// These probably won't get used much, more for documentation
+	CardAceHigh = 14
+	CardKing    = 13
+	CardQueen   = 12
+	// Tarot Knight? goes here but that would make straights annoying
+	CardJack   = 11
+	CardAceOne = 1
+)
+
+func CardParseENG(s string) uint8 {
+	// Works with Euler 0054's syntax, note T = 10 , returns 0 on error
+	var suite, num uint8
+	lim := len(s)
+	for ii := 0; ii < lim; ii++ {
+		switch s[ii] {
+		case ' ':
+			continue
+		case 'S':
+			suite = CardSpade
+		case 'H':
+			suite = CardHeart
+		case 'D':
+			suite = CardDiamond
+		case 'C':
+			suite = CardClub
+		case 'A':
+			num = 14
+		case 'K':
+			num = 13
+		case 'Q':
+			num = 12
+		case 'J':
+			num = 11
+		case 'T':
+			num = 10
+		default:
+			if '2' <= s[ii] && s[ii] <= '9' {
+				num = uint8(s[ii] - '0')
+			}
+		}
+	}
+	if 0 < suite && 0 < num {
+		return suite | num
+	}
+	return 0
+}
+
+func CardPokerScore(hand, pub []uint8) uint {
+	// NOTE: Poker hands are size 5
+	// Test Coverage, Euler 0054 - There's art and sometimes music, but in the 80s / 90s people sold legit games that were scantly more than this, some UI and standard library.
+	lh, lp := len(hand), len(pub)
+	var score uint
+	// po := make([]uint8, 0, lh+lp)
+	// po = append(po, hand...)
+	// po = append(po, pub...)
+
+	//	Val	Suit	Num	Name	Desc
+	//  0x1FF00000	same5	inc5	Royal (straight) Flush	AceHigh unbroken run of cards in the same suit
+	//  0x1FF00000	same5	inc5	Straight Flush	unbroken run of cards in the same suit
+	//  0x_F0F0000	-	same4	4 of a kind (value)	Note the same 0xF (15) for 'card' value in Flush slot
+	//  0x_F00FF00	-	same3+2	Full House	3+2 of a kind (value) -- Uses 0xF (15) for 'card' value in Flush slot
+	//  0x_F000000	same5	-	Flush	All cards in the same suit, but no other match
+	//  0x__F00000	-	inc5	Straight All cards in sequence
+	//	0xF000	-	same3	Three of a kind
+	//	0x_FF0	-	same2	Two Pair	2+2 of a kind
+	//	0x__F0	-	same2	One Pair	2 of a kind
+	//	0x___F		highest	High Card
+
+	// var bvSpade, bvHeart, bvDiamond, bvClub, bvAny uint16
+	// var  nSpade,  nHeart,  nDiamond,  nClub,  nAny uint8
+	var bv [5]uint16 // 0 is 'any' 1-4 are suites
+	var cc [5]uint8  // card counts
+	var cv [16]uint8 // Count of values
+	for ii := 0; ii < lh; ii++ {
+		suite, num := (hand[ii]&0xF0)>>4, hand[ii]&0x0F
+		cv[num]++
+		bvNum := uint16(1) << num
+		bv[0] |= bvNum
+		bv[suite] |= bvNum
+	}
+	for ii := 0; ii < lp; ii++ {
+		suite, num := (hand[ii]&0xF0)>>4, hand[ii]&0x0F
+		cv[num]++
+		bvNum := uint16(1) << num
+		bv[0] |= bvNum
+		bv[suite] |= bvNum
+	}
+	var flush, straight uint8
+	const stmask = 0b_11111
+	// Scan for any flushes
+	for ii := 1; ii < 5; ii++ {
+		// at least a flush...
+		if 5 <= cc[ii] {
+			tv := bv[ii]
+			var cur uint8
+			cur = 4 // cards go from 0..15 a 5 wide match at 0 would have a high value of 4
+			for 0 < tv {
+				if stmask == tv&stmask {
+					stmp := uint(0x1000_0000) | uint(cur)<<24 | uint(cur)<<20
+					if score < stmp {
+						straight = cur
+						flush = cur
+						score = stmp
+					}
+				}
+				tv >>= 1
+				cur++
+			}
+			if flush != straight {
+				if flush < cur-5 {
+					flush = cur - 5
+				}
+			}
+		}
+	}
+	if 0 < score {
+		return score
+	}
+	if 5 <= cc[0] {
+		tv := bv[0]
+		var cur uint8
+		cur = 4 // cards go from 0..15 a 5 wide match at 0 would have a high value of 4
+		for 0 < tv {
+			if stmask == tv&stmask {
+				straight = cur
+			}
+			tv >>= 1
+			cur++
+		}
+	}
+	var v2low, v2, v3, v4, hc uint8
+	for ii := 0; ii <= 15; ii++ {
+		switch {
+		case 4 <= cv[ii]:
+			v4 = uint8(ii)
+		case 3 == cv[ii]:
+			v3 = uint8(ii)
+		case 2 == cv[ii]:
+			v2low = v2
+			v2 = uint8(ii)
+		case 1 == cv[ii]:
+			hc = uint8(ii)
+		}
+	}
+	//  0x_F0F0000	-	same4	4 of a kind (value)	Note the same 0xF (15) for 'card' value in Flush slot
+	//  0x_F00FF00	-	same3+2	Full House	3+2 of a kind (value) -- Uses 0xF (15) for 'card' value in Flush slot
+	//  0x_F000000	same5	-	Flush	All cards in the same suit, but no other match
+	//  0x__F00000	-	inc5	Straight All cards in sequence
+	if 0 < v4 {
+		return 0xF00_0000 | uint(v4)<<16 | uint(hc)
+	}
+	if 0 < v3 && 0 < v2 {
+		return 0xF00_0000 | uint(v3)<<12 | uint(v2)<<8
+	}
+	if 0 < flush {
+		return uint(flush) << 24
+	}
+	if 0 < straight {
+		return uint(straight) << 20
+	}
+	//		High card could matter for '4 of a kind' and these last cases which don't use up all the cards
+	//	0xF000	-	same3	Three of a kind
+	//	0x_FF0	-	same2	Two Pair	2+2 of a kind
+	//	0x__F0	-	same2	One Pair	2 of a kind
+	//	0x___F		highest	High Card
+	score |= uint(hc)
+	if 0 < v3 {
+		return score | uint(v3)<<12
+	}
+	if 0 < v2 && 0 < v2low {
+		return score | uint(v2)<<8 | uint(v2low)<<4
+	}
+	if 0 < v2 {
+		return score | uint(v2)<<4
+	}
+	return score
 }
 
 /* Sort Notes

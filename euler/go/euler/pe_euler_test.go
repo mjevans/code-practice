@@ -629,6 +629,10 @@ func TestNgonalNumbers(t *testing.T) {
 	}
 }
 
+//type Card uint8
+
+//func (o []Card) SLUint8() []uint8 { return []uint8(o) }
+
 func TestBaseConversions(t *testing.T) {
 	for ii := uint64(1); ii < 0xFFFFFF; ii *= 3 * 5 * 7 {
 		for bb := uint64(2); bb <= 16; bb++ {
@@ -656,6 +660,8 @@ func TestBaseConversions(t *testing.T) {
 			t.Errorf("Expected results: %t %v ~~ got %v %t\n", test.same, test.res, res, 0 == cmp)
 		}
 	}
+
+	//_ = euler.PermutationSlUint8(404, ([]Card{2, 3, 4, 5, 6}).SLUint8())
 }
 
 func TestFactorial(t *testing.T) {
