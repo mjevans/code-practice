@@ -1251,6 +1251,15 @@ func Uint8CopyInsertSort(con []uint8) []uint8 {
 	return ret
 }
 
+func Uint8Reverse(mod []uint8) []uint8 {
+	l := len(mod)
+	lh := l >> 1
+	for ii := 0; ii < lh; ii++ {
+		mod[ii], mod[l-1-ii] = mod[l-1-ii], mod[ii]
+	}
+	return mod
+}
+
 func Uint8Compare(a, b []uint8) int {
 	la, lb := len(a), len(b)
 	if la != lb {

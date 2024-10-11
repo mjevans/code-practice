@@ -49,7 +49,7 @@ import (
 	"fmt"
 	// "math"
 	// "math/big"
-	"slices" // Doh not in 1.19
+	// "slices" // Doh not in 1.19
 	"strings"
 	// "strconv"
 	"os" // os.Stdout
@@ -82,8 +82,8 @@ func Euler054(fn string) (uint, uint) {
 			card++
 		}
 		p1, p2 := euler.CardPokerScore(hands[0:5], pub), euler.CardPokerScore(hands[5:10], pub)
-		slices.SortFunc(hands[0:5], euler.CardCompareValue)
-		slices.SortFunc(hands[5:10], euler.CardCompareValue)
+		// slices.SortFunc(hands[0:5], euler.CardCompareValue)
+		// slices.SortFunc(hands[5:10], euler.CardCompareValue)
 		if p1 > p2 {
 			// fmt.Printf("Hand %d\t: P1 : %x %x %x %x %x (%8x) >   (%8x)\t%x %x %x %x %x\t\t%s\t\t%s\n", line, hands[0], hands[1], hands[2], hands[3], hands[4], p1, p2, hands[5], hands[6], hands[7], hands[8], hands[9], rawtext[0:14], rawtext[15:29])
 			p1won++
