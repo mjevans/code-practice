@@ -689,6 +689,50 @@ func TestFactorial(t *testing.T) {
 	}
 }
 
+func TestCardsPoker(t *testing.T) {
+	//	Val	Suit	Num	Name	Desc
+	//  0x1FF0_0000	same5	inc5	Royal (straight) Flush	AceHigh unbroken run of cards in the same suit
+	//  0x1FF0_0000	same5	inc5	Straight Flush	unbroken run of cards in the same suit
+	//  0x_F0F_0000	-	same4	4 of a kind (value)	Note the same 0xF (15) for 'card' value in Flush slot
+	//  0x_F00_FF00	-	same3+2	Full House	3+2 of a kind (value) -- Uses 0xF (15) for 'card' value in Flush slot
+	//  0x_F00_0000	same5	-	Flush	All cards in the same suit, but no other match
+	//  0x__F0_0000	-	inc5	Straight All cards in sequence
+	//	0x_F000	-	same3	Three of a kind
+	//	0x__FF0	-	same2	Two Pair	2+2 of a kind
+	//	0x___F0	-	same2	One Pair	2 of a kind
+	//	0x____F		highest	High Card
+	testCardsPoker := []struct {
+		hand  []string
+		pub   []string
+		score uint
+	}{
+		{[]string{"2C", "3C", "4C", "5C", "7D"}, []string{}, 0x7},
+		{[]string{"2C", "3C", "4C", "5C", "6C"}, []string{}, 0x1660_0000},
+		{[]string{"2C", "2D", "4C", "5C", "6C"}, []string{}, 0x0026},
+		{[]string{"2C", "2D", "3C", "3H", "6C"}, []string{}, 0x0326},
+		{[]string{"2C", "2D", "2H", "5C", "7C"}, []string{}, 0x2007},
+		{[]string{"2S", "3C", "4C", "5C", "6C"}, []string{}, 0x0_60_0000},
+		{[]string{"2C", "3C", "4C", "5C", "7C"}, []string{}, 0x_700_0000},
+		{[]string{"2C", "2D", "3C", "3H", "3S"}, []string{}, 0x_F00_3200},
+		{[]string{"2C", "2D", "2H", "2S", "7C"}, []string{}, 0x_F02_0007},
+		{[]string{"AC", "KC", "QC", "JC", "TC"}, []string{}, 0x1EE0_0000},
+	}
+
+	for _, test := range testCardsPoker {
+		cards, pub := make([]uint8, 0), make([]uint8, 0)
+		for _, card := range test.hand {
+			cards = append(cards, euler.CardParseENG(card))
+		}
+		for _, card := range test.pub {
+			pub = append(pub, euler.CardParseENG(card))
+		}
+		score := euler.CardPokerScore(cards, pub)
+		if test.score != score {
+			t.Errorf("Expected score %8x got score %8x: %v %v\n", test.score, score, test.hand, test.pub)
+		}
+	}
+}
+
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
 /*/

@@ -725,9 +725,14 @@ func CardParseENG(s string) uint8 {
 	return 0
 }
 
+func CardCompareValue(a, b uint8) int {
+	return int(a&0xF) - int(b&0xF)
+}
+
 func CardPokerScore(hand, pub []uint8) uint {
+	// NOTE: This assumes NO DUP cards; this shouldn't matter for 'full' hands, but it'll have edge cases for high cards or '5 of a kind' (which isn't in the score system)
 	// NOTE: Poker hands are size 5
-	// Test Coverage, Euler 0054 - There's art and sometimes music, but in the 80s / 90s people sold legit games that were scantly more than this, some UI and standard library.
+	// Euler 0054 - There's art and sometimes music, but in the 80s / 90s people sold legit games that were scantly more than this, some UI and standard library.
 	lh, lp := len(hand), len(pub)
 	var score uint
 	// po := make([]uint8, 0, lh+lp)
@@ -735,16 +740,16 @@ func CardPokerScore(hand, pub []uint8) uint {
 	// po = append(po, pub...)
 
 	//	Val	Suit	Num	Name	Desc
-	//  0x1FF00000	same5	inc5	Royal (straight) Flush	AceHigh unbroken run of cards in the same suit
-	//  0x1FF00000	same5	inc5	Straight Flush	unbroken run of cards in the same suit
-	//  0x_F0F0000	-	same4	4 of a kind (value)	Note the same 0xF (15) for 'card' value in Flush slot
-	//  0x_F00FF00	-	same3+2	Full House	3+2 of a kind (value) -- Uses 0xF (15) for 'card' value in Flush slot
-	//  0x_F000000	same5	-	Flush	All cards in the same suit, but no other match
-	//  0x__F00000	-	inc5	Straight All cards in sequence
-	//	0xF000	-	same3	Three of a kind
-	//	0x_FF0	-	same2	Two Pair	2+2 of a kind
-	//	0x__F0	-	same2	One Pair	2 of a kind
-	//	0x___F		highest	High Card
+	//  0x1FF0_0000	same5	inc5	Royal (straight) Flush	AceHigh unbroken run of cards in the same suit
+	//  0x1FF0_0000	same5	inc5	Straight Flush	unbroken run of cards in the same suit
+	//  0x_F0F_0000	-	same4	4 of a kind (value)	Note the same 0xF (15) for 'card' value in Flush slot
+	//  0x_F00_FF00	-	same3+2	Full House	3+2 of a kind (value) -- Uses 0xF (15) for 'card' value in Flush slot
+	//  0x_F00_0000	same5	-	Flush	All cards in the same suit, but no other match
+	//  0x__F0_0000	-	inc5	Straight All cards in sequence
+	//	0x_F000	-	same3	Three of a kind
+	//	0x__FF0	-	same2	Two Pair	2+2 of a kind
+	//	0x___F0	-	same2	One Pair	2 of a kind
+	//	0x____F		highest	High Card
 
 	// var bvSpade, bvHeart, bvDiamond, bvClub, bvAny uint16
 	// var  nSpade,  nHeart,  nDiamond,  nClub,  nAny uint8
@@ -753,18 +758,36 @@ func CardPokerScore(hand, pub []uint8) uint {
 	var cv [16]uint8 // Count of values
 	for ii := 0; ii < lh; ii++ {
 		suite, num := (hand[ii]&0xF0)>>4, hand[ii]&0x0F
+		cc[0]++
+		cc[suite]++
 		cv[num]++
 		bvNum := uint16(1) << num
 		bv[0] |= bvNum
+		if 0 < bv[suite]&bvNum {
+			fmt.Printf("Poker: Duplicate card (hand): %x\n", hand[ii])
+		}
+		if 0 == suite {
+			fmt.Printf("Poker: Null suite? (hand): %x\n", hand[ii])
+		}
 		bv[suite] |= bvNum
 	}
 	for ii := 0; ii < lp; ii++ {
-		suite, num := (hand[ii]&0xF0)>>4, hand[ii]&0x0F
+		suite, num := (pub[ii]&0xF0)>>4, pub[ii]&0x0F
+		cc[0]++
+		cc[suite]++
 		cv[num]++
 		bvNum := uint16(1) << num
 		bv[0] |= bvNum
+		if 0 < bv[suite]&bvNum {
+			fmt.Printf("Poker: Duplicate card (public): %x\n", pub[ii])
+		}
+		if 0 == suite {
+			fmt.Printf("Poker: Null suite? (public): %x\n", pub[ii])
+		}
 		bv[suite] |= bvNum
 	}
+	// fmt.Printf("card bitvectors:\n%16b\n%16b\n%16b\n%16b\n%16b\n", bv[0], bv[1], bv[2], bv[3], bv[4])
+	// fmt.Printf("card bitvector 4: %16b\n", bv[4])
 	var flush, straight uint8
 	const stmask = 0b_11111
 	// Scan for any flushes
@@ -786,7 +809,7 @@ func CardPokerScore(hand, pub []uint8) uint {
 				tv >>= 1
 				cur++
 			}
-			if flush != straight {
+			if 0 == flush || flush != straight {
 				if flush < cur-5 {
 					flush = cur - 5
 				}
