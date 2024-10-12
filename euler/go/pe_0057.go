@@ -86,6 +86,8 @@ F(x) = n(x) / n(d) =  ( 2*d(x-1) + n(x-1) ) / ( d(x-1) + n(x-1) )
 
 Also, offhand, I expect an answer in the ballpark of 1/2 for any given N, since 2d+n / d+n seems likely to flip flop... but that's just a gut feeling guess.
 
+"<p>In the first one-thousand expansions, how many fractions contain a numerator with more digits than the denominator?</p>"
+
 */
 
 import (
@@ -93,31 +95,78 @@ import (
 	// "euler"
 	"fmt"
 	// "math"
-	// "math/big"
+	"math/big"
 	// "slices" // Doh not in 1.19
 	// "strings"
 	// "strconv"
 	// "os" // os.Stdout
 )
 
-func Euler057() {
+func Euler057(terms, base int) uint64 {
 
-	// FIXME: prior IRL event
+	var digitN, digitD, countNgD uint64
 
-	// F(x) = n(x) / n(d) =  ( 2*d(x-1) + n(x-1) ) / ( d(x-1) + n(x-1) )
+	// Start with F(0) n and d in nPrev and dPrev 1 / 1
+	biZero, n, d, gcd := big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0)
+	biOne, nPrev, dPrev := big.NewInt(1), big.NewInt(1), big.NewInt(1)
+	biTwo, biBase := big.NewInt(2), big.NewInt(int64(base))
 
+	for ii := 1; ii <= terms; ii++ {
+		// F(x) = n(x) / n(d) =  ( 2*d(x-1) + n(x-1) ) / ( d(x-1) + n(x-1) )
+		// Calculate N
+		//	2*d(x-1) + n(x-1)
+		n.Set(dPrev)
+		n.Mul(n, biTwo)
+		n.Add(n, nPrev)
+		// Calculate D
+		//	d(x-1) + n(x-1)
+		d.Set(dPrev)
+		d.Add(d, nPrev)
+		// GCD Reduce
+		gcd.GCD(nil, nil, n, d)
+		if -1 == biOne.Cmp(gcd) {
+			n.Div(n, gcd)
+			d.Div(d, gcd)
+			fmt.Println("divided")
+		}
+		// Preserve for next round
+		nPrev.Set(n)
+		dPrev.Set(d)
+		// fmt.Printf("Debug 0057: GCD %4d:\t%s\t/\t%s (cmp = %d) %s\n", ii, nPrev.Text(base), dPrev.Text(base), biOne.Cmp(gcd), gcd.Text(base))
+
+		// Count and compare digits
+		// "<p>In the first one-thousand expansions, how many fractions contain a numerator with more digits than the denominator?</p>"
+		digitN = 0
+		for 0 != biZero.Cmp(n) {
+			n.Div(n, biBase)
+			digitN++
+		}
+		digitD = 0
+		for 0 != biZero.Cmp(d) {
+			d.Div(d, biBase)
+			digitD++
+		}
+		if digitN > digitD {
+			countNgD++
+		}
+		// fmt.Printf("Debug 0057: Itr %4d:\t%d / %d\t\t%s\t/\t%s\n", ii, digitN, digitD, nPrev.Text(base), dPrev.Text(base))
+	}
+	return countNgD
 }
 
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 57 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
+Euler 57: Square Root Convergents: TEST(8, 10) = 1 == 1? true
+Euler 57: Square Root Convergents: 153
+
 /
 */
 func main() {
 	//test
-	// Euler055()
-	// num, sum := Euler057(99, 99, 10)
+	t := Euler057(8, 10)
+	fmt.Printf("Euler 57: Square Root Convergents: TEST(8, 10) = %d == 1? %t\n", t, 1 == t)
 
 	//run
-	fmt.Printf("Euler 57: Square Root Convergents: \n")
+	fmt.Printf("Euler 57: Square Root Convergents: %d\n", Euler057(1000, 10))
 }
