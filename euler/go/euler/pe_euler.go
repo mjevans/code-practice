@@ -1090,7 +1090,7 @@ func ScannerSplitNLDQ(data []byte, atEOF bool) (advance int, token []byte, err e
 		ii++
 	}
 	if atEOF && ii > start {
-		fmt.Println("NQDL EOF + ", ii, " >", string(data), "<")
+		// fmt.Printf("NQDL EOF + %d >%s< final return '%s'\n", ii, string(data), data[start:ii])
 		return ii, data[start:ii], bufio.ErrFinalToken
 	} else {
 		// fmt.Println("NQDL no token, request more data than ", ii, " >", string(data), "<")
