@@ -2394,6 +2394,80 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 	return &Factorized{Lenbase: base, Lenpow: power, Fact: fact}
 }
 
+func ProbablyPrimeI64(num, kStrBases int64) bool {
+	return big.NewInt(num).ProbablyPrime(int(kStrBases))
+}
+
+// By Euler 0058 it was clear that a better primality test is REQUIRED
+// https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test
+
+// https://en.wikipedia.org/wiki/Primality_test#Miller%E2%80%93Rabin_and_Solovay%E2%80%93Strassen_primality_test
+// https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test
+// == MR + LL
+// https://en.wikipedia.org/wiki/Lucas_pseudoprime
+
+/* Go 1.8+ (at least) has https://pkg.go.dev/math/big@go1.22.6#Int.ProbablyPrime
+   It might be useful for uint64 but for trivial code just use the library that already does the right test!
+func (p *BVPrimes) PrimalityTestBig(qt ???) ??? {
+	// 2 > n
+	if 1 == two.Cmp(n) { return n }
+	// Returns N if probably prime, >=2 as a likely prime factor if composite, 1 on ??? and 0 on error
+	//	https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test
+
+	//	== 1 ==
+	//	They 'wheel factorize filter' for some small list of N
+	//	https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Testing_against_small_sets_of_bases
+	//	MR can use rounds of 'base' prime up to 37 for extremely high confidence in numbers < 2^64
+	//	With 41 showing extremely high confidence.  2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41
+
+	smallPrimes := [...]uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41}
+	smallPrimesLen := len(smallPrimes)
+	for ii := 0 ; ii < smallPrimesLen ; ii++ {
+		if 0 == qt % smallPrimes[ii] { return smallPrimes[ii] }
+	}
+
+	// == 2 ==
+	// A is the base BPSW test only uses MR with Base 2 mode anyway.
+	// MR with base 2
+
+	// Miller–Rabin primality test
+	// Given an integer n, choose some positive integer a < n. Let 2^(s)*d = n − 1, where d is odd.
+
+	// FIRST: find: 2^(s)*d = n − 1 ; where d is odd.
+	// 2 ^ s  * d = (n - 1)
+	// D must be an odd Integer (whole number), 2 ^ s clearly <= (n - 1)
+	// d = (n - 1) / 2 ^ s
+
+	// If BOTH
+	// a^d ≢ ± 1 ( mod n )
+	// AND
+	// a^(d*2^r) ≢ − 1 ( mod n )
+	// {\displaystyle a^{2^{r}d}\not \equiv -1{\pmod {n}}}
+	// FOR ALL
+	// 0 ≤ r ≤ s − 1
+	// THEN (if it's true) n is a witness that N is composite
+	// ELSE N might or might not be prime
+
+	// If I need to write my own powmul / pow+mul https://www.khanacademy.org/computing/computer-science/cryptography/modarithmetic/a/fast-modular-exponentiation
+	// It uses fast finding A^B mod C where B is a power of 2 by reducing it to A^1 mod C => A^2 mod C = (A^1 mod C) * (A^1 mod C) mod C  Then extends to non Pow2 B using B's binary to make powers of 2.
+	x =
+
+
+	// == 3 ==
+	// NOTE: Fails when Num is a perfect square, past a limit perform such a check.
+	// https://en.wikipedia.org/wiki/Jacobi_symbol
+	// D = Primes: start at 5, every other prime is negative.
+	// n == the Number
+	// Find (first): -1 = Jacobi(D/num)
+	// https://en.wikipedia.org/wiki/Jacobi_symbol#Implementation_in_Lua
+
+Based on this:  P = 1 ; Q = (1 − D) / 4
+
+== 4 == (draw the owl)
+Perform a STRONG https://en.wikipedia.org/wiki/Lucas_pseudoprime#Strong_Lucas_pseudoprimes
+}
+*/
+
 // Deprecated function supported by shim interface to Primes
 func GetPrimes(primes *[]int, num int) *[]int {
 	return Primes.GetPrimesInt(primes, num)
