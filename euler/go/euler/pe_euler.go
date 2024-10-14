@@ -1458,20 +1458,25 @@ func SliceCommon[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~ui
 }
 
 // https://stackoverflow.com/a/70562597 Go 1.21 added cmp.Ordered
-func BsearchSlice[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string](sl S, val E) int {
+func BsearchSlice[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string](sl S, val E, always bool) int {
 	left, right := 0, len(sl)
+	if 0 == right {
+		return -1
+	}
 	right--
 	// I looked up the correct algorithm, because close enough but not textbook was painful
-	// https://en.wikipedia.org/wiki/Binary_search
-	for left <= right {
+	// https://en.wikipedia.org/wiki/Binary_search  Alternative Procedure
+	for left != right {
+		// Alt uses ceil but bitshift math floors so I've reversed the comparison and side motions
 		pos := (left + right) >> 1
 		if sl[pos] < val {
 			left = pos + 1
-		} else if sl[pos] > val {
-			right = pos - 1
-		} else if sl[pos] == val {
-			return pos
+		} else {
+			right = pos
 		}
+	}
+	if val == sl[right] || always {
+		return right
 	}
 	return -1
 }

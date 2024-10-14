@@ -140,7 +140,7 @@ func Euler060() uint {
 						combos++
 						for ii := 1; ii < 5; ii++ {
 							for jj := ii + 1; jj < 5; jj++ {
-								if -1 == euler.BsearchSlice(co.Tested[p[ii]], p[jj]) {
+								if -1 == euler.BsearchSlice(co.Tested[p[ii]], p[jj], false) {
 									continue Euler060failed
 								}
 							}
@@ -241,8 +241,6 @@ Euler 60: Prime Pair Sets: 26033
 real    0m3.265s
 user    0m3.331s
 sys     0m0.124s
-
-
 */
 func main() {
 	//test

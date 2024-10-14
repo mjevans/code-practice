@@ -760,8 +760,8 @@ func TestSliceFuncs(t *testing.T) {
 		// {[]uint8{}, , },
 	}
 	for _, test := range testBsearchSl {
-		if test.index != euler.BsearchSlice(test.sl, test.target) {
-			t.Errorf("Bsearch: Expected index %d got %d\n", test.index, euler.BsearchSlice(test.sl, test.target))
+		if test.index != euler.BsearchSlice(test.sl, test.target, false) {
+			t.Errorf("Bsearch: Expected index %d got %d\n", test.index, euler.BsearchSlice(test.sl, test.target, false))
 		}
 	}
 	testSlCom := []struct {
