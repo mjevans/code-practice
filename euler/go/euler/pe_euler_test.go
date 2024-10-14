@@ -627,6 +627,21 @@ func TestNgonalNumbers(t *testing.T) {
 			t.Errorf("Loop failed: %d == HexagonalNumberReverseFloor( HexagonalNumber() ~ %d ) got %d\n", ii, pi, pfi)
 		}
 	}
+	testConcatU64 := []struct {
+		x, y, base, res uint64
+	}{
+		{1, 0, 10, 10},
+		{1, 1, 10, 11},
+		{10, 1, 10, 101},
+		{10, 9, 10, 109},
+		{9, 10, 10, 910},
+	}
+	for _, test := range testConcatU64 {
+		if test.res != euler.ConcatDigitsU64(test.x, test.y, test.base) {
+			t.Errorf("ConcatDigitsU64 expected %d got %d\n", test.res, euler.ConcatDigitsU64(test.x, test.y, test.base))
+		}
+	}
+
 }
 
 //type Card uint8
@@ -729,6 +744,46 @@ func TestCardsPoker(t *testing.T) {
 		score := euler.CardPokerScore(cards, pub)
 		if test.score != score {
 			t.Errorf("Expected score %8x got score %8x: %v %v\n", test.score, score, test.hand, test.pub)
+		}
+	}
+}
+
+func TestSliceFuncs(t *testing.T) {
+	testBsearchSl := []struct {
+		sl     []uint8
+		index  int
+		target uint8
+	}{
+		{[]uint8{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 4, 4},
+		{[]uint8{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, -1, 255},
+		{[]uint8{0, 1, 2, 3, 5, 6, 7, 8, 9}, -1, 4},
+		// {[]uint8{}, , },
+	}
+	for _, test := range testBsearchSl {
+		if test.index != euler.BsearchSlice(test.sl, test.target) {
+			t.Errorf("Bsearch: Expected index %d got %d\n", test.index, euler.BsearchSlice(test.sl, test.target))
+		}
+	}
+	testSlCom := []struct {
+		a, b, c []uint8
+	}{
+		{[]uint8{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, []uint8{3, 6, 9}, []uint8{3, 6, 9}},
+		{[]uint8{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, []uint8{3, 6, 9, 12}, []uint8{3, 6, 9}},
+		{[]uint8{0, 1, 2, 4, 5, 7, 8, 9}, []uint8{3, 6, 9}, []uint8{9}},
+		{[]uint8{0, 1, 2, 4, 5, 7, 8, 9}, []uint8{3, 6}, []uint8{}},
+		// {[]uint8{}, , },
+	}
+	for _, test := range testSlCom {
+		res := euler.SliceCommon(test.a, test.b)
+		if len(res) != len(test.c) {
+			t.Errorf("SliceCommon: wanted result length %d, got %d\n", len(test.c), len(res))
+			continue
+		}
+		for ii := 0; ii < len(res); ii++ {
+			if test.c[ii] != res[ii] {
+				t.Errorf("SliceCommon: differ at index %d: %d != %d\n", ii, test.c[ii], res[ii])
+				break
+			}
 		}
 	}
 }

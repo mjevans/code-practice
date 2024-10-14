@@ -1321,6 +1321,15 @@ func RotateDecDigits(x uint64) []uint64 {
 	return ret
 }
 
+func ConcatDigitsU64(x, y, base uint64) uint64 {
+	var pow, temp uint64
+	pow = base
+	for temp = y / base; 0 < temp; temp /= base {
+		pow *= base
+	}
+	return x*pow + y
+}
+
 func Pandigital(test uint64, used, reserved uint16) (fullPD bool, biton, usedRe uint16, DigitShift uint64) {
 	DigitShift = uint64(1)
 	ok := true
@@ -1421,6 +1430,50 @@ func SlicePopUint8(deck []uint8, index int) uint8 {
 		}
 	}
 	return 0
+}
+
+func SliceCommon[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string](a S, b S) S {
+	al, bl := len(a), len(b)
+	t := al
+	if t > bl {
+		t = bl
+	}
+	res := make(S, 0, t)
+	ai, bi := 0, 0
+	for ai < al && bi < bl {
+		if a[ai] == b[bi] {
+			res = append(res, a[ai])
+			ai++
+			bi++
+			continue
+		}
+		for ai < al && a[ai] < b[bi] {
+			ai++
+		}
+		for bi < bl && a[ai] > b[bi] {
+			bi++
+		}
+	}
+	return res
+}
+
+// https://stackoverflow.com/a/70562597 Go 1.21 added cmp.Ordered
+func BsearchSlice[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string](sl S, val E) int {
+	left, right := 0, len(sl)
+	right--
+	// I looked up the correct algorithm, because close enough but not textbook was painful
+	// https://en.wikipedia.org/wiki/Binary_search
+	for left <= right {
+		pos := (left + right) >> 1
+		if sl[pos] < val {
+			left = pos + 1
+		} else if sl[pos] > val {
+			right = pos - 1
+		} else if sl[pos] == val {
+			return pos
+		}
+	}
+	return -1
 }
 
 func BsearchInt(list *[]int, val int) bool {
@@ -1821,6 +1874,28 @@ func (p *BVPrimes) autoFactorPMCforBVl1(start uint) {
 	}
 }
 
+func (p *BVPrimes) libraryProbPrimeBVl1(start uint) {
+	if 0 == start {
+		// 2 + (IF even (step back to last odd) ELSE odd noop )
+		start = uint(((p.Last - 1) | 1) + 2)
+	}
+	ABS_bbStart := (start - 3) >> 1
+	ABS_ooStart := ABS_bbStart >> (BVprimeByteBitShift - 1)
+	pg, pgLine := ABS_ooStart/BVpagesize, (ABS_ooStart%BVpagesize)/BVl1
+	bbLimit := ((pgLine*BVl1 + BVl1 - 1) << (BVprimeByteBitShift - 1)) | BVprimeByteBitMaskPost
+	bbPos := ABS_bbStart % (BVpagesize * BVbitsPerByte)
+	for bbPos <= bbLimit {
+		if 0 == p.PV[pg][bbPos>>(BVprimeByteBitShift-1)]&(uint8(1)<<(bbPos&BVprimeByteBitMaskPost)) {
+			posPrime := (pg * BVpagesize << BVprimeByteBitShift) + (bbPos << 1) + 3
+			if false == big.NewInt(int64(posPrime)).ProbablyPrime(int(8)) {
+				// fmt.Printf(" %d", posPrime)
+				p.PV[pg][bbPos>>(BVprimeByteBitShift-1)] |= uint8(1) << (bbPos & BVprimeByteBitMaskPost)
+			}
+		}
+		bbPos++
+	}
+}
+
 func (p *BVPrimes) PrimesOnPage(start uint) []uint {
 	if 0 == start {
 		// 2 + (IF even (step back to last odd) ELSE odd noop )
@@ -1895,7 +1970,9 @@ func (p *BVPrimes) Grow(limit uint) {
 	// 0x100000 ~= 0.74s
 	// 0x200000 ~= 2.82s
 	// 0x400000 ~= 10.75s // Tried 2048 for the cutoff with this and autoFactorPMCforBVl1 was _still_ slower on a decade old Xeon CPU, it's correct, but the 'need to be 100%sure' spin cycle makes it too slow.  Perceptibly >> 201 seconds (I killed the run) vs 10.78s with the extra logic test.
-	for line <= cl1z && line < 20480 {
+	// for line <= cl1z && line < 20480 {
+	// vs the big.Int.ProbablyPrime test ~4096 lines was the fastest cutoff.
+	for line <= cl1z && line < 4096 {
 		primeStart := uint(3)
 		var end uint
 		for {
@@ -1932,12 +2009,14 @@ func (p *BVPrimes) Grow(limit uint) {
 	// AFTER 64K this is somehow so fast that I suspect the results... FIXME: Have I added a total torture test to cover up to 1024*1024 yet?
 
 	for line <= cl1z {
-		p.wheelFactCL1Unsafe(next, 3, 509) // 5 = 498062; 503 = 498062
-		p.autoFactorPMCforBVl1(next)
+		// p.wheelFactCL1Unsafe(next, 3, 509) // 5 = 498062; 503 = 498062
+		// p.autoFactorPMCforBVl1(next)
+		p.wheelFactCL1Unsafe(next, 3, 41)
+		p.libraryProbPrimeBVl1(next)
 		next = 3 + (((line + 1) * BVl1) << BVprimeByteBitShift)
 		p.Last = next - 2
 		// ccount := len(p.PrimesOnPage(p.Last))
-		fmt.Printf("%d: %d\n", line, p.Last)
+		// fmt.Printf("%d: %d\n", line, p.Last)
 		line++
 	}
 
@@ -1962,6 +2041,24 @@ func (p *BVPrimes) KnownPrime(q uint) bool {
 	}
 	pd := p.PrimeOrDown(q)
 	return pd == q
+}
+
+func (p *BVPrimes) ProbPrime(q uint) bool {
+	// Use base2 storage inherent test for division by 2
+	if 0 == q&0x01 && 2 < q {
+		return false
+	}
+	pd := p.PrimeOrDown(q)
+	if pd == q {
+		return true
+	}
+	// If greater performance desired, a const array of the small primes rather than looking them up?
+	for prime := uint(2); 43 < prime; prime = p.PrimeAfter(prime) {
+		if 0 == q%prime {
+			return false
+		}
+	}
+	return big.NewInt(int64(q)).ProbablyPrime(int(8))
 }
 
 func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
