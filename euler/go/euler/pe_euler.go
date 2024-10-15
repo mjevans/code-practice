@@ -1297,6 +1297,11 @@ https://en.wikipedia.org/wiki/Factorial_number_system#Definition
 
 // CPU Timing tested in ex_permutation.go but needs platform specific "syscall"
 // Usually ~20% faster, may require a temp buffer if unable to store the index to use in the output array.
+//
+//	8	7	6	5	4	3	2	1
+//	7!	6!	5!	4!	3!	2!	1!	0!	Place Value
+//	5040	720	120	24	6	2	1	0	Place Value (in Dec)
+//	FactorialUint64(len(con)) == Looped list value, subtract 1
 func PermutationSlUint8(perm uint64, con []uint8) []uint8 {
 	end := len(con)
 	tmp := make([]uint8, end)

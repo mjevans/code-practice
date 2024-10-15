@@ -786,7 +786,10 @@ func TestBaseConversions(t *testing.T) {
 		}
 	}
 
-	//_ = euler.PermutationSlUint8(404, ([]Card{2, 3, 4, 5, 6}).SLUint8())
+	// combomax := euler.FactorialUint64(3)
+	// for ii := uint64(0) ; ii < combomax ; ii++ {
+	//	t.Logf("PermutationSlUint8 %d : %v\n", ii, euler.PermutationSlUint8(ii, []uint8{0, 1, 2}))
+	// }
 }
 
 func TestFactorial(t *testing.T) {
