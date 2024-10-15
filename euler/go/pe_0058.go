@@ -47,6 +47,26 @@ This runs _terriably_ with wheel factorization and maybe almost as bad with the 
 
 I let it run all day while I was at a family event and it's still going.  It's so bad I want to collect a record of just how bad.
 
+About TWO DAYS bad
+
+Side: 26177     685235329       5240/52353      false
+Side: 26241     688590081       5248/52481      true
+Euler 58: Spiral Primes: 26241
+
+real    2927m11.858s
+user    2915m37.092s
+sys     6m51.301s
+
+Compared to... less than a second with a 2020+ ProbablyPrime library function from math.big (uses https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test )
+
+Euler 58: Spiral Primes: 26241
+
+real    0m0.426s
+user    0m0.473s
+sys     0m0.063s
+
+
+
 https://en.wikipedia.org/wiki/Primality_test#Miller%E2%80%93Rabin_and_Solovay%E2%80%93Strassen_primality_test
 
 	// Given an integer n, choose some positive integer a < n.

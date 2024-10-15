@@ -534,6 +534,18 @@ func IsTriangleNumber(n uint64) bool {
 	return n == TriangleNumber(TriangleNumberReverseFloor(n))
 }
 
+func SquareNumber(n uint64) uint64 {
+	return n * n
+}
+
+func SquareNumberReverseFloor(n uint64) uint64 {
+	return uint64(math.Sqrt(float64(n)))
+}
+
+func IsSquareNumber(n uint64) bool {
+	return n == SquareNumber(SquareNumberReverseFloor(n))
+}
+
 func PentagonalNumber(n uint64) uint64 {
 	// Euler 44
 	// ( n * ( 3*n - 1 ) ) / 2
@@ -575,6 +587,102 @@ func HexagonalNumberReverseFloor(n uint64) uint64 {
 
 func IsHexagonalNumber(n uint64) bool {
 	return n == HexagonalNumber(HexagonalNumberReverseFloor(n))
+}
+
+func HeptagonalNumber(n uint64) uint64 {
+	// Euler 61
+	// n*(5*n-3)/2
+	return (n * (5*n - 3)) >> 1
+}
+
+func HeptagonalNumberReverseFloor(n uint64) uint64 {
+	// Pn = n*(5*n-3)/2
+	// 2 * Pn = 5*n*n - 3*n
+	// 0 = 5*n*n - 3*n - 2 * Pn
+	// a = 5 ; b = -3 ; c = -2*Hn
+	// Xn == ( -b [+,-] sqrt(b*b - 4 * a * c) ) / ( 2 * a )
+	// n == ( 3 + sqrt(9 + 40 * Hn ) ) / 10
+	return (uint64(math.Sqrt(float64(9)+float64(40)*float64(n))) + 3) / 10
+}
+
+func IsHeptagonalNumber(n uint64) bool {
+	return n == HeptagonalNumber(HeptagonalNumberReverseFloor(n))
+}
+
+func OctagonalNumber(n uint64) uint64 {
+	// Euler 61
+	// n*(3*n-2)
+	return n * (3*n - 2)
+}
+
+func OctagonalNumberReverseFloor(n uint64) uint64 {
+	// On = n*(3*n-2)
+	// 0 = 3*n*n -2*n -On
+	// a = 3 ; b = -2 ; c = -1*On
+	// Xn == ( -b [+,-] sqrt(b*b - 4 * a * c) ) / ( 2 * a )
+	// n == ( 2 + sqrt(4 + 12*c) / 6
+	return (uint64(math.Sqrt(float64(4)+float64(12)*float64(n))) + 2) / 6
+}
+
+func IsOctagonalNumber(n uint64) bool {
+	return n == OctagonalNumber(OctagonalNumberReverseFloor(n))
+}
+
+func NgonNumber(n, gon uint64) uint64 {
+	switch gon {
+	case 3:
+		return TriangleNumber(n)
+	case 4:
+		return SquareNumber(n)
+	case 5:
+		return PentagonalNumber(n)
+	case 6:
+		return HexagonalNumber(n)
+	case 7:
+		return HeptagonalNumber(n)
+	case 8:
+		return OctagonalNumber(n)
+	default:
+		return 0
+	}
+}
+
+func NgonNumberReverseFloor(n, gon uint64) uint64 {
+	switch gon {
+	case 3:
+		return TriangleNumberReverseFloor(n)
+	case 4:
+		return SquareNumberReverseFloor(n)
+	case 5:
+		return PentagonalNumberReverseFloor(n)
+	case 6:
+		return HexagonalNumberReverseFloor(n)
+	case 7:
+		return HeptagonalNumberReverseFloor(n)
+	case 8:
+		return OctagonalNumberReverseFloor(n)
+	default:
+		return 0
+	}
+}
+
+func IsNgonNumber(n, gon uint64) bool {
+	switch gon {
+	case 3:
+		return n == TriangleNumber(TriangleNumberReverseFloor(n))
+	case 4:
+		return n == SquareNumber(SquareNumberReverseFloor(n))
+	case 5:
+		return n == PentagonalNumber(PentagonalNumberReverseFloor(n))
+	case 6:
+		return n == HexagonalNumber(HexagonalNumberReverseFloor(n))
+	case 7:
+		return n == HeptagonalNumber(HeptagonalNumberReverseFloor(n))
+	case 8:
+		return n == OctagonalNumber(OctagonalNumberReverseFloor(n))
+	default:
+		return false
+	}
 }
 
 /*
@@ -1481,6 +1589,16 @@ func BsearchSlice[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~u
 	return -1
 }
 
+func UnsortedSearchSlice[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr | ~float32 | ~float64 | ~string](sl S, val E) int {
+	mx := len(sl)
+	for ii := 0; ii < mx; ii++ {
+		if val == sl[ii] {
+			return ii
+		}
+	}
+	return -1
+}
+
 func BsearchInt(list *[]int, val int) bool {
 	end := len(*list)
 	if nil == list || 1 > end {
@@ -1976,8 +2094,12 @@ func (p *BVPrimes) Grow(limit uint) {
 	// 0x200000 ~= 2.82s
 	// 0x400000 ~= 10.75s // Tried 2048 for the cutoff with this and autoFactorPMCforBVl1 was _still_ slower on a decade old Xeon CPU, it's correct, but the 'need to be 100%sure' spin cycle makes it too slow.  Perceptibly >> 201 seconds (I killed the run) vs 10.78s with the extra logic test.
 	// for line <= cl1z && line < 20480 {
-	// vs the big.Int.ProbablyPrime test ~4096 lines was the fastest cutoff.
-	for line <= cl1z && line < 4096 {
+	// vs the big.Int.ProbablyPrime test ~2048 lines was the fastest tested cutoff.
+	// 1024 ~= 1M/16 ~ 41.36s
+	// 2048 ~= 2M/16 ~ 40.91s
+	// 3072 ~= 3M/16 ~ 41.88s
+	// 4096 ~= 4M/16 ~ 43.65s
+	for line <= cl1z && line < 2048 {
 		primeStart := uint(3)
 		var end uint
 		for {
@@ -2011,6 +2133,9 @@ func (p *BVPrimes) Grow(limit uint) {
 	//
 	// Gear 2 might be worth it if there's a major need to know all the primes under a given value, rather than just factoring. This seive cost VS GCDbin VS Pollard?
 
+	// if line <= cl1z {
+	// fmt.Printf("Primes wheel factorized to %d, switching gears to wheel filter and ProbablyPrime test.\n", p.Last)
+	// }
 	// AFTER 64K this is somehow so fast that I suspect the results... FIXME: Have I added a total torture test to cover up to 1024*1024 yet?
 
 	for line <= cl1z {

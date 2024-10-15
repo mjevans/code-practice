@@ -211,7 +211,7 @@ func TestOverkillSeed(t *testing.T) {
 	const limit = uint(0x100000 + 64)
 	//const limit = uint(65535)
 	// const limit = uint(1025)
-	t.Logf("Verify / Profile Factor1980PollardMonteCarlo(p, seed) upto: %d\n", limit)
+	t.Logf("Seed primes upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
 }
@@ -221,7 +221,7 @@ func TestPrimesChecksum(t *testing.T) {
 	//const limit = uint(65535)
 	// const limit = uint(0x40000)
 	// const limit = uint(1025)
-	t.Logf("Verify / Profile Factor1980PollardMonteCarlo(p, seed) upto: %d\n", limit)
+	t.Logf("Verify primes upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
 	priorProblematicResults := []struct {
@@ -616,6 +616,11 @@ func TestNgonalNumbers(t *testing.T) {
 		if ii != pfi {
 			t.Errorf("Loop failed: %d == TriangleNumberReverseFloor( TriangleNumber() ~ %d ) got %d\n", ii, pi, pfi)
 		}
+		pi = euler.SquareNumber(ii)
+		pfi = euler.SquareNumberReverseFloor(pi)
+		if ii != pfi {
+			t.Errorf("Loop failed: %d == SquareNumberReverseFloor( SquareNumber() ~ %d ) got %d\n", ii, pi, pfi)
+		}
 		pi = euler.PentagonalNumber(ii)
 		pfi = euler.PentagonalNumberReverseFloor(pi)
 		if ii != pfi {
@@ -626,22 +631,113 @@ func TestNgonalNumbers(t *testing.T) {
 		if ii != pfi {
 			t.Errorf("Loop failed: %d == HexagonalNumberReverseFloor( HexagonalNumber() ~ %d ) got %d\n", ii, pi, pfi)
 		}
-	}
-	testConcatU64 := []struct {
-		x, y, base, res uint64
-	}{
-		{1, 0, 10, 10},
-		{1, 1, 10, 11},
-		{10, 1, 10, 101},
-		{10, 9, 10, 109},
-		{9, 10, 10, 910},
-	}
-	for _, test := range testConcatU64 {
-		if test.res != euler.ConcatDigitsU64(test.x, test.y, test.base) {
-			t.Errorf("ConcatDigitsU64 expected %d got %d\n", test.res, euler.ConcatDigitsU64(test.x, test.y, test.base))
+		pi = euler.HeptagonalNumber(ii)
+		pfi = euler.HeptagonalNumberReverseFloor(pi)
+		if ii != pfi {
+			t.Errorf("Loop failed: %d == HeptagonalNumberReverseFloor( HeptagonalNumber() ~ %d ) got %d\n", ii, pi, pfi)
+		}
+		pi = euler.OctagonalNumber(ii)
+		pfi = euler.OctagonalNumberReverseFloor(pi)
+		if ii != pfi {
+			t.Errorf("Loop failed: %d == OctagonalNumberReverseFloor( OctagonalNumber() ~ %d ) got %d\n", ii, pi, pfi)
 		}
 	}
-
+	test3gon := []struct {
+		N, GN uint64
+	}{
+		{1, 1},
+		{2, 3},
+		{3, 6},
+		{4, 10},
+		{5, 15},
+	}
+	for _, test := range test3gon {
+		rev := euler.TriangleNumberReverseFloor(test.GN)
+		res := euler.TriangleNumber(test.N)
+		if res != test.GN || rev != test.N {
+			t.Errorf("6gon failed, expected %d, %d got %d, %d\n", test.N, test.GN, rev, res)
+		}
+	}
+	test4gon := []struct {
+		N, GN uint64
+	}{
+		{1, 1},
+		{2, 4},
+		{3, 9},
+		{4, 16},
+		{5, 25},
+	}
+	for _, test := range test4gon {
+		rev := euler.SquareNumberReverseFloor(test.GN)
+		res := euler.SquareNumber(test.N)
+		if res != test.GN || rev != test.N {
+			t.Errorf("6gon failed, expected %d, %d got %d, %d\n", test.N, test.GN, rev, res)
+		}
+	}
+	test5gon := []struct {
+		N, GN uint64
+	}{
+		{1, 1},
+		{2, 5},
+		{3, 12},
+		{4, 22},
+		{5, 35},
+	}
+	for _, test := range test5gon {
+		rev := euler.PentagonalNumberReverseFloor(test.GN)
+		res := euler.PentagonalNumber(test.N)
+		if res != test.GN || rev != test.N {
+			t.Errorf("6gon failed, expected %d, %d got %d, %d\n", test.N, test.GN, rev, res)
+		}
+	}
+	test6gon := []struct {
+		N, GN uint64
+	}{
+		{1, 1},
+		{2, 6},
+		{3, 15},
+		{4, 28},
+		{5, 45},
+	}
+	for _, test := range test6gon {
+		rev := euler.HexagonalNumberReverseFloor(test.GN)
+		res := euler.HexagonalNumber(test.N)
+		if res != test.GN || rev != test.N {
+			t.Errorf("6gon failed, expected %d, %d got %d, %d\n", test.N, test.GN, rev, res)
+		}
+	}
+	test7gon := []struct {
+		N, GN uint64
+	}{
+		{1, 1},
+		{2, 7},
+		{3, 18},
+		{4, 34},
+		{5, 55},
+	}
+	for _, test := range test7gon {
+		rev := euler.HeptagonalNumberReverseFloor(test.GN)
+		res := euler.HeptagonalNumber(test.N)
+		if res != test.GN || rev != test.N {
+			t.Errorf("7gon failed, expected %d, %d got %d, %d\n", test.N, test.GN, rev, res)
+		}
+	}
+	test8gon := []struct {
+		N, GN uint64
+	}{
+		{1, 1},
+		{2, 8},
+		{3, 21},
+		{4, 40},
+		{5, 65},
+	}
+	for _, test := range test8gon {
+		rev := euler.OctagonalNumberReverseFloor(test.GN)
+		res := euler.OctagonalNumber(test.N)
+		if res != test.GN || rev != test.N {
+			t.Errorf("8gon failed, expected %d, %d got %d, %d\n", test.N, test.GN, rev, res)
+		}
+	}
 }
 
 //type Card uint8
@@ -673,6 +769,20 @@ func TestBaseConversions(t *testing.T) {
 		cmp := euler.Uint8Compare(res, test.res)
 		if test.same != (0 == cmp) {
 			t.Errorf("Expected results: %t %v ~~ got %v %t\n", test.same, test.res, res, 0 == cmp)
+		}
+	}
+	testConcatU64 := []struct {
+		x, y, base, res uint64
+	}{
+		{1, 0, 10, 10},
+		{1, 1, 10, 11},
+		{10, 1, 10, 101},
+		{10, 9, 10, 109},
+		{9, 10, 10, 910},
+	}
+	for _, test := range testConcatU64 {
+		if test.res != euler.ConcatDigitsU64(test.x, test.y, test.base) {
+			t.Errorf("ConcatDigitsU64 expected %d got %d\n", test.res, euler.ConcatDigitsU64(test.x, test.y, test.base))
 		}
 	}
 
