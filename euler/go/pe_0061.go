@@ -85,6 +85,9 @@ Each Node's high (inbound) contribution in order.
 So a list of solutions evaluates this node's matches, but doesn't add that match from the combo list if it matches a prior island's.
 
 
+I also now realize, offhand, I've never done one of those write your own toy database exercises.  Open Source libre and zero cost solutions abound, be it MySQL/MariaDB/whatever PostgreSQL or SQLite to name a few.  It's surprisingly easy to have a good general idea of how a database works, without connecting that concept to graph theory.
+
+
 */
 
 import (
@@ -198,76 +201,8 @@ func Euler0061(min, max, modsplit, base uint64) uint64 {
 	//
 	// _slice_ :: kn == maps (upper half) to sln == _slice_ of lower half matches
 
-	GetLinkLows := func(ng []map[uint16][]uint16, a, b uint8) (map[uint16][NgonCount]uint16, int, uint16) {
-		ret := make(map[uint16][NgonCount]uint16)
-		count := 0
-		for iiHi, sl := range ng[a] {
-			slmx := len(sl)
-			for slii := 0; slii < slmx; slii++ {
-				if _, ok := ng[b][sl[slii]]; ok {
-					ret[uint16(count)] = [NgonCount]uint16{iiHi, sl[slii]}
-					count++
-				}
-			}
-		}
-		return ret, count, uint16(count)
-	}
-
-	GetCrossLinkLows := func(ng []map[uint16][]uint16, sol map[uint16][NgonCount]uint16, idx uint16, idxH, dst uint8, zerocheck bool) (map[uint16][NgonCount]uint16, int, uint16) {
-		var added [][NgonCount]uint16
-		// var todel []uint16
-		idxL := idxH + 1
-		if zerocheck {
-			idxL = 0
-		}
-		count := 0
-		for k, val := range sol {
-			// This will harmlessly be false if asked for 0 since that is not a valid number for this problem
-			if sl, ok := ng[dst][sol[k][idxH]]; ok {
-				slmx := len(sl)
-				ok = false
-				for ii := 0; ii < slmx; ii++ {
-					if zerocheck {
-						if val[idxL] != sl[ii] {
-							continue
-						}
-						ok = true
-					} else {
-						ok = true
-					}
-					if 0 == ii {
-						cval := val
-						cval[idxL] = sl[ii]
-						sol[k] = cval
-					} else {
-						cval := val
-						cval[idxL] = sl[ii]
-						added = append(added, cval)
-						// idx++
-						// sol[idx] = val
-						// Might have caused Dupes. Does golang allow for modification while iterating?  I hope so.
-					}
-					count++
-				}
-				if false == ok {
-					// todel = append(todel, k)
-					delete(sol, k)
-				}
-			} else {
-				delete(sol, k)
-			}
-		}
-		//for _, v := range todel {
-		//	delete(sol, v)
-		//}
-		for _, v := range added {
-			idx++
-			sol[idx] = v
-		}
-		return sol, count, idx
-	}
-
-	ValidateNgonSet := func(node []uint8, nums [NgonCount]uint16) bool {
+	ValidateNgonSet := func(node []uint8, nums [NgonCount]uint16) uint64 {
+		var sum uint64
 		ii := 0
 		for ; ii < NgonCount-1; ii++ {
 			t := uint64(nums[ii]*modsplitSZ + nums[ii+1])
@@ -275,8 +210,9 @@ func Euler0061(min, max, modsplit, base uint64) uint64 {
 			tgon := euler.NgonNumber(tr, uint64(node[ii]+3))
 			if tgon != t {
 				fmt.Printf("BUG%d: Did not match:\tNgon%d(%d) = %d = %d\n", ii, node[ii]+3, tr, t, tgon)
-				return false
+				return 0
 			}
+			sum += uint64(tgon)
 			fmt.Printf("\tNgon%d(%d) = %d\t", node[ii]+3, tr, t)
 		}
 		t := uint64(nums[ii]*modsplitSZ + nums[0])
@@ -284,10 +220,11 @@ func Euler0061(min, max, modsplit, base uint64) uint64 {
 		tgon := euler.NgonNumber(tr, uint64(node[ii]+3))
 		if tgon != t {
 			fmt.Printf("BUG%d: Did not match:\tNgon%d(%d) = %d = %d\n", ii, node[ii]+3, tr, t, tgon)
-			return false
+			return 0
 		}
+		sum += uint64(tgon)
 		fmt.Printf("\tNgon%d(%d) = %d\n", node[ii]+3, tr, t)
-		return true
+		return sum
 	}
 
 	// What does a solution look like?
@@ -311,6 +248,7 @@ func Euler0061(min, max, modsplit, base uint64) uint64 {
 						if -1 != euler.UnsortedSearchSlice(node[0:4], node[4]) {
 							continue
 						}
+					Euler0061NextCombo:
 						for node[5] = 0; node[5] < NgonCount; node[5]++ {
 							if -1 != euler.UnsortedSearchSlice(node[0:5], node[5]) {
 								continue
@@ -318,35 +256,76 @@ func Euler0061(min, max, modsplit, base uint64) uint64 {
 
 							// fmt.Printf("Trying path order: %v\n", node)
 
-							sol, count, idx := GetLinkLows(ng, node[0], node[1])
+							// Initial 'row' set.
+							rows := make(map[uint16][NgonCount]uint16)
+							count := 0
+							for iiHi, sl := range ng[node[0]] {
+								slmx := len(sl)
+								for slii := 0; slii < slmx; slii++ {
+									if _, ok := ng[node[1]][sl[slii]]; ok {
+										rows[uint16(count)] = [NgonCount]uint16{iiHi, sl[slii]}
+										count++
+									}
+								}
+							}
 							if 0 == count {
 								continue
 							}
-							sol, count, idx = GetCrossLinkLows(ng, sol, idx, 1, node[2], false)
-							if 0 == count {
-								continue
+							idx := uint16(count)
+
+							// rows is like a tuple of high halfs for each ngon, followed by the low half of the next ngon.
+							for col := 1; col < NgonCount; col++ {
+								count = 0
+								colLow := col + 1
+								precheck := false
+								if NgonCount == colLow {
+									colLow = 0
+									precheck = true
+								}
+
+								added := make([][NgonCount]uint16, 0)
+								for k, val := range rows {
+									// This will harmlessly be false if asked for 0 since that is not a valid number for this problem
+									keepRow := false
+									targetLows := ng[node[col]][val[col]]
+									tlmx := len(targetLows)
+									for tl := 0; tl < tlmx; tl++ {
+										if _, ok := ng[node[colLow]][targetLows[tl]]; ok {
+											if precheck && val[colLow] != targetLows[tl] {
+												continue
+											}
+											if 0 == tl {
+												cval := val
+												cval[colLow] = targetLows[tl]
+												rows[k] = cval
+											} else {
+												cval := val
+												cval[colLow] = targetLows[tl]
+												added = append(added, cval)
+												// Might have caused Dupes. deferred insert
+											}
+											count++
+											keepRow = true
+										}
+									}
+									if false == keepRow {
+										delete(rows, k)
+									}
+								}
+								for _, v := range added {
+									idx++
+									rows[idx] = v
+								}
+
+								if 0 == count {
+									continue Euler0061NextCombo
+								}
 							}
-							sol, count, idx = GetCrossLinkLows(ng, sol, idx, 2, node[3], false)
-							if 0 == count {
-								continue
+							for ii, _ := range rows {
+								sum += ValidateNgonSet(node, rows[ii])
+								fmt.Printf("Solution: %v %v\n", node, rows[ii])
 							}
-							sol, count, idx = GetCrossLinkLows(ng, sol, idx, 3, node[4], false)
-							if 0 == count {
-								continue
-							}
-							sol, count, idx = GetCrossLinkLows(ng, sol, idx, 4, node[5], false)
-							if 0 == count {
-								continue
-							}
-							sol, count, idx = GetCrossLinkLows(ng, sol, idx, 5, node[0], true)
-							if 0 == count {
-								continue
-							}
-							for ii, _ := range sol {
-								ValidateNgonSet(node, sol[ii])
-								fmt.Printf("Solution: %v %v\n", node, sol[ii])
-							}
-							return 0
+							return sum
 						}
 					}
 				}
@@ -580,15 +559,27 @@ func Incorrect61_ProblemDefinition(min, max, modsplit, base uint64) uint64 {
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 61 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
+Searching for Ngon 3 : 1000 .. 9999     Added 88
+Searching for Ngon 4 : 1000 .. 9999     Added 53
+Searching for Ngon 5 : 1000 .. 9999     Added 47
+Searching for Ngon 6 : 1000 .. 9999     Added 44
+Searching for Ngon 7 : 1000 .. 9999     Added 40
+Searching for Ngon 8 : 1000 .. 9999     Added 30
+Reduce pass 1 pruned 11
+Reduce pass 2 pruned 4
+Reduce pass 3 pruned 0
+        Ngon3(128) = 8256               Ngon4(75) = 5625                Ngon7(32) = 2512                Ngon8(21) = 1281                Ngon6(64) = 8128                Ngon5(44) = 2882
+Solution: [0 1 4 5 3 2] [82 56 25 12 81 28]
+Euler 61: Cyclical Figurate Numbers: 28684
 
 
 */
 func main() {
 	var a uint64
 	//test
-	a = Euler0061(1000, 9999, 100, 10)
+	// a = Euler0061(1000, 9999, 100, 10)
 
 	//run
-	// a = Euler061(1000, 9999, 100, 10)
+	a = Euler0061(1000, 9999, 100, 10)
 	fmt.Printf("Euler 61: Cyclical Figurate Numbers: %d\n", a)
 }
