@@ -2274,7 +2274,8 @@ func (p *BVPrimes) countPrimesLEUnsafe(ii uint) uint {
 	}
 }
 
-func GCDbin(a, b uint) uint {
+// func GCDbin(a, b uint) uint {
+func GCDbin[INT ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](a, b INT) INT {
 	// https://en.wikipedia.org/wiki/Binary_GCD_algorithm
 	// https://pkg.go.dev/math/bits#TrailingZeros
 	// https://cs.opensource.google/go/go/+/go1.23.1:src/math/bits/bits.go;l=59
@@ -2288,6 +2289,13 @@ func GCDbin(a, b uint) uint {
 	// There is a better way to count trailing zeros, but it uses annoying magic numbers or imports "math/bits"
 
 	a0, b0 := a, b
+	if 0 > a {
+		a = -a
+	}
+	if 0 > b {
+		b = -b
+	}
+
 	//fmt.Printf("GCDbin %d, %d\n", a0, b0)
 	//if a0 > 0xffffff || b0 > 0xffffff {
 	//	panic("overflow") }
@@ -2298,8 +2306,8 @@ func GCDbin(a, b uint) uint {
 		return b
 	}
 
-	var ka, kb int
-	k := 0 // k == count of common 2 factors
+	var k, ka, kb uint8
+	// k == count of common 2 factors
 	for 0 == a&1 {
 		a >>= 1
 		ka++
