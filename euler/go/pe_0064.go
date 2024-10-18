@@ -361,13 +361,13 @@ nSave = a0
 
 !! GCD(dSave, dNew)
 aNext = Floor( n / d ) = Floor(   )
-3:=	aNext + dSave * ( Sqrt(S) + nSave - aNext*S + nSave*nSave*aNext ) / ( S - nSave*nSave )
 
-3:=	aNext + dSave * ( Sqrt(S) + nSave - aNext*S + nSave*nSave*aNext ) / ( d )
+NOTE: If using  ( S - nSave*nSave ) without GCD reduction, divide by dSave too to match extracting dSave from the numerator:  ( S - nSave*nSave ) * dSave / dSave
 
 =>	aNext + ( Sqrt(S) + a0 ) / ( d ) - aNext
 =>	aNext + ( Sqrt(S) + a0 ) / ( d ) - aNext * d/d
 ( Sqrt(S) + a0 - d*aNext ) / ( d )
+
 
 
 Lesson learned?   The next time I need to do higher Maths ; use some paper, or at least a stylus (pen and paper is presently more cost effective)
