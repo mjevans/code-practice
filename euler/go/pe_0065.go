@@ -176,6 +176,23 @@ Dn = D(n-2) + c * D(n-1)
 
 */
 
+// slight improvement in case I need this in the future
+// pn2 is over-written, old pn0 becomes new p1, old p2 becomes p2, old p2 becomes next reuse
+func EulerEFracNextRot(pn0, pd, p1 *big.Int, anum int64) (*big.Int, *big.Int, *big.Int) {
+	anum++
+	if 0 == anum%3 {
+		anum = (anum / 3) << 1
+	} else {
+		anum = 1
+	}
+	//res := big.NewInt(0)
+	pn0.SetInt64(anum)
+	pn0.Mul(pn0, p1)
+	pn0.Add(pn0, pd)
+	return pd, p1, pn0
+}
+
+
 func EulerEFracNext(p2, p1 *big.Int, anum uint64) *big.Int {
 	anum++
 	if 0 == anum%3 {
