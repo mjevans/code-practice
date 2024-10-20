@@ -1167,13 +1167,39 @@ func MaxInt(a, b int) int {
 }
 
 func MaximumPathSum(tri [][]int) int {
-	dist := make([]int, len(tri[len(tri)-1])+1)
-	for line := int(len(tri)) - 1; line >= 0; line-- {
-		for ii := 0; ii < len(tri[line]); ii++ {
-			dist[ii] = MaxInt(tri[line][ii]+dist[ii], tri[line][ii]+dist[ii+1])
+	lnMx := len(tri)
+	if 0 == lnMx {
+		return 0
+	}
+	lnMx--
+	dist := make([]int, len(tri[lnMx])+1)
+	for line := lnMx; line >= 0; line-- {
+		iiLim := len(tri[line])
+		for ii := 0; ii < iiLim; ii++ {
+			dist[ii] = tri[line][ii] + MaxInt(dist[ii], dist[ii+1])
 		}
 	}
 	return dist[0]
+}
+
+func MaximumPathSumAppendShrink(dst, c []int) ([]int, int, int) {
+	var maxV, maxI, ld, lc, ii int
+	ld, lc = len(dst), len(c)
+	// Invalid use, make error more obvious
+	if 0 == lc || ld+1 < lc {
+		fmt.Printf("MaximumPathSumAppendShrink: incorrect use: lists of length %d and %d provided\n", ld, lc)
+		return []int{}, 0, 0
+	}
+	// dst	2 1 2 1 2 1 2
+	// c	 0 1 4 5 3 7
+	// dst	 2 3 6 7 5 9
+	for ii = 0; ii < lc; ii++ {
+		dst[ii] = c[ii] + MaxInt(dst[ii], dst[ii+1])
+		if maxV < dst[ii] {
+			maxV, maxI = dst[ii], ii
+		}
+	}
+	return dst, maxV, maxI
 }
 
 func ScannerSplitNLDQ(data []byte, atEOF bool) (advance int, token []byte, err error) {
