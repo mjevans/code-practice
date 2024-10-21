@@ -197,11 +197,13 @@ func SLInt8[T ~[]int8](c T) []int8 {
 
 // globals
 var (
-	Primes *BVPrimes
+	Primes        *BVPrimes
+	PrimesSmallU8 [13]uint8 // {2, 3, 5, 7, 11,	13, 17, 19, 23, 29,	31, 37, 41}
 )
 
 func init() {
 	Primes = NewBVPrimes()
+	PrimesSmallU8 = [...]uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41}
 }
 
 // Deprecated, DO NOT USE, no replacement planned
@@ -2164,9 +2166,9 @@ func (p *BVPrimes) ProbPrime(q uint64) bool {
 	if pd == q {
 		return true
 	}
-	// If greater performance desired, a const array of the small primes rather than looking them up?
-	for prime := uint64(2); 43 < prime; prime = p.PrimeAfter(prime) {
-		if 0 == q%prime {
+	pLim := len(PrimesSmallU8)
+	for ii := 0; ii < pLim; ii++ {
+		if 0 == q%uint64(PrimesSmallU8[ii]) {
 			return false
 		}
 	}
@@ -2562,22 +2564,38 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 	// for cur := uint(3); 1 < q && cur <= pLim; cur = p.primeAfterUnsafe(cur, pLim) {
 
 	// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
-	smallPrimes := []uint32{3, 5, 7, 11}
-	for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
-		fac := Factorpair{Base: smallPrimes[cur], Power: uint32(0)}
-		qd := uint64(smallPrimes[cur])
+	// smallPrimes := []uint32{3, 5, 7, 11}
+	// for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
+	pLim := len(PrimesSmallU8)
+	var base, power uint32
+	for ii := 0; ii < pLim; ii++ {
+		qd := uint64(PrimesSmallU8[ii])
 		for 0 == q%qd {
 			q /= qd
-			fac.Power++
+			power++
 		}
-		if 0 < fac.Power {
-			heap.Push(facts, fac)
+		if 0 < power {
+			heap.Push(facts, Factorpair{Base: uint32(qd), Power: uint32(power)})
+			power = 0
 		}
 	}
+
 	// zz := 1000
 	// for 1 < q && zz > 0 {
 	for 1 < q {
-		unk := Factor1980AutoPMC(q, false)
+		var unk uint64
+		// try just one iteration, returns 0 on 'no factors found' (but search not exhausted)
+		unk = Factor1980PollardMonteCarlo(q, 0)
+
+		// aggressive search
+		if unk == 0 {
+			if p.ProbPrime(q) {
+				unk = q
+			} else {
+				unk = Factor1980AutoPMC(q, false)
+			}
+		}
+
 		// Probably Prime
 		if unk == q {
 			heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
@@ -2601,7 +2619,7 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 		// zz--
 	}
 
-	var base, power uint32
+	base, power = 0, 0
 	fact := make([]Factorpair, 0, facts.Len())
 	for 0 < facts.Len() {
 		fp := heap.Pop(facts).(Factorpair)
@@ -2956,11 +2974,30 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	return res
 }
 
-func (f *Factorized) Phi() uint64 {
-	return 0
+func EulerTotientPhi(n uint64) uint64 {
+	if 1 == n {
+		return 1
+	}
+	return Primes.Factorize(n).EulerTotientPhi()
+}
+
+func (f *Factorized) EulerTotientPhi() uint64 {
+	// []FactorizedN -> b0^(p0-1) * (b0-1) * ... * bn^(pn-1) * (bn-1)
+	var ret uint64
+	ret = 1
+	iiLim := len(f.Fact)
+	for ii := 0; ii < iiLim; ii++ {
+		// 'subtract' one via < (less than)
+		for pow := uint32(1); pow < f.Fact[ii].Power; pow++ {
+			ret *= uint64(f.Fact[ii].Base)
+		}
+		ret *= uint64(f.Fact[ii].Base) - 1
+	}
+	return ret
 }
 
 /*
+
 func FactorsToProperDivisors(factors *[]int) *[]int {
 	fl := len(*factors)
 	if 0 == fl {
