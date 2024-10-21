@@ -3004,6 +3004,9 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	return res
 }
 
+func (f *Factorized) ProperDivisors() uint64 {
+}
+
 /*
 func FactorsToProperDivisors(factors *[]int) *[]int {
 	fl := len(*factors)
