@@ -111,7 +111,7 @@ func Euler0069(toMax uint64) uint64 {
 			flNphi = float64(ii) / float64(phi)
 			if flNphi > bestF {
 				fmt.Printf("Found new best N/phi: %d/%d ~= %f > %f\n", ii, phi, flNphi, bestF)
-				bestF, bestI = flNphi, ii
+				bestF, bestFI, bestI = flNphi, fi, ii
 			}
 		}
 	}
@@ -134,7 +134,6 @@ Found new best N/phi: 2310/480 ~= 4.812500 > 4.375000
 Found new best N/phi: 30030/5760 ~= 5.213542 > 4.812500
 Found new best N/phi: 510510/92160 ~= 5.539388 > 5.213542
 Euler 69: Totient Maximum: 510510
-
 */
 func main() {
 	//test
