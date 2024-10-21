@@ -37,18 +37,18 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler012(minDivisors uint) uint {
-	var triangle, ii, target uint
+func Euler012(minDivisors uint32) uint32 {
+	var triangle, ii, target uint32
 	for t := minDivisors; 0 < t; t >>= 1 {
 		target++
 	}
 	euler.Primes.Grow(1_000_000)
 	for {
 		triangle += ii
-		f := euler.Primes.Factorize(triangle)
+		f := euler.Primes.Factorize(uint64(triangle))
 		if target <= f.Lenpow {
 			pd := *(f.ProperDivisors())
-			divisors := uint(len(pd)) + 1
+			divisors := uint32(len(pd)) + 1
 			if divisors >= minDivisors {
 				fmt.Println(triangle, ii, divisors, pd)
 				break

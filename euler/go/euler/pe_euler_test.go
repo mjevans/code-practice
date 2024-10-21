@@ -22,7 +22,7 @@ import (
 
 	https://go.dev/src/strings/search_test.go
 
-	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 42) ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 68) ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
 -*/
@@ -53,7 +53,7 @@ import (
 	func (c *T) TempDir() string
 */
 
-var primes = []uint{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173}
+var primes = []uint64{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173}
 
 // func TestXxx(t *testing.T) { t.  }
 
@@ -62,7 +62,7 @@ func TestDeprPrimesFactor(t *testing.T) {
 	var pr *([]int)
 	pr = euler.GetPrimes(pr, prLim)
 	for ii := 0; ii < prLim; ii++ {
-		if uint((*pr)[ii]) != primes[ii] {
+		if uint64((*pr)[ii]) != primes[ii] {
 			t.Errorf("Expected value %d got %d\n", primes[ii], (*pr)[ii])
 		}
 	}
@@ -88,7 +88,7 @@ func TestDeprPrimesFactor(t *testing.T) {
 
 func TestBVPrimesPrimeAfter(t *testing.T) {
 	//p := euler.NewBVPrimes()
-	testsPrimeAfter := []struct{ q, r uint }{
+	testsPrimeAfter := []struct{ q, r uint64 }{
 		{2, 3},
 		{3, 5},
 		{5, 7},
@@ -159,7 +159,7 @@ func TestFactorpairQueue(t *testing.T) {
 	heap.Push(fq, euler.Factorpair{Base: 23, Power: 1})
 	fqraw := fq.Raw()
 	t.Logf("[0] = %d ~~~ [%d] = %d", (*fqraw)[0].Base, fq.Len(), (*fqraw)[fq.Len()-1].Base)
-	mark := uint16(0)
+	mark := uint32(0)
 	for 0 < fq.Len() {
 		base := heap.Pop(fq).(euler.Factorpair).Base
 		if mark > base {
@@ -177,13 +177,13 @@ func TestFactorizeVsFactorMul(t *testing.T) {
 	// 867 = 3 17^2
 	// 5309 == prime
 	tests := []struct {
-		test uint
-		ans  []uint
+		test uint64
+		ans  []uint64
 	}{
-		{5309, []uint{5309}},
-		{867, []uint{3, 17, 17}},
-		{2024, []uint{2, 2, 2, 11, 23}},
-		{1885, []uint{5, 13, 29}},
+		{5309, []uint64{5309}},
+		{867, []uint64{3, 17, 17}},
+		{2024, []uint64{2, 2, 2, 11, 23}},
+		{1885, []uint64{5, 13, 29}},
 	}
 	// p := euler.NewBVPrimes()
 	for _, test := range tests {
@@ -208,7 +208,7 @@ func TestOverkillSeed(t *testing.T) {
 	// const limit = uint( 0x400000 - 1) // 4M
 	// const limit = uint(0x1000000 - 1) // 16777215 ~ VERY SLOW ~15-20min on my home NAS/server ... Unless it's REALLY important to quickly know if a number is a prime or not, probably too long.  Only ~8MB of mem though, so easily worth computing once, SAVING, and then loading if doing repeatedly.
 
-	const limit = uint(0x100000 + 64)
+	const limit = 0x100000 + 64
 	//const limit = uint(65535)
 	// const limit = uint(1025)
 	t.Logf("Seed primes upto: %d\n", limit)
@@ -217,7 +217,7 @@ func TestOverkillSeed(t *testing.T) {
 }
 
 func TestPrimesChecksum(t *testing.T) {
-	const limit = uint(0x100000)
+	const limit = 0x100000
 	//const limit = uint(65535)
 	// const limit = uint(0x40000)
 	// const limit = uint(1025)
@@ -225,12 +225,12 @@ func TestPrimesChecksum(t *testing.T) {
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
 	priorProblematicResults := []struct {
-		test  uint
+		test  uint64
 		prime bool
 	}{{529409, false}, {532481, false}, {537601, false}, {587777, false}, {654337, false}, {713729, false}, {780289, false}, {801793, false}, {873473, false}, {903169, false}, {976897, false}, {998401, false}, {1039361, false}}
 	tests := []struct {
-		test uint
-		ans  uint
+		test uint64
+		ans  uint64
 	}{
 		{72, 20},
 		{71, 20},
@@ -247,8 +247,8 @@ func TestPrimesChecksum(t *testing.T) {
 	}
 	// WARNING:  These numbers obtained by local calculation, not validated by external reference
 	csums := []struct {
-		end uint
-		sum uint
+		end uint64
+		sum uint64
 	}{
 		{1025, 171}, {2049, 137}, {3073, 130}, {4097, 125}, {5121, 121}, {6145, 116}, {7169, 115}, {8193, 112}, {9217, 114}, {10241, 112}, {11265, 108}, {12289, 108}, {13313, 111}, {14337, 100}, {15361, 114}, {16385, 105},
 		{17409, 102}, {18433, 109}, {19457, 95}, {20481, 106}, {21505, 101}, {22529, 104}, {23553, 101}, {24577, 107}, {25601, 94}, {26625, 99}, {27649, 98}, {28673, 108}, {29697, 97}, {30721, 93}, {31745, 100}, {32769, 98},
@@ -324,7 +324,7 @@ func TestPrimesChecksum(t *testing.T) {
 		}
 	}
 	for _, test := range csums {
-		res := uint(len(euler.Primes.PrimesOnPage(test.end)))
+		res := uint64(len(euler.Primes.PrimesOnPage(test.end)))
 		if res != test.sum {
 			t.Errorf("expected count %d got %d on cache line ending in %d", test.sum, res, test.end)
 			abort = true
@@ -371,19 +371,18 @@ func TestPrimesChecksum(t *testing.T) {
 }
 
 func TestOverkillVerifyFactor1980Pollard(t *testing.T) {
-	const limit = uint(65535)
+	var reseed, maxseed, failseed uint64
+	const limit = 65535
 	t.Logf("Verify / Profile Factor1980PollardMonteCarlo(p, seed) upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
-	reseed := uint(0)
-	maxseed := uint(0)
-	failseed := uint(0)
+	reseed, maxseed, failseed = 0, 0, 0
 TestOverkillVerifyOuter:
-	for ii := uint(2); ii <= limit; ii++ {
+	for ii := uint64(2); ii <= limit; ii++ {
 		if 0 == ii&0x3fff {
 			t.Logf("... %d", ii)
 		}
-		for seed := uint(0); seed <= 20; seed++ {
+		for seed := uint64(0); seed <= 20; seed++ {
 			factor := euler.Factor1980PollardMonteCarlo(ii, seed)
 			if 1 < factor || euler.Primes.KnownPrime(ii) {
 				if 0 != seed {
@@ -399,7 +398,7 @@ TestOverkillVerifyOuter:
 			}
 		}
 		failseed++
-		seedMax := uint(1)
+		seedMax := uint64(1)
 		for t := ii >> 1; seedMax < t; t >>= 1 {
 			seedMax <<= 1
 		}
@@ -408,7 +407,7 @@ TestOverkillVerifyOuter:
 			// Resolves the only soft fail 32761 with the >= square root limit test // 17 (289) 79 (6241) 139 (19321) 181 (32761)
 			t.Logf("SOFT fail to successfully factor: %d, iterating from seed 21 to %d", ii, seedMax)
 		}
-		for seed := uint(21); seed <= seedMax; seed++ {
+		for seed := uint64(21); seed <= seedMax; seed++ {
 			factor := euler.Factor1980PollardMonteCarlo(ii, seed)
 			if 1 < factor {
 				if testing.Verbose() {
@@ -428,11 +427,11 @@ TestOverkillVerifyOuter:
 }
 
 func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
-	const limit = uint(65535)
+	const limit = 65535
 	t.Logf("Verify Factor1980AutoPMC(p) upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
-	for ii := uint(2); ii <= limit; ii++ {
+	for ii := uint64(2); ii <= limit; ii++ {
 		if 0 == ii&0x3fff {
 			t.Logf("... %d", ii)
 		}
@@ -457,7 +456,7 @@ func TestFactorizeProperDivisors(t *testing.T) {
 	// {2024, []uint64{1, 2, 2, 2, 11, 23}},
 	// p := euler.Primes
 	for _, test := range tests {
-		propdiv := *(euler.Primes.Factorize(uint(test.test)).ProperDivisors())
+		propdiv := *(euler.Primes.Factorize(uint64(test.test)).ProperDivisors())
 		if len(test.ans) != len(propdiv) {
 			t.Errorf("Lengths do not match:\n%v\n%v\n", test.ans, propdiv)
 		}

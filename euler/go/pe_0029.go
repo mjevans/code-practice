@@ -75,10 +75,10 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler029(baseMin, baseMax, powMin, powMax uint) uint {
-	var ret uint
+func Euler029(baseMin, baseMax, powMin, powMax uint32) uint32 {
+	var ret uint32
 	for bb := baseMin; bb <= baseMax; bb++ {
-		bbfact := euler.Primes.Factorize(bb)
+		bbfact := euler.Primes.Factorize(uint64(bb))
 		bbRedu, bbExp := bbfact.ExtractPower()
 		//
 		// Do this, but subtract ProperFactors iterations from ret after adding the expected uniques.
@@ -91,14 +91,14 @@ func Euler029(baseMin, baseMax, powMin, powMax uint) uint {
 		// retOld := ret
 	E29_filter_low_powers:
 		for pp := powMin; pp <= powMax; pp++ {
-			ppTarget := bbExp * pp
-			ppDivs := *(euler.Primes.Factorize(ppTarget).ProperDivisors())
+			ppTarget := bbExp * uint32(pp)
+			ppDivs := *(euler.Primes.Factorize(uint64(ppTarget)).ProperDivisors())
 			ppDLen := len(ppDivs)
 			// ppDivs[0] = uint64(ppTarget) // 1 := ppTarget
 			for ii := 0; ii < ppDLen; ii++ {
 
 				// ppShifted is the effective power, ppDivs[ii] is the base multiple
-				ppShifted := ppTarget / uint(ppDivs[ii])
+				ppShifted := ppTarget / uint32(ppDivs[ii])
 				// fmt.Printf("Eval: %d^%d (%d)\t%d\t^%d\t", bb, pp, ppTarget, ppDivs[ii], ppShifted)
 
 				// GUARD isPowerInLimit?
@@ -108,7 +108,7 @@ func Euler029(baseMin, baseMax, powMin, powMax uint) uint {
 				}
 
 				// Base above floor? Then it's already seen
-				bbShifted := bbRedu.Pow(uint(ppDivs[ii])).Uint64()
+				bbShifted := bbRedu.Pow(uint32(ppDivs[ii])).Uint64()
 				if uint64(bb) > bbShifted && bbShifted >= uint64(baseMin) {
 					// fmt.Printf("Shadowed: %d^%d == %d^%d (%d)\n", bb, pp, bbShifted, ppShifted, ppDivs[ii])
 					continue E29_filter_low_powers
@@ -123,13 +123,13 @@ func Euler029(baseMin, baseMax, powMin, powMax uint) uint {
 	return ret
 }
 
-func Euler029_BruteForce(baseMin, baseMax, powMin, powMax uint) uint {
-	var ret uint
-	seen := make(map[string]int, 0)
+func Euler029_BruteForce(baseMin, baseMax, powMin, powMax uint32) uint32 {
+	var ret uint32
+	seen := make(map[string]int8, 0)
 	for bb := baseMin; bb <= baseMax; bb++ {
-		factbase := euler.Primes.Factorize(bb)
+		factbase := euler.Primes.Factorize(uint64(bb))
 		for pp := powMin; pp <= powMax; pp++ {
-			q := factbase.Pow(pp).BigInt().String() // bb^pp
+			q := factbase.Pow(uint32(pp)).BigInt().String() // bb^pp
 			// fmt.Printf("\t%d", q)
 			if _, found := seen[q]; false == found {
 				seen[q] = 1
@@ -158,8 +158,8 @@ Euler029: Result ..100 (brute):          9183
 */
 func main() {
 	//test
-	var q, bf uint
-	for ii := uint(5); ii <= uint(10); ii++ {
+	var q, bf uint32
+	for ii := uint32(5); ii <= 10; ii++ {
 		bf = Euler029_BruteForce(2, ii, 2, ii)
 		q = Euler029(2, ii, 2, ii)
 		fmt.Println("Euler029: test SELECT COUNT DISTINCT(a^b) a[2..5] b[2..5]:\t", bf == q, "\tBrute Force: ", bf, "\tQuick: ", q)

@@ -51,9 +51,9 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler051(limit, minrun, base uint) (uint, uint) {
+func Euler051(limit, minrun, base uint64) (uint64, uint64) {
 	euler.Primes.Grow(limit)
-	var prime, run, bestprime, bestrun, strikes, strikeOut uint
+	var prime, run, bestprime, bestrun, strikes, strikeOut uint64
 	strikeOut = base + 1 - minrun
 	// prime = 56001 // FIXME 0
 	prime = 0
@@ -66,7 +66,7 @@ func Euler051(limit, minrun, base uint) (uint, uint) {
 		// fmt.Printf("%d: Testing %v\n", prime, nv)
 		for dd := uint8(1); dd < ddmx; dd++ {
 			ddnum := nv[dd]
-			if strikeOut < uint(ddnum) {
+			if strikeOut < uint64(ddnum) {
 				// fmt.Printf("%d: digit %d (%d) above %d, SKIP\n", prime, ddnum, dd, strikeOut)
 				continue
 			}
@@ -85,7 +85,7 @@ func Euler051(limit, minrun, base uint) (uint, uint) {
 				// clean template copy
 				copy(nvtest, nv)
 				run = 1
-				strikes = uint(ddnum) + 1 - 1
+				strikes = uint64(ddnum) + 1 - 1
 				for mm := ddnum + 1; strikes <= strikeOut && mm < uint8(base); mm++ {
 					// Construct this cycle's permutation
 					nvtest[dd] = mm
@@ -98,7 +98,7 @@ func Euler051(limit, minrun, base uint) (uint, uint) {
 						tbit <<= 1
 						tnum++
 					}
-					numtest := uint(euler.Uint8DigitsToUint64(nvtest, uint64(base)))
+					numtest := uint64(euler.Uint8DigitsToUint64(nvtest, uint64(base)))
 					numtested := euler.Primes.KnownPrime(numtest)
 					// fmt.Printf("Tested %d +%d+ %d = %t\n", prime, run, numtest, numtested)
 
@@ -146,7 +146,7 @@ Euler 51: Prime Digit Replacements: 1000000     run: 8  prime: 121313
 */
 func main() {
 	//test
-	var n, t uint
+	var n, t uint64
 	n, t = 100, 6
 	prime, run := Euler051(n, t, 10)
 	fmt.Printf("Euler 51: test: prime: %d\trun: %d\t%t\n", prime, run, 13 == prime && run == t)

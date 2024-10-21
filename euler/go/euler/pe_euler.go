@@ -34,6 +34,10 @@ https://projecteuler.net/minimal=NUM
 export NUM=25 ; export FN="$(printf "pe_%04d.go" $NUM)" ; go fmt "$FN" ; go fmt euler/*.go bitvector/*.go ; go build euler/pe_euler.go ; go run "$FN"
 
 
+for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 42) ; do go fmt $(printf "pe_%04d.go" "$ii") ; printf "NEXT: %s\n" $ii ; go run $(printf "pe_%04d.go" "$ii") || break ; read JUNK ; done
+
+
+
 FIXME: REMINDER -- https://go101.org/article/value-part.html
 https://github.com/go101/go101/wiki/About-the-terminology-%22reference-type%22-in-Go
 
@@ -200,60 +204,7 @@ func init() {
 	Primes = NewBVPrimes()
 }
 
-/*
-// Deprecated function supported by shim interface to Primes
-func Factor(primes *[]int, num int) *[]int {
-	// Public school factoring algorithm from memory...
-	// Trial Division - https://en.wikipedia.org/wiki/Integer_factorization#Factoring_algorithms
-
-	// With a list of known primes, the largest number that can be factored is Pn * Pn
-	for ; nil == primes || num > (*primes)[len(*primes)-1]*(*primes)[len(*primes)-1]; primes = GetPrimes(primes, 0) {
-		// fmt.Println(len(primes), primes[len(primes)-1])
-	}
-
-	ret := &[]int{}
-	if num < 2 {
-		return ret
-	}
-	for _, prime := range *primes {
-		for ; 0 == num%prime; num /= prime {
-			*ret = append(*ret, prime)
-		}
-		if num < prime*prime {
-			break
-		} // break if no more prime factors are possible
-	}
-	if 1 < num {
-		*ret = append(*ret, num)
-	}
-	// fmt.Println("Factor:\t", num, "\n", ret, primes)
-	return ret
-}
-
-// Deprecated function supported by shim interface to Primes
-func GetPrimes(primes *[]int, primehunt int) *[]int {
-	if nil == primes {
-		primes = &[]int{2, 3, 5, 7, 11, 13, 17, 19}
-	}
-	// Semi-arbitrary expansion target, find 8 more primes (8, 16, 32, 64 it'll fit within the append growth algo)
-	if primehunt < 1 {
-		primehunt = 8
-	}
-PrimeHunt:
-	for ; 0 < primehunt; primehunt-- {
-		for ii := (*primes)[len(*primes)-1] + 1; ; ii++ {
-			result := Factor(primes, ii)
-			if 1 == len(*result) && (*primes)[len(*primes)-1] < (*result)[0] {
-				//fmt.Println("Found Prime:\t", result[0])
-				*primes = append(*primes, (*result)[0])
-				continue PrimeHunt // I could break once, but this documents the intent
-			}
-		}
-	}
-	return primes
-}
-*/
-
+// Deprecated, DO NOT USE, no replacement planned
 func PrintFactors(factors []int) {
 	// Join only takes []string s? fff
 	strFact := make([]string, len(factors), len(factors))
@@ -263,25 +214,7 @@ func PrintFactors(factors []int) {
 	fmt.Println(strings.Join(strFact, ", "))
 }
 
-/*
-func FactorsToDivisors_old(factors *[]int) *[]int {
-	fact_len := len(*factors)
-	if 12 < fact_len {
-		fmt.Println("FTD: ", ListMul(*factors), fact_len, "=~", Factorial(fact_len))
-		return []int{}
-	}
-	divisors := make([]int, 0, Factorial(fact_len ))
-	divisors = append(divisors, 1)
-	for ii := 0; ii < fact_len; ii++ {
-		mmlim := fact_len
-		for mm := 0; mm < mmlim; mm++ {
-			divisors = append(divisors, divisors[mm]*factors[ii])
-		}
-	}
-	return CompactInts(divisors[:len(*divisors)-1])
-}
-*/
-
+// Deprecated, DO NOT USE, see type Factorized
 func FactorsToProperDivisors(factors *[]int) *[]int {
 	fl := len(*factors)
 	if 0 == fl {
@@ -310,6 +243,7 @@ func FactorsToProperDivisors(factors *[]int) *[]int {
 	return bitVec.GetInts()
 }
 
+// Deprecated, DO NOT USE
 func AlphaSum(str string) int64 {
 	var ret, limit int64
 	limit = int64(len(str))
@@ -320,6 +254,7 @@ func AlphaSum(str string) int64 {
 	return ret
 }
 
+// Deprecated, DO NOT USE
 func ListSum(scale []int) int {
 	ret := 0
 	for _, val := range scale {
@@ -328,6 +263,7 @@ func ListSum(scale []int) int {
 	return ret
 }
 
+// Deprecated, DO NOT USE
 func ListSumUint64(scale []uint64) uint64 {
 	ret := uint64(0)
 	ll := len(scale)
@@ -337,6 +273,7 @@ func ListSumUint64(scale []uint64) uint64 {
 	return ret
 }
 
+// Deprecated, DO NOT USE
 func ListMul(scale []int) int {
 	ret := 1
 	for _, val := range scale {
@@ -345,6 +282,7 @@ func ListMul(scale []int) int {
 	return ret
 }
 
+// Deprecated, DO NOT USE
 func Factorial(ii int) int {
 	ret := 1
 	for ii > 1 {
@@ -703,6 +641,7 @@ func IsPalindrome(num int) bool {
 */
 
 // CompactInts should behave like slices.Compact(slices.Sort())
+// Deprecated, DO NOT USE
 func CompactInts(arr []int) []int {
 	sort.Ints(arr)
 	last := 0
@@ -747,6 +686,7 @@ CompactIntsOuter:
 	return arr
 }
 
+// Deprecated, DO NOT USE
 func PrimeLCD(a, b []int) []int {
 	var pa, pb int
 	var ret []int
@@ -1159,6 +1099,7 @@ func StringBritishCheckNumber(num int) (int, string) {
 	return typed, strings.TrimSpace(ret)
 }
 
+// Deprecated, DO NOT USE (the max path sums use it)
 func MaxInt(a, b int) int {
 	if a > b {
 		return a
@@ -1412,14 +1353,14 @@ func Uint8Compare(a, b []uint8) int {
 	return 0
 }
 
-func PermutationString(perm int, str string) string {
-	end := len(str)
+func PermutationString(perm int64, str string) string {
+	end := int64(len(str))
 	tmp := make([]byte, end)
 	copy(tmp, str)
 	res := make([]byte, end)
-	slot := 0
+	slot := int64(0)
 	for slot < end {
-		fact := Factorial(end - 1 - slot)
+		fact := int64(FactorialUint64(uint64(end - 1 - slot)))
 		idx := perm / fact
 		perm %= fact
 		res[slot] = tmp[idx]
@@ -1631,6 +1572,15 @@ func UnsortedSearchSlice[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~ui
 }
 
 func BsearchInt(list *[]int, val int) bool {
+	idx := BsearchSlice(*list, val, false)
+	if 0 > idx {
+		return false
+	}
+	return val == (*list)[idx]
+}
+
+/*
+func BsearchInt(list *[]int, val int) bool {
 	end := len(*list)
 	if nil == list || 1 > end {
 		return false
@@ -1656,6 +1606,7 @@ func BsearchInt(list *[]int, val int) bool {
 	// fmt.Printf("BsearchInt: false : %d\n", val)
 	return false
 }
+*/
 
 type Rational struct {
 	Num int64
@@ -1779,7 +1730,7 @@ const BVprimeByteBitShift = 3 + 1 // 3 bits for 8 bit index, plus 1 bit for disc
 type BVpage [BVpagesize]uint8
 
 type BVPrimes struct {
-	Last uint
+	Last uint64
 	Mu   sync.Mutex
 	PV   []*BVpage // starting from bit 0 (set) == 3 (prime), record all odd primes with SET bits
 	// MAYBE primes are any unset bits > Last, unset bits < Last == composite
@@ -1795,7 +1746,7 @@ func NewBVPrimes() *BVPrimes {
 	return &BVPrimes{PV: append(make([]*BVpage, 0, 1), ov), Last: 33}
 }
 
-func (p *BVPrimes) PrimeOrDown(ii uint) uint {
+func (p *BVPrimes) PrimeOrDown(ii uint64) uint64 {
 	if 2 > ii {
 		return 0
 	}
@@ -1819,7 +1770,7 @@ func (p *BVPrimes) PrimeOrDown(ii uint) uint {
 			// bidx
 			for {
 				if 0 == p.PV[pg][pidx]&(uint8(1)<<bidx) {
-					return ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint(bidx)<<1 + 3
+					return ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint64(bidx)<<1 + 3
 				}
 				if 0 == bidx {
 					break
@@ -1841,7 +1792,7 @@ func (p *BVPrimes) PrimeOrDown(ii uint) uint {
 	}
 }
 
-func (p *BVPrimes) PrimeRemove(ii uint) {
+func (p *BVPrimes) PrimeRemove(ii uint64) {
 	// testII := ii
 	if ii > p.Last {
 		return
@@ -1857,7 +1808,7 @@ func (p *BVPrimes) PrimeRemove(ii uint) {
 	p.PV[pg][pidx] |= (uint8(1) << bidx)
 }
 
-func (p *BVPrimes) PrimeAfter(ii uint) uint {
+func (p *BVPrimes) PrimeAfter(ii uint64) uint64 {
 	if 2 > ii {
 		return 2
 	}
@@ -1867,7 +1818,7 @@ func (p *BVPrimes) PrimeAfter(ii uint) uint {
 	}
 	lastPrime := p.PrimeOrDown(p.Last)
 	if ii >= lastPrime {
-		newLimit := (((((ii-3)>>1)/uint(BVl1))+uint(1))*uint(BVl1)+uint(BVprimeByteBitMaskPost))<<1 + 3
+		newLimit := (((((ii-3)>>1)/uint64(BVl1))+uint64(1))*uint64(BVl1)+uint64(BVprimeByteBitMaskPost))<<1 + 3
 		// fmt.Printf("Primes.PAfter .Grow triggered:   \t%d\t< %d\t-> %d\n", ii, p.Last, newLimit)
 		p.Grow(newLimit)
 	}
@@ -1880,7 +1831,7 @@ func (p *BVPrimes) PrimeAfter(ii uint) uint {
 	return p.primeAfterUnsafe(ii, p.Last)
 }
 
-func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
+func (p *BVPrimes) primeAfterUnsafe(input, limit uint64) uint64 {
 	ii := (input - 3 + 2) // the prime number AFTER ii, E.G. 6 -> 7
 	bidx := (ii & BVprimeByteBitMask) >> 1
 	bidx0 := bidx
@@ -1889,7 +1840,7 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 	bbMM := ((limit - 3) & BVprimeByteBitMask) >> 1
 	ooMM := (limit - 3) >> BVprimeByteBitShift
 	pgMM, idxMM := ooMM/BVpagesize, ooMM%BVpagesize
-	pgmax, pimax, pbmax := uint(len(p.PV)), uint(BVpagesize-1), uint(BVprimeByteBitMaskPost)
+	pgmax, pimax, pbmax := uint64(len(p.PV)), uint64(BVpagesize-1), uint64(BVprimeByteBitMaskPost)
 	if pgmax < pgMM {
 		pgMM, idxMM, bbMM = pgmax, pimax, pbmax
 	}
@@ -1902,7 +1853,7 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 			// bidx
 			for ; bidx < BVbitsPerByte; bidx++ {
 				if 0 == p.PV[pg][pidx]&(uint8(1)<<bidx) {
-					return ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint(bidx)<<1 + 3
+					return ((pg*BVpagesize + pidx) << BVprimeByteBitShift) + uint64(bidx)<<1 + 3
 				}
 			}
 			bidx = 0 // reset after scanning the initial index bits
@@ -1916,7 +1867,7 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 	fmt.Printf("Unable to locate prime after %d under %d\t[%d/%d][%d/%d]\t", input, limit, pg, pgMM, pidx, idxMM)
 	pg, pidx = ii/BVpagesize, ii%BVpagesize
 	fmt.Printf("started near [%d][%d]:%d (%d)\n", pg, pidx, bidx0, input)
-	var cl, end uint
+	var cl, end uint64
 	cl = ii / BVl1
 	for end < limit {
 		cl++
@@ -1935,7 +1886,7 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint) uint {
 	return 0
 }
 
-func (p *BVPrimes) wheelFactCL1Unsafe(start, prime, maxPrime uint) (uint, uint) {
+func (p *BVPrimes) wheelFactCL1Unsafe(start, prime, maxPrime uint64) (uint64, uint64) {
 	// https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
 	// https://en.wikipedia.org/wiki/Sieve_of_Sundaram
 	// https://en.wikipedia.org/wiki/List_of_prime_numbers
@@ -1955,7 +1906,7 @@ func (p *BVPrimes) wheelFactCL1Unsafe(start, prime, maxPrime uint) (uint, uint) 
 	if 0 == start {
 		// Modern CPUs prefer a branchless path even with a couple possibly redundant operations
 		// 2 + (IF even (step back to last odd) ELSE odd noop )
-		start = uint(((p.Last - 1) | 1) + 2)
+		start = uint64(((p.Last - 1) | 1) + 2)
 	}
 	start |= 1 // Evens inherently compressed out; always odd
 	if 3 > prime {
@@ -2005,10 +1956,10 @@ func (p *BVPrimes) wheelFactCL1Unsafe(start, prime, maxPrime uint) (uint, uint) 
 	return prime, ABS_maxPrimeReq
 }
 
-func (p *BVPrimes) autoFactorPMCforBVl1(start uint) {
+func (p *BVPrimes) autoFactorPMCforBVl1(start uint64) {
 	if 0 == start {
 		// 2 + (IF even (step back to last odd) ELSE odd noop )
-		start = uint(((p.Last - 1) | 1) + 2)
+		start = uint64(((p.Last - 1) | 1) + 2)
 	}
 	ABS_bbStart := (start - 3) >> 1
 	ABS_ooStart := ABS_bbStart >> (BVprimeByteBitShift - 1)
@@ -2028,10 +1979,10 @@ func (p *BVPrimes) autoFactorPMCforBVl1(start uint) {
 	}
 }
 
-func (p *BVPrimes) libraryProbPrimeBVl1(start uint) {
+func (p *BVPrimes) libraryProbPrimeBVl1(start uint64) {
 	if 0 == start {
 		// 2 + (IF even (step back to last odd) ELSE odd noop )
-		start = uint(((p.Last - 1) | 1) + 2)
+		start = uint64(((p.Last - 1) | 1) + 2)
 	}
 	ABS_bbStart := (start - 3) >> 1
 	ABS_ooStart := ABS_bbStart >> (BVprimeByteBitShift - 1)
@@ -2050,12 +2001,12 @@ func (p *BVPrimes) libraryProbPrimeBVl1(start uint) {
 	}
 }
 
-func (p *BVPrimes) PrimesOnPage(start uint) []uint {
+func (p *BVPrimes) PrimesOnPage(start uint64) []uint64 {
 	if 0 == start {
 		// 2 + (IF even (step back to last odd) ELSE odd noop )
-		start = uint(((p.Last - 1) | 1) + 2)
+		start = uint64(((p.Last - 1) | 1) + 2)
 	}
-	ret := make([]uint, 0, 64)
+	ret := make([]uint64, 0, 64)
 	bbStart := (start - 3) >> 1
 	ooStart := bbStart >> (BVprimeByteBitShift - 1)
 	pg, pgLine := ooStart/BVpagesize, (ooStart%BVpagesize)/BVl1
@@ -2071,7 +2022,7 @@ func (p *BVPrimes) PrimesOnPage(start uint) []uint {
 	return ret
 }
 
-func (p *BVPrimes) Grow(limit uint) {
+func (p *BVPrimes) Grow(limit uint64) {
 	if 0x10000f00 < limit {
 		fmt.Printf("Emperically refusing to grow past ~2sec runtime (~2015 era Xeon 1 CPU core) %d < %d", 0x100000, limit)
 		panic("Likely overflow")
@@ -2091,11 +2042,11 @@ func (p *BVPrimes) Grow(limit uint) {
 	}
 
 	// last l1 cache line
-	cl1z := (((limit - 3) >> BVprimeByteBitShift) / uint(BVl1)) + uint(1)
+	cl1z := (((limit - 3) >> BVprimeByteBitShift) / uint64(BVl1)) + uint64(1)
 
 	// Ensure the bitvector arrays exist
 	pagez := cl1z/(BVpagesize/BVl1) + 1
-	lenpv := uint(len(p.PV))
+	lenpv := uint64(len(p.PV))
 	if pagez > lenpv {
 		// Extend Capacity https://go.dev/wiki/SliceTricks
 		p.PV = append(make([]*BVpage, 0, pagez), p.PV...)
@@ -2109,7 +2060,7 @@ func (p *BVPrimes) Grow(limit uint) {
 	//}
 
 	next := ((p.Last - 1) | 1) + 2
-	line := ((next - 3) >> BVprimeByteBitShift) / uint(BVl1)
+	line := ((next - 3) >> BVprimeByteBitShift) / uint64(BVl1)
 
 	// ??? FIXME ???
 	// This might be seen as a refined and optimized version of 'first gear'; extending the concepts of trial division, wheel, and sieves.
@@ -2131,8 +2082,8 @@ func (p *BVPrimes) Grow(limit uint) {
 	// 3072 ~= 3M/16 ~ 41.88s
 	// 4096 ~= 4M/16 ~ 43.65s
 	for line <= cl1z && line < 2048 {
-		primeStart := uint(3)
-		var end uint
+		primeStart := uint64(3)
+		var end uint64
 		for {
 			maxPrimeCall := p.PrimeOrDown(p.Last)
 			primeStart, end = p.wheelFactCL1Unsafe(next, primeStart, maxPrimeCall)
@@ -2183,7 +2134,7 @@ func (p *BVPrimes) Grow(limit uint) {
 
 }
 
-func (p *BVPrimes) MaybePrime(q uint) bool {
+func (p *BVPrimes) MaybePrime(q uint64) bool {
 	// Use base2 storage inherent test for division by 2
 	if 0 == q&0x01 && 2 < q {
 		return false
@@ -2195,7 +2146,7 @@ func (p *BVPrimes) MaybePrime(q uint) bool {
 	return pd == q
 }
 
-func (p *BVPrimes) KnownPrime(q uint) bool {
+func (p *BVPrimes) KnownPrime(q uint64) bool {
 	// Use base2 storage inherent test for division by 2
 	if (0 == q&0x01 && 2 < q) || q > p.Last {
 		return false
@@ -2204,7 +2155,7 @@ func (p *BVPrimes) KnownPrime(q uint) bool {
 	return pd == q
 }
 
-func (p *BVPrimes) ProbPrime(q uint) bool {
+func (p *BVPrimes) ProbPrime(q uint64) bool {
 	// Use base2 storage inherent test for division by 2
 	if 0 == q&0x01 && 2 < q {
 		return false
@@ -2214,7 +2165,7 @@ func (p *BVPrimes) ProbPrime(q uint) bool {
 		return true
 	}
 	// If greater performance desired, a const array of the small primes rather than looking them up?
-	for prime := uint(2); 43 < prime; prime = p.PrimeAfter(prime) {
+	for prime := uint64(2); 43 < prime; prime = p.PrimeAfter(prime) {
 		if 0 == q%prime {
 			return false
 		}
@@ -2233,7 +2184,7 @@ func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
 
 	ii := len(*primes)
 	lim := cap(*primes)
-	prime := uint((*primes)[ii-1])
+	prime := uint64((*primes)[ii-1])
 	// fmt.Printf("GetPrimesInt: cap %d\n", lim)
 	for ; ii < lim; ii++ {
 		prime = p.PrimeAfter(prime)
@@ -2243,7 +2194,7 @@ func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
 	return primes
 }
 
-func (p *BVPrimes) CountPrimesLE(ii uint) uint {
+func (p *BVPrimes) CountPrimesLE(ii uint64) uint64 {
 	if 2 > ii {
 		return 0
 	}
@@ -2252,15 +2203,15 @@ func (p *BVPrimes) CountPrimesLE(ii uint) uint {
 	}
 	lastPrime := p.PrimeOrDown(p.Last)
 	if ii >= lastPrime {
-		newLimit := (((((ii-3)>>1)/uint(BVl1))+uint(1))*uint(BVl1)+uint(BVprimeByteBitMaskPost))<<1 + 3
+		newLimit := (((((ii-3)>>1)/uint64(BVl1))+uint64(1))*uint64(BVl1)+uint64(BVprimeByteBitMaskPost))<<1 + 3
 		// fmt.Printf("Primes.PAfter .Grow triggered:   \t%d\t< %d\t-> %d\n", ii, p.Last, newLimit)
 		p.Grow(newLimit)
 	}
 	return p.countPrimesLEUnsafe(ii)
 }
-func (p *BVPrimes) countPrimesLEUnsafe(ii uint) uint {
+func (p *BVPrimes) countPrimesLEUnsafe(ii uint64) uint64 {
 	// 2 isn't in the list, it's implied
-	ret := uint(1)
+	ret := uint64(1)
 	// out := 0
 	// fmt.Printf("\nfactor ")
 
@@ -2414,7 +2365,7 @@ Pollard: 5309 ??         (4 >= 32) || (1 < 5309)        689     689
 */
 
 // Returns _a_ factor OR 0 on failure (means MAYBE prime, 289 fails) (0 or 1 are never returned on success) 'took x0 := 0 ; m = 1'
-func Factor1980PollardMonteCarlo(N, x0 uint) uint {
+func Factor1980PollardMonteCarlo(N, x0 uint64) uint64 {
 	// https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 
 	// https://maths-people.anu.edu.au/~brent/pub/pub051.html
@@ -2427,16 +2378,16 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 	//}
 
 	// print pg182-183 p"2
-	fx := func(x, Nin uint) uint {
+	fx := func(x, Nin uint64) uint64 {
 		return (x*x + 3) % Nin
 	}
-	umin := func(a, b uint) uint {
+	umin := func(a, b uint64) uint64 {
 		if a < b {
 			return a
 		}
 		return b
 	}
-	abssub := func(a, b uint) uint {
+	abssub := func(a, b uint64) uint64 {
 		if a < b {
 			return b - a
 		}
@@ -2464,8 +2415,9 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 	// y := k seems to be the slow tortoise
 	//
 	//								y := x0 ; r := 1 ; q := 1 ;
-	y, r, q, m := uint(x0), uint(1), uint(1), uint(1)
-	var k, ii, G, x, ys uint
+	var y, r, q, m uint64
+	y, r, q, m = uint64(x0), 1, 1, 1
+	var k, ii, G, x, ys uint64
 	//								repeat x := y ;
 	for {
 		x = y
@@ -2521,7 +2473,7 @@ func Factor1980PollardMonteCarlo(N, x0 uint) uint {
 	return G
 }
 
-func Factor1980AutoPMC(q uint, singlePrimeOnly bool) uint {
+func Factor1980AutoPMC(q uint64, singlePrimeOnly bool) uint64 {
 	if 0 == q&1 {
 		return 2
 	}
@@ -2541,7 +2493,7 @@ func Factor1980AutoPMC(q uint, singlePrimeOnly bool) uint {
 	// Usually works in one pass, but if not...
 
 	// __approximate__ an integer square root, POW(pollard_limit, 2) _MUST_ be > q == pl*pl means square root factor
-	pollard := uint(1)
+	pollard := uint64(1)
 	pollard_limit := pollard
 	for t := q >> 1; pollard_limit < t; t >>= 1 {
 		pollard_limit <<= 1
@@ -2581,7 +2533,7 @@ func Factor1980AutoPMC(q uint, singlePrimeOnly bool) uint {
 	return q
 }
 
-func (p *BVPrimes) Factorize(q uint) *Factorized {
+func (p *BVPrimes) Factorize(q uint64) *Factorized {
 	qin := q
 	_ = qin
 	// Low hanging fruit first
@@ -2602,7 +2554,7 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 		k++
 	}
 	if 0 < k {
-		heap.Push(facts, Factorpair{Base: 2, Power: uint16(k)})
+		heap.Push(facts, Factorpair{Base: 2, Power: uint32(k)})
 	}
 
 	// pLim := uint(7)
@@ -2610,10 +2562,10 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 	// for cur := uint(3); 1 < q && cur <= pLim; cur = p.primeAfterUnsafe(cur, pLim) {
 
 	// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
-	smallPrimes := []uint16{3, 5, 7}
+	smallPrimes := []uint32{3, 5, 7, 11}
 	for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
-		fac := Factorpair{Base: smallPrimes[cur], Power: uint16(0)}
-		qd := uint(smallPrimes[cur])
+		fac := Factorpair{Base: smallPrimes[cur], Power: uint32(0)}
+		qd := uint64(smallPrimes[cur])
 		for 0 == q%qd {
 			q /= qd
 			fac.Power++
@@ -2628,14 +2580,14 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 		unk := Factor1980AutoPMC(q, false)
 		// Probably Prime
 		if unk == q {
-			heap.Push(facts, Factorpair{Base: uint16(q), Power: 1})
+			heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
 			break
 		}
 		q /= unk
 		sf := p.Factorize(unk)
-		for ii := uint(0); ii < sf.Lenbase; ii++ {
-			b := uint(sf.Fact[ii].Base)
-			pow := uint16(0)
+		for ii := uint32(0); ii < sf.Lenbase; ii++ {
+			b := uint64(sf.Fact[ii].Base)
+			pow := uint32(0)
 			for 0 == q%b {
 				q /= b
 				pow++
@@ -2649,12 +2601,12 @@ func (p *BVPrimes) Factorize(q uint) *Factorized {
 		// zz--
 	}
 
-	var base, power uint
+	var base, power uint32
 	fact := make([]Factorpair, 0, facts.Len())
 	for 0 < facts.Len() {
 		fp := heap.Pop(facts).(Factorpair)
 		base++
-		power += uint(fp.Power)
+		power += uint32(fp.Power)
 		fact = append(fact, fp)
 	}
 	return &Factorized{Lenbase: base, Lenpow: power, Fact: fact}
@@ -2741,7 +2693,7 @@ func GetPrimes(primes *[]int, num int) *[]int {
 
 // Deprecated function supported by shim interface to Primes
 func Factor(primes *[]int, num int) *[]int {
-	fp := Primes.Factorize(uint(num))
+	fp := Primes.Factorize(uint64(num))
 	ret := make([]int, 0, fp.Lenpow)
 	iiLim := len(fp.Fact)
 	if int(fp.Lenbase) != iiLim {
@@ -2756,16 +2708,16 @@ func Factor(primes *[]int, num int) *[]int {
 }
 
 type Factorpair struct {
-	Base  uint16
-	Power uint16
+	Base  uint32
+	Power uint32
 }
 
 type Factorized struct {
 	// Euler 29 wants a list of unique numbers up to 100**100 (100^100) ...
 	// Factorized graduates from a []int type number to a structured number, and also stores the effective lengths ahead of time.
 	// I'd like to make a version something like lenbase uint8 ; lenpow uint24 but the latter doesn't exist and the []uint16 (still worth it for data size in cache lines) is about to utilize abus-width int and pointer anyway...
-	Lenbase uint
-	Lenpow  uint
+	Lenbase uint32
+	Lenpow  uint32
 	Fact    []Factorpair
 }
 
@@ -2777,7 +2729,7 @@ func (facts *Factorized) Mul(fin *Factorized) *Factorized {
 	temp := make([]Factorpair, 0, facts.Lenbase+fin.Lenbase)
 	fbuf := (*FactorpairQueue)(&temp)
 	heap.Init(fbuf)
-	var fr, fi uint
+	var fr, fi uint32
 	for fr < facts.Lenbase && fi < fin.Lenbase {
 		// If BOTH have 1 as their base, add it as they're probably both 1...
 		if facts.Fact[fr].Base == fin.Fact[fi].Base {
@@ -2811,10 +2763,10 @@ func (facts *Factorized) Mul(fin *Factorized) *Factorized {
 		fi++
 	}
 	leak := make([]Factorpair, 0, fbuf.Len())
-	power := uint(0)
+	power := uint32(0)
 	for 0 < fbuf.Len() {
 		fp := heap.Pop(fbuf).(Factorpair)
-		power += uint(fp.Power)
+		power += uint32(fp.Power)
 		leak = append(leak, fp)
 	}
 	// fmt.Printf("Mul base check: %d\n", leak[0].Base)
@@ -2824,7 +2776,7 @@ func (facts *Factorized) Mul(fin *Factorized) *Factorized {
 		power = 1
 		leak = append(make([]Factorpair, 0, 1), Factorpair{Base: 0, Power: 1})
 	}
-	facts.Lenbase, facts.Lenpow, facts.Fact = uint(len(leak)), power, leak
+	facts.Lenbase, facts.Lenpow, facts.Fact = uint32(len(leak)), power, leak
 	return facts
 }
 
@@ -2833,7 +2785,7 @@ func (fl Factorized) Eq(fr *Factorized) bool {
 	if fl.Lenbase != fr.Lenbase || fl.Lenpow != fr.Lenpow {
 		return false
 	}
-	for ii := uint(0); ii < fl.Lenbase; ii++ {
+	for ii := uint32(0); ii < fl.Lenbase; ii++ {
 		if fl.Fact[ii].Base != fr.Fact[ii].Base || fl.Fact[ii].Power != fr.Fact[ii].Power {
 			return false
 		}
@@ -2854,9 +2806,9 @@ func (fl Factorized) Cmp(fr *Factorized) int { return fl.Compare(fr) }
 
 func (fl Factorized) BigInt() *big.Int {
 	ret := big.NewInt(int64(1))
-	for ii := uint(0); ii < fl.Lenbase; ii++ {
+	for ii := uint32(0); ii < fl.Lenbase; ii++ {
 		base := big.NewInt(int64(fl.Fact[ii].Base))
-		for ee := uint16(0); ee < fl.Fact[ii].Power; ee++ {
+		for ee := uint32(0); ee < fl.Fact[ii].Power; ee++ {
 			ret = ret.Mul(ret, base) // math.Pow(x, y float64) float64 {...}
 		}
 	}
@@ -2865,8 +2817,8 @@ func (fl Factorized) BigInt() *big.Int {
 
 func (fact *Factorized) Uint64() uint64 {
 	ret := uint64(1)
-	for ii := uint(0); ii < fact.Lenbase; ii++ {
-		for ee := uint16(0); ee < fact.Fact[ii].Power; ee++ {
+	for ii := uint32(0); ii < fact.Lenbase; ii++ {
+		for ee := uint32(0); ee < fact.Fact[ii].Power; ee++ {
 			ret *= uint64(fact.Fact[ii].Base)
 		}
 	}
@@ -2881,48 +2833,48 @@ func (fact *Factorized) Copy() *Factorized {
 }
 
 // Extract(transitive?)Power E.G.  4[^2] == (2^1, 2)[^2]
-func (fact *Factorized) ExtractPower() (*Factorized, uint) {
+func (fact *Factorized) ExtractPower() (*Factorized, uint32) {
 	// Simplify the code at a small memory cost
 	if 0 == fact.Lenbase {
 		return fact.Copy(), 0
 	}
-	buf := make([]uint, 0, fact.Lenbase+1)
-	for ii := uint(0); ii < fact.Lenbase; ii++ {
-		buf = append(buf, uint(fact.Fact[ii].Power))
+	powbuf := make([]uint32, 0, fact.Lenbase+1)
+	for ii := uint32(0); ii < fact.Lenbase; ii++ {
+		powbuf = append(powbuf, uint32(fact.Fact[ii].Power))
 	}
 
 	for terms := fact.Lenbase; 1 < terms; terms >>= 1 {
-		// fmt.Printf("ExtractPower() Round: %v\n", buf)
-		var ii uint
+		// fmt.Printf("ExtractPower() Round: %v\n", powbuf)
+		var ii uint32
 		for ii = 0; ii+1 < terms; ii += 2 {
-			buf[ii>>1] = GCDbin(buf[ii], buf[ii+1])
-			if 1 == buf[ii>>1] {
+			powbuf[ii>>1] = GCDbin(powbuf[ii], powbuf[ii+1])
+			if 1 == powbuf[ii>>1] {
 				return fact.Copy(), 1
 			}
 		}
 		if ii+1 == terms {
-			if 1 == buf[ii] {
+			if 1 == powbuf[ii] {
 				return fact.Copy(), 1
 			}
-			buf[ii>>1] = buf[ii]
+			powbuf[ii>>1] = powbuf[ii]
 		}
 		terms++
 		terms >>= 1 // flooring binary division
 	}
-	// fmt.Printf("ExtractPower() Final: %v\n", buf)
-	if 1 == buf[0] {
+	// fmt.Printf("ExtractPower() Final: %v\n", powbuf)
+	if 1 == powbuf[0] {
 		return fact.Copy(), 1
 	}
 	iiLim := len(fact.Fact)
-	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow / buf[0], Fact: make([]Factorpair, iiLim)}
+	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow / powbuf[0], Fact: make([]Factorpair, iiLim)}
 	for ii := 0; ii < iiLim; ii++ {
 		ret.Fact[ii].Base = fact.Fact[ii].Base
-		ret.Fact[ii].Power = fact.Fact[ii].Power / uint16(buf[0])
+		ret.Fact[ii].Power = fact.Fact[ii].Power / uint32(powbuf[0])
 	}
-	return ret, buf[0]
+	return ret, powbuf[0]
 }
 
-func (fact *Factorized) Pow(p uint) *Factorized {
+func (fact *Factorized) Pow(p uint32) *Factorized {
 	// Simplify the code at a small memory cost
 	if 0 == p {
 		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: append(make([]Factorpair, 0, 1), Factorpair{Base: 2, Power: 0})}
@@ -2931,12 +2883,12 @@ func (fact *Factorized) Pow(p uint) *Factorized {
 	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow * p, Fact: make([]Factorpair, iiLim)}
 	for ii := 0; ii < iiLim; ii++ {
 		ret.Fact[ii].Base = fact.Fact[ii].Base
-		ret.Fact[ii].Power = fact.Fact[ii].Power * uint16(p)
+		ret.Fact[ii].Power = fact.Fact[ii].Power * uint32(p)
 	}
 	return ret
 }
 
-func (fact *Factorized) PowDivMul(num, den uint) *Factorized {
+func (fact *Factorized) PowDivMul(num, den uint32) *Factorized {
 	// Simplify the code at a small memory cost
 	// Divide by zero is not legal, this is the closest I've got to NaN at the moment.
 	if 0 == den {
@@ -2949,7 +2901,7 @@ func (fact *Factorized) PowDivMul(num, den uint) *Factorized {
 	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: (fact.Lenpow / den) * num, Fact: make([]Factorpair, iiLim)}
 	for ii := 0; ii < iiLim; ii++ {
 		ret.Fact[ii].Base = fact.Fact[ii].Base
-		ret.Fact[ii].Power = (fact.Fact[ii].Power / uint16(den)) * uint16(num)
+		ret.Fact[ii].Power = (fact.Fact[ii].Power / uint32(den)) * uint32(num)
 	}
 	return ret
 }
@@ -2965,13 +2917,13 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	if flen > 64 {
 		panic("Factorized.ProperDivisors() does not support more than 64 factors")
 	}
-	if uint(flen) != f.Lenbase {
+	if uint32(flen) != f.Lenbase {
 		fmt.Printf("ERROR ProperDivisors(): Lenbase != len(Fact): %v\n", f)
 	}
-	sf := make([]uint, 0, f.Lenpow)
-	for ii := uint(0); ii < f.Lenbase; ii++ {
-		for pp := uint16(0); pp < f.Fact[ii].Power; pp++ {
-			sf = append(sf, uint(f.Fact[ii].Base))
+	sf := make([]uint32, 0, f.Lenpow)
+	for ii := uint32(0); ii < f.Lenbase; ii++ {
+		for pp := uint32(0); pp < f.Fact[ii].Power; pp++ {
+			sf = append(sf, uint32(f.Fact[ii].Base))
 		}
 	}
 	var limit uint64
@@ -2982,7 +2934,7 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	}
 
 	almost := uint64(1)
-	for ff := uint(1); ff < f.Lenpow; ff++ {
+	for ff := uint32(1); ff < f.Lenpow; ff++ {
 		almost *= uint64(sf[ff])
 	}
 	bitVec := bitvector.NewBitVector(almost)
@@ -2991,7 +2943,7 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	for ii := uint64(1); ii < limit; ii++ {
 		bit := uint64(1)
 		ar := uint64(1)
-		for ff := uint(0); ff < f.Lenpow; ff++ {
+		for ff := uint32(0); ff < f.Lenpow; ff++ {
 			if 0 < ii&bit {
 				ar *= uint64(sf[ff])
 			}
@@ -3004,7 +2956,8 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	return res
 }
 
-func (f *Factorized) ProperDivisors() uint64 {
+func (f *Factorized) Phi() uint64 {
+	return 0
 }
 
 /*

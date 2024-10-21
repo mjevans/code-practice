@@ -53,12 +53,12 @@ func Euler021(start, end uint64) uint64 {
 		var b, c uint64
 		var ok bool
 		if b, ok = cache[a]; !ok {
-			b = euler.ListSumUint64(*(euler.Primes.Factorize(uint(a)).ProperDivisors()))
+			b = euler.ListSumUint64(*(euler.Primes.Factorize(uint64(a)).ProperDivisors()))
 		} else {
 			continue
 		}
 		if c, ok = cache[b]; !ok {
-			c = euler.ListSumUint64(*(euler.Primes.Factorize(uint(b)).ProperDivisors()))
+			c = euler.ListSumUint64(*(euler.Primes.Factorize(uint64(b)).ProperDivisors()))
 		} else {
 			continue
 		}
@@ -95,10 +95,10 @@ func main() {
 	// fmt.Println(grid)
 	//test
 	//dv := euler.FactorsToProperDivisors(euler.Factor(nil, 220))
-	dv := (*(euler.Primes.Factorize(uint(220)).ProperDivisors()))
+	dv := (*(euler.Primes.Factorize(uint64(220)).ProperDivisors()))
 	fmt.Println("Euler021 divisors of 220 : ", dv, " sum to ", 284, 284 == euler.ListSumUint64(dv))
 	//dv = euler.FactorsToProperDivisors(euler.Factor(nil, 284))
-	dv = (*(euler.Primes.Factorize(uint(284)).ProperDivisors()))
+	dv = (*(euler.Primes.Factorize(uint64(284)).ProperDivisors()))
 	fmt.Println("Euler021 divisors of 284 : ", dv, " sum to ", 220, 220 == euler.ListSumUint64(dv))
 
 	//run

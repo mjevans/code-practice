@@ -66,7 +66,7 @@ func Euler027(maxa, maxb, maxn, expect int) (int, int, int) {
 	}
 
 	fmt.Printf("Euler 027 Primes.Grow(%d)\n", uint(maxn*maxn+maxn*maxa+maxb))
-	euler.Primes.Grow(uint(maxn*maxn + maxn*maxa + maxb))
+	euler.Primes.Grow(uint64(maxn*maxn + maxn*maxa + maxb))
 
 	var besta, bestb, bestn int
 	bestn = expect
@@ -75,7 +75,7 @@ func Euler027(maxa, maxb, maxn, expect int) (int, int, int) {
 		for b := -maxb; b <= maxb; b++ {
 			for n := 0; n <= maxn; n++ {
 				test := n*n + n*a + b
-				if false == euler.Primes.KnownPrime(uint(test)) {
+				if false == euler.Primes.KnownPrime(uint64(test)) {
 					n--
 					if n > bestn {
 						besta, bestb, bestn = a, b, n

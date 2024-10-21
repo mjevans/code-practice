@@ -40,7 +40,7 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler049(start, limit uint) [3]uint {
+func Euler049(start, limit uint64) [3]uint64 {
 	p := euler.NewBVPrimes()
 	p.Grow(limit)
 	ii := start - 1
@@ -51,11 +51,11 @@ func Euler049(start, limit uint) [3]uint {
 		}
 		sld := euler.Uint64ToDigitsUint8(uint64(ii), 10)
 		pl := euler.FactorialUint64(uint64(len(sld))) - 1
-		comboWanted := make(map[uint]uint)
+		comboWanted := make(map[uint64]uint64)
 		for pp := uint64(0); pp < pl; pp++ {
-			iipp := uint(euler.Uint8DigitsToUint64(euler.PermutationSlUint8(pp, sld), 10))
+			iipp := uint64(euler.Uint8DigitsToUint64(euler.PermutationSlUint8(pp, sld), 10))
 			// if 2969 == ii {
-				// fmt.Printf("Combo: %d [%d] => %d\n", ii, pp, iipp)
+			// fmt.Printf("Combo: %d [%d] => %d\n", ii, pp, iipp)
 			// }
 			if iipp < start {
 				continue
@@ -72,7 +72,7 @@ func Euler049(start, limit uint) [3]uint {
 				if c < b {
 					b, c = c, b
 				}
-				return [3]uint{a, b, c}
+				return [3]uint64{a, b, c}
 			}
 			if false == p.KnownPrime(iipp) {
 				continue // pp
@@ -90,7 +90,7 @@ func Euler049(start, limit uint) [3]uint {
 			}
 		}
 	}
-	return [3]uint{}
+	return [3]uint64{}
 }
 
 //

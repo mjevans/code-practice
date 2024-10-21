@@ -192,7 +192,6 @@ func EulerEFracNextRot(pn0, pd, p1 *big.Int, anum int64) (*big.Int, *big.Int, *b
 	return pd, p1, pn0
 }
 
-
 func EulerEFracNext(p2, p1 *big.Int, anum uint64) *big.Int {
 	anum++
 	if 0 == anum%3 {

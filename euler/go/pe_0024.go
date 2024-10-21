@@ -69,7 +69,7 @@ func main() {
 	// fmt.Println(grid)
 	//test
 	for ii := 0; ii <= 5; ii++ {
-		fmt.Println(ii, euler.PermutationString(ii, "012"))
+		fmt.Println(ii, euler.PermutationString(int64(ii), "012"))
 	}
 	test := euler.PermutationString(4, "012") == "201" &&
 		euler.PermutationString(1, "012") == "021" &&

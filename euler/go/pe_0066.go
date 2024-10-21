@@ -342,7 +342,7 @@ func Euler0066(limit, base int64, debug bool) uint64 {
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 66 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-Diophantine Equation
+# Diophantine Equation
 
 2: a= 2 nSave = 1 / 1 = dSave,  OUT n= 3        d= 2
 @2:     Tried 1 square/root solutions, best so far: X: 0        D: 0
@@ -383,8 +383,6 @@ Euler 66: Diophantine Equation: 661
 real    0m0.126s
 user    0m0.191s
 sys     0m0.040s
-
-
 */
 func main() {
 	var a uint64

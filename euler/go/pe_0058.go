@@ -179,11 +179,11 @@ func Euler058() uint64 {
 		// if 0 == ii&0b11_1110 {
 		//	fmt.Printf("Side: %d\t%d\t", ii, sq)
 		// }
-		euler.Primes.Grow(uint(sq))
+		euler.Primes.Grow(sq)
 		// This is a square, obviously it's not prime
 		for qq := 0; qq < 3; qq++ {
 			sq -= iim
-			if euler.Primes.KnownPrime(uint(sq)) {
+			if euler.Primes.KnownPrime(sq) {
 				pseen++
 			}
 		}

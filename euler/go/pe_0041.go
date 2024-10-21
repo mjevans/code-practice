@@ -80,7 +80,7 @@ func Euler041_deck_fail() uint64 {
 							can += uint64(10) * uint64(euler.SlicePopUint8(deck, nng))
 							can += uint64(euler.SlicePopUint8(deck, 0))
 							// 2s check already a guard for
-							if uint(can) == euler.Factor1980AutoPMC(uint(can), false) {
+							if uint64(can) == euler.Factor1980AutoPMC(uint64(can), false) {
 								fmt.Printf("Found: %d\n", can)
 								return can
 							}
@@ -108,7 +108,7 @@ func Euler041() uint64 {
 		// func Pandigital(test uint64, used uint16) (biton, usedRe uint16, DigitShift uint64) {
 		fullPD, _, _, _ := euler.Pandigital(ii, 0, 1)
 		if fullPD {
-			if uint(ii) == euler.Factor1980AutoPMC(uint(ii), false) {
+			if uint64(ii) == euler.Factor1980AutoPMC(uint64(ii), false) {
 				fmt.Printf("Found: %d\n", ii)
 				return ii
 			}

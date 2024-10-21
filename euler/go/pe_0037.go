@@ -44,15 +44,15 @@ func Euler037(limit uint64) uint64 {
 		limit = 1_000_000
 	}
 	p := euler.NewBVPrimes()
-	p.Grow(uint(limit))
-	var sum uint
-	found := uint8(0) // Magic numbers, the problem said there were 11 to find
-	prime := uint(7)  // the first prime after 7 is a 2 digit number
+	p.Grow(uint64(limit))
+	var sum uint64
+	found := uint8(0)  // Magic numbers, the problem said there were 11 to find
+	prime := uint64(7) // the first prime after 7 is a 2 digit number
 Euler037Outer:
-	for found < 11 && prime < uint(limit) {
+	for found < 11 && prime < uint64(limit) {
 		prime = p.PrimeAfter(prime)
 		// From the right, and also track how big it is.
-		digits := uint(1)
+		digits := uint64(1)
 		for test := prime / 10; 0 < test; test /= 10 {
 			if false == p.KnownPrime(test) {
 				continue Euler037Outer

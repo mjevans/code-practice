@@ -44,13 +44,13 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler047(limit, run uint) uint {
+func Euler047(limit, run uint32) uint32 {
 	var ii, r, tt uint32
-	euler.Primes.Grow(limit)
+	euler.Primes.Grow(uint64(limit))
 	ii = 3
 Euler047ii:
-	for ; uint(ii) <= limit; ii++ {
-		if euler.Primes.KnownPrime(uint(ii)) {
+	for ; uint32(ii) <= limit; ii++ {
+		if euler.Primes.KnownPrime(uint64(ii)) {
 			r = 0
 			continue
 		}
@@ -58,14 +58,14 @@ Euler047ii:
 		if uint32(run) <= r {
 			// shift to zero index
 			for tt = ii - uint32(run) + 1; tt <= ii; tt++ {
-				f := euler.Primes.Factorize(uint(tt))
+				f := euler.Primes.Factorize(uint64(tt))
 				// fmt.Printf("\tTesting: %d (%d)\t%d\t%d\n", ii, r, tt, f.Lenbase)
-				if uint(f.Lenbase) != uint(run) {
+				if uint64(f.Lenbase) != uint64(run) {
 					// fmt.Printf("\tAborted run at %d\n", tt)
 					continue Euler047ii
 				}
 			}
-			ans := uint(ii) - run + 1
+			ans := uint32(ii) - run + 1
 			fmt.Printf("Start of run of %d composite numbers with exactly %d base factors (and unlimited powers per): %d\n", run, run, ans)
 			return ans
 		}

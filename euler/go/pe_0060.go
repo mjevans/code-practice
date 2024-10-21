@@ -94,8 +94,8 @@ func (co *CoCatPrimeSet) NextCoCatPrime() (uint16, uint16) {
 func (co *CoCatPrimeSet) NextCoCatSlice() (uint16, []uint16) {
 	var sub uint16
 	for {
-		tmp := euler.Primes.PrimeAfter(uint(co.Idx))
-		if (tmp & 0xFFFF) < uint(co.Idx) {
+		tmp := euler.Primes.PrimeAfter(uint64(co.Idx))
+		if (tmp & 0xFFFF) < uint64(co.Idx) {
 			fmt.Printf("Got prime %d\n", tmp)
 			panic("Overflowed uint16 design limit")
 		}
@@ -103,13 +103,13 @@ func (co *CoCatPrimeSet) NextCoCatSlice() (uint16, []uint16) {
 		co.Tested[co.Idx] = make([]uint16, 0, 16)
 		sub = 3
 		for sub < co.Idx {
-			is := uint(euler.ConcatDigitsU64(uint64(co.Idx), uint64(sub), 10))
-			si := uint(euler.ConcatDigitsU64(uint64(sub), uint64(co.Idx), 10))
+			is := uint64(euler.ConcatDigitsU64(uint64(co.Idx), uint64(sub), 10))
+			si := uint64(euler.ConcatDigitsU64(uint64(sub), uint64(co.Idx), 10))
 			if euler.Primes.ProbPrime(is) && euler.Primes.ProbPrime(si) {
 				co.Tested[sub] = append(co.Tested[sub], co.Idx)
 				co.Tested[co.Idx] = append(co.Tested[co.Idx], sub)
 			}
-			sub = uint16(euler.Primes.PrimeAfter(uint(sub)))
+			sub = uint16(euler.Primes.PrimeAfter(uint64(sub)))
 		}
 		if 0 != len(co.Tested[co.Idx]) {
 			break
@@ -118,9 +118,9 @@ func (co *CoCatPrimeSet) NextCoCatSlice() (uint16, []uint16) {
 	return co.Idx, co.Tested[co.Idx]
 }
 
-func Euler060() uint {
+func Euler060() uint64 {
 	euler.Primes.Grow(4096)
-	var combos uint
+	var combos uint64
 	var pl []uint16
 	p := [5]uint16{}
 	co := NewCoCatPrimeSet()
@@ -147,11 +147,11 @@ func Euler060() uint {
 						}
 						for ii := 1; ii < 5; ii++ {
 							for jj := ii + 1; jj < 5; jj++ {
-								fmt.Printf("Validate: %d %d = %d => %t\n", p[ii], p[jj], euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10), euler.Primes.ProbPrime(uint(euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10))))
-								fmt.Printf("Validate: %d %d = %d => %t\n", p[jj], p[ii], euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10), euler.Primes.ProbPrime(uint(euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10))))
+								fmt.Printf("Validate: %d %d = %d => %t\n", p[ii], p[jj], euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10), euler.Primes.ProbPrime(uint64(euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10))))
+								fmt.Printf("Validate: %d %d = %d => %t\n", p[jj], p[ii], euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10), euler.Primes.ProbPrime(uint64(euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10))))
 							}
 						}
-						sum := uint(p[0]) + uint(p[1]) + uint(p[2]) + uint(p[3]) + uint(p[4])
+						sum := uint64(p[0]) + uint64(p[1]) + uint64(p[2]) + uint64(p[3]) + uint64(p[4])
 						fmt.Printf("Found: %d = %v\n", sum, p)
 						return sum
 					}
@@ -163,10 +163,10 @@ func Euler060() uint {
 }
 
 // This was WAY too slow
-func Euler060_slowmode() uint {
+func Euler060_slowmode() uint64 {
 	euler.Primes.Grow(4096)
-	var combos uint
-	p := [5]uint{}
+	var combos uint64
+	p := [5]uint64{}
 	for p[0] = 673; ; p[0] = euler.Primes.PrimeAfter(p[0]) {
 		for p[1] = 7; p[1] < p[0]; p[1] = euler.Primes.PrimeAfter(p[1]) {
 			for p[2] = 5; p[2] < p[1]; p[2] = euler.Primes.PrimeAfter(p[2]) {
@@ -176,15 +176,15 @@ func Euler060_slowmode() uint {
 						combos++
 						for ii := 1; ii < 5; ii++ {
 							for jj := ii + 1; jj < 5; jj++ {
-								if false == euler.Primes.ProbPrime(uint(euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10))) || false == euler.Primes.ProbPrime(uint(euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10))) {
+								if false == euler.Primes.ProbPrime(uint64(euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10))) || false == euler.Primes.ProbPrime(uint64(euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10))) {
 									continue Euler060_slowmodefailed
 								}
 							}
 						}
 						for ii := 1; ii < 5; ii++ {
 							for jj := ii + 1; jj < 5; jj++ {
-								fmt.Printf("Validate: %d %d = %d => %t\n", p[ii], p[jj], euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10), euler.Primes.ProbPrime(uint(euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10))))
-								fmt.Printf("Validate: %d %d = %d => %t\n", p[jj], p[ii], euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10), euler.Primes.ProbPrime(uint(euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10))))
+								fmt.Printf("Validate: %d %d = %d => %t\n", p[ii], p[jj], euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10), euler.Primes.ProbPrime(uint64(euler.ConcatDigitsU64(uint64(p[ii]), uint64(p[jj]), 10))))
+								fmt.Printf("Validate: %d %d = %d => %t\n", p[jj], p[ii], euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10), euler.Primes.ProbPrime(uint64(euler.ConcatDigitsU64(uint64(p[jj]), uint64(p[ii]), 10))))
 							}
 						}
 						sum := p[0] + p[1] + p[2] + p[3] + p[4]

@@ -33,7 +33,7 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler010(lim uint) uint {
+func Euler010(lim uint64) uint64 {
 	if 2 > lim {
 		return 0
 	}
@@ -50,7 +50,7 @@ func Euler010(lim uint) uint {
 	}
 
 	// 2 is the first prime, and all evens are compressed out
-	var ret, pg, pidx, bidx, prime uint
+	var ret, pg, pidx, bidx, prime uint64
 	ret = 2
 
 	for {
@@ -64,7 +64,7 @@ func Euler010(lim uint) uint {
 		}
 		for ; bidx < euler.BVbitsPerByte; bidx++ {
 			if 0 == euler.Primes.PV[pg][pidx]&(uint8(1)<<bidx) {
-				prime = ((pg*euler.BVpagesize + pidx) << euler.BVprimeByteBitShift) + uint(bidx)<<1 + 3
+				prime = ((pg*euler.BVpagesize + pidx) << euler.BVprimeByteBitShift) + uint64(bidx)<<1 + 3
 				if lim < prime {
 					return ret
 				}

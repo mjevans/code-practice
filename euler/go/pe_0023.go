@@ -51,7 +51,7 @@ func Euler023() uint64 {
 	abund := []uint16{12}
 	fmt.Printf("Euler023 ... Scan for Abundant Numbers...\n")
 	for ii := uint16(13); ii < 28123; ii++ {
-		iisum := uint16(euler.ListSumUint64(*(euler.Primes.Factorize(uint(ii)).ProperDivisors())))
+		iisum := uint16(euler.ListSumUint64(*(euler.Primes.Factorize(uint64(ii)).ProperDivisors())))
 		if iisum > ii {
 			abund = append(abund, ii)
 			// fmt.Println(ii, "\tabundant")

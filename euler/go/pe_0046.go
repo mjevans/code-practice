@@ -50,11 +50,11 @@ func Euler046(limit uint64) uint64 {
 	for ii = 0; ii < iiEnd; ii++ {
 		dsq = append(dsq, (ii*ii)<<1)
 	}
-	euler.Primes.Grow(uint(limit))
+	euler.Primes.Grow(uint64(limit))
 	// 9 is the smallest odd composite number
 Euler046composites:
 	for ii = 9; ii < limit; ii += 2 {
-		if euler.Primes.KnownPrime(uint(ii)) {
+		if euler.Primes.KnownPrime(uint64(ii)) {
 			continue
 		}
 		jj = 0
@@ -65,7 +65,7 @@ Euler046composites:
 				return ii
 			}
 			check = ii - dsq[jj]
-			if euler.Primes.KnownPrime(uint(check)) {
+			if euler.Primes.KnownPrime(uint64(check)) {
 				continue Euler046composites
 			}
 		}

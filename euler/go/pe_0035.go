@@ -36,13 +36,13 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler035(limit uint) uint {
+func Euler035(limit uint64) uint64 {
 	if 0 == limit {
 		limit = 1_000_000
 	}
 	p := euler.NewBVPrimes() // Local vector since it'll be mutated
 	p.Grow(limit)
-	var found, prime uint
+	var found, prime uint64
 	if prime < 2 {
 		found++
 		prime = 2
@@ -56,10 +56,10 @@ func Euler035(limit uint) uint {
 		for ii := 0; ii < iiLim; ii++ {
 			if _, old := seen[rots[ii]]; false == old {
 				seen[rots[ii]] = rots[ii]
-				ok = ok && p.KnownPrime(uint(rots[ii]))
+				ok = ok && p.KnownPrime(uint64(rots[ii]))
 				if ok {
-					bbAbs := (uint(rots[ii]) - 3) >> 1
-					ooAbs := (uint(rots[ii]) - 3) >> (euler.BVprimeByteBitShift)
+					bbAbs := (uint64(rots[ii]) - 3) >> 1
+					ooAbs := (uint64(rots[ii]) - 3) >> (euler.BVprimeByteBitShift)
 					pg, ooPos, bbBit := ooAbs/(euler.BVpagesize), ooAbs%(euler.BVpagesize), bbAbs&euler.BVprimeByteBitMaskPost
 					// fmt.Printf("[%d][%d]:%d <= %d\n", pg, ooPos, bbBit, rots[ii])
 					p.PV[pg][ooPos] |= uint8(1) << bbBit
@@ -67,7 +67,7 @@ func Euler035(limit uint) uint {
 			}
 		}
 		if ok {
-			found += uint(len(seen))
+			found += uint64(len(seen))
 			fmt.Printf("%d\t+++\t%v\n", found, rots)
 		}
 		seen = nil

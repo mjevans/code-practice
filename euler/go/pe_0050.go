@@ -44,9 +44,9 @@ import (
 	// "os" // os.Stdout
 )
 
-func Euler050(limit uint) (uint, uint) {
+func Euler050(limit uint64) (uint64, uint64) {
 	euler.Primes.Grow(limit)
-	var start, next, sum, run, bestsum, bestrun uint
+	var start, next, sum, run, bestsum, bestrun uint64
 	for {
 		start = euler.Primes.PrimeAfter(start)
 		run = 1
@@ -82,7 +82,7 @@ Euler 50: Consecutive Prime Sum: 1000000        run: 543        sum: 997651
 */
 func main() {
 	//test
-	n := uint(100)
+	n := uint64(100)
 	sum, run := Euler050(n)
 	fmt.Printf("Euler 50: test: %d => sum: %d\trun: %d\t%t\n", n, sum, run, 41 == sum && run == 6)
 	n = 1000
