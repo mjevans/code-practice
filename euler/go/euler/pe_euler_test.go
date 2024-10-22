@@ -923,6 +923,65 @@ func TestEulerTotientPhi(t *testing.T) {
 	}
 }
 
+func TestGeneralMaths(t *testing.T) {
+	testSqrtI := []struct {
+		n, sq uint64
+	}{
+		{0, 0},
+		{1, 1},
+		{4, 2},
+		{25, 5},
+		{81, 9},
+		{1_000_000, 1000},
+		{2, 1},
+		{5, 2},
+		{26, 5},
+		{82, 9},
+		{1_000_001, 1000},
+	}
+	for _, test := range testSqrtI {
+		res := euler.SqrtU64(test.n)
+		if test.sq != res {
+			t.Errorf("Expected results: SqrtI64(%d) => %d got %d\n", test.n, test.sq, res)
+		}
+	}
+	for _, test := range testSqrtI {
+		res := euler.RootU64(test.n, 2)
+		if test.sq != res {
+			t.Errorf("Expected results: RootU64(%d, 2) => %d got %d\n", test.n, test.sq, res)
+		}
+	}
+	for _, test := range testSqrtI {
+		res := uint64(euler.RootF64(float64(test.n), 2, 16))
+		if test.sq != res {
+			t.Errorf("Expected results: RootF64(%d, 2, 16) => %d got %d\n", test.n, test.sq, res)
+		}
+	}
+	testRootI := []struct {
+		n, root, res uint32
+	}{
+
+		{8, 3, 2},
+		{27, 3, 3},
+		{28, 3, 3},
+		{256, 8, 2},
+		{257, 8, 2},
+	}
+
+	for _, test := range testRootI {
+		res := uint32(euler.RootU64(uint64(test.n), uint64(test.root)))
+		if test.res != res {
+			t.Errorf("Expected results: RootU64(%d, %d) => %d got %d\n", test.n, test.root, test.res, res)
+		}
+	}
+	for _, test := range testRootI {
+		res := uint32(euler.RootI64(int64(test.n), test.root, 32)) // NOTE: Precision matters greatly for higher roots and for larger numbers, in that order!
+		if test.res != res {
+			t.Errorf("Expected results: RootI64(%d, %d) => %d got %d\n", test.n, test.root, test.res, res)
+		}
+	}
+}
+
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
 /*/

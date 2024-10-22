@@ -326,6 +326,156 @@ func FactorialDivFactU64toBig(ii, div uint64) *big.Int {
 	return ret
 }
 
+// I don't know any shortcuts, just do it the obvious way
+func PowU64(n, pow uint64) uint64 {
+	if 0 == pow {
+		return 1
+	}
+	ret := n
+	for pow--; pow > 0; pow-- {
+		ret *= n
+	}
+	return ret
+}
+
+func SqrtU64(ii uint64) uint64 {
+	// https://en.wikipedia.org/wiki/Integer_square_root#Algorithm_using_Newton's_method
+	// f(x) { x*x } // dxf(x) { 2x }
+	if 1 >= ii {
+		return ii
+	}
+	var x0, x1 uint64
+	x0 = ii >> 1 // must be above the answer
+	x1 = (x0 + ii/x0) >> 1
+	for x1 < x0 {
+		x0 = x1
+		x1 = (x0 + ii/x0) >> 1
+	}
+	return x0
+}
+
+func RootU64(ii, root uint64) uint64 {
+	// https://en.wikipedia.org/wiki/Integer_square_root#Algorithm_using_Newton's_method
+	// f(x) { x*x } // dxf(x) { 2x }
+	if 0 == root {
+		return 0
+	}
+	if 1 >= ii || 1 == root {
+		return ii
+	}
+	var x0, x1, mid, test uint64
+	rmm := root - 1
+	x0 = ii / rmm // must be above the answer
+	x1 = (x0 + ii/PowU64(x0, rmm)) / root
+	// fmt.Printf("RootU64(%d, %d)\tx0: %d\tx1: %d\n", ii, root, x0, x1)
+	for x1 < x0 {
+		x0 = x1
+		// fmt.Printf("x0: %d", x1)
+		x1 = (rmm*x0 + ii/PowU64(x0, rmm)) / root
+		// fmt.Printf("\tx1: %d\n", x1)
+	}
+
+	// Newton's method can be unstable;, this fails some integer tests like 2^3 = 8 ( Root(8,3) )
+	if x1 > x0 && ii < PowU64(x1, root) {
+		// fmt.Printf("Correcting: %d < %d (%d^%d)\n", ii, PowU64(x1, root), x1, root)
+		for x0 != x1 {
+			mid = (x0 + x1) >> 1
+			test = PowU64(mid, root)
+			if test == ii {
+				return mid
+			}
+			if test < ii {
+				x0 = mid + 1
+			} else {
+				x1 = mid
+			}
+		}
+	}
+	// fmt.Printf("RootU64(%d, %d)\tx0: %d\tx1: %d\n", ii, root, x0, x1)
+
+	return x0
+}
+
+/*
+
+	left, right := 0, len(sl)
+	if 0 == right {
+		return -1
+	}
+	right--
+	// I looked up the correct algorithm, because close enough but not textbook was painful
+	// https://en.wikipedia.org/wiki/Binary_search  Alternative Procedure
+	for left != right {
+		// Alt uses ceil but bitshift math floors so I've reversed the comparison and side motions
+		pos := (left + right) >> 1
+		if sl[pos] < val {
+			left = pos + 1
+		} else {
+			right = pos
+		}
+	}
+	if val == sl[right] || always {
+		return right
+	}
+	return -1
+}
+*/
+
+// NOTE: Precision matters greatly for higher roots and for larger numbers, in that order!
+func RootI64(ii int64, root, precision uint32) int64 {
+	est := RootF64(float64(ii), root, precision)
+	if 0 > ii {
+		est -= 0.1
+	} else {
+		est += 0.1
+	}
+	return int64(est)
+}
+
+// NOTE: Precision matters greatly for higher roots and for larger numbers, in that order!
+func RootF64(ii float64, root, precision uint32) float64 {
+	// root must be a positive whole integer
+	if 0.0 == ii || 0 == root {
+		return 0.0
+	}
+	if 1 == root {
+		return ii
+	}
+	negative := ii < 0.0
+	if negative {
+		ii = -ii
+	}
+	// https://en.wikipedia.org/wiki/Nth_root#Computing_principal_roots
+	// x(k+1) = (r - 1) / r * x(k) + ( ii / r ) * 1 / ( x(k) ^ (n - 1) )
+	var x0, x1, cA, cB, cmpD, cmpF float64
+	rf := float64(root)
+	// root--
+	rpow := float64(root - 1)
+	cA, cB = rpow/rf, ii/rf
+	x0 = ii / rf
+	for ; 0 < precision; precision-- {
+		x1 = cB / math.Pow(x0, rpow)
+		// root-- above to hoist root-1 out of the loop
+		// for ii := root; 0 < ii; ii-- {
+		// 	x1 /= x0
+		// }
+		x1 += cA * x0
+		cmpD, cmpF = math.Abs(x1-x0), math.Abs((math.Nextafter(x0, x1)-x0)*rf*2.0)
+		if cmpD < cmpF {
+			// fmt.Printf("RF64(%f,%d) EXIT x1: %.20f\tx0: %.20f\tFuz: %.40f\n", ii, root, x1, x0, cmpF)
+			break
+			// } else if 0 == precision&0x3 {
+			//	fmt.Printf("RF64(%f,%d) x1: %.20f\tx0: %.20f\tFuz: %.40f\n", ii, root, x1, x0, cmpF)
+		}
+		x0 = x1
+	}
+	if negative {
+		return -x1
+	}
+	// fmt.Printf("RF64(%f,%d) PreC x1: %.20f\tx0: %.20f\tFuz: %.40f\n", ii, root, x1, x0, cmpF)
+	return x1
+}
+
 func AddInt64DecDigits(ii int64) int {
 	ret := int64(0)
 	for 0 < ii {
@@ -2492,8 +2642,28 @@ func Factor1980AutoPMC(q uint64, singlePrimeOnly bool) uint64 {
 		}
 		return unk
 	}
-	// Usually works in one pass, but if not...
 
+	// Usually works in one pass, but if not...
+	return Factor1980AutoPMC_Pass2(q, singlePrimeOnly)
+}
+
+func Factor1980AutoPMC_Pass2(q uint64, singlePrimeOnly bool) uint64 {
+	var pollard, pollard_limit, roottest uint64
+	pollard = 1
+
+	pollard_limit = SqrtU64(q)
+	if q == pollard_limit*pollard_limit {
+		return pollard_limit
+	}
+
+	for ii := uint64(3); ii < 5; ii++ {
+		roottest = RootU64(q, ii)
+		if q == PowU64(roottest, ii) {
+			return roottest
+		}
+	}
+
+	/* Old method
 	// __approximate__ an integer square root, POW(pollard_limit, 2) _MUST_ be > q == pl*pl means square root factor
 	pollard := uint64(1)
 	pollard_limit := pollard
@@ -2521,6 +2691,7 @@ func Factor1980AutoPMC(q uint64, singlePrimeOnly bool) uint64 {
 		return pollard_limit
 	}
 	// fmt.Printf("pollard_limit(%d) => %d\n", q, pollard_limit)
+	*/
 
 	for pollard <= pollard_limit {
 		unk := Factor1980PollardMonteCarlo(q, pollard)
@@ -2559,16 +2730,13 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 		heap.Push(facts, Factorpair{Base: 2, Power: uint32(k)})
 	}
 
-	// pLim := uint(7)
-	// p.Grow(pLim)
-	// for cur := uint(3); 1 < q && cur <= pLim; cur = p.primeAfterUnsafe(cur, pLim) {
-
 	// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
 	// smallPrimes := []uint32{3, 5, 7, 11}
 	// for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
 	pLim := len(PrimesSmallU8)
 	var base, power uint32
-	for ii := 0; ii < pLim; ii++ {
+	// Start at 1 : skip already checked 2
+	for ii := 1; ii < pLim; ii++ {
 		qd := uint64(PrimesSmallU8[ii])
 		for 0 == q%qd {
 			q /= qd
@@ -2584,15 +2752,22 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 	// for 1 < q && zz > 0 {
 	for 1 < q {
 		var unk uint64
+
+		// is the number already known to be a prime?
+		if p.KnownPrime(q) {
+			heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
+			break
+		}
+
 		// try just one iteration, returns 0 on 'no factors found' (but search not exhausted)
 		unk = Factor1980PollardMonteCarlo(q, 0)
 
 		// aggressive search
 		if unk == 0 {
-			if p.ProbPrime(q) {
+			if big.NewInt(int64(q)).ProbablyPrime(int(8)) {
 				unk = q
 			} else {
-				unk = Factor1980AutoPMC(q, false)
+				unk = Factor1980AutoPMC_Pass2(q, false)
 			}
 		}
 
@@ -2601,6 +2776,7 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 			heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
 			break
 		}
+
 		q /= unk
 		sf := p.Factorize(unk)
 		for ii := uint32(0); ii < sf.Lenbase; ii++ {
