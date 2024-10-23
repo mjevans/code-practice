@@ -427,7 +427,8 @@ TestOverkillVerifyOuter:
 }
 
 func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
-	const limit = 65535
+	// const limit = 65535
+	const limit = 250000
 	t.Logf("Verify Factor1980AutoPMC(p) upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
@@ -439,6 +440,47 @@ func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
 		if false == euler.Primes.KnownPrime(f) {
 			t.Errorf("FAILED to successfully factor: %d ~ %d", ii, f)
 			t.Fatal("")
+		}
+	}
+}
+
+func TestOverkillVerifyLenstraECFI64(t *testing.T) {
+	// const limit = 65535
+	const limit = 250000
+	t.Logf("Verify LenstraECFI64(p) upto: %d\n", limit)
+	// p := euler.Primes
+	euler.Primes.Grow(limit)
+	pMax := len(euler.PrimesSmallU8) - 1
+TestOverkillVerifyLenstraECFI64ii:
+	for ii := int64(3); ii <= limit; ii += 2 {
+		if 0 == ii&0x3ffe {
+			t.Logf("... %d", ii)
+		}
+		if !euler.Primes.KnownPrime(uint64(ii)) {
+			for pp := 1; pp <= pMax; pp++ {
+				qd := int64(euler.PrimesSmallU8[pp])
+				if 0 == ii%qd {
+					continue TestOverkillVerifyLenstraECFI64ii
+				}
+			}
+			roottest := euler.SqrtU64(uint64(ii))
+			if uint64(ii) == roottest*roottest {
+				continue TestOverkillVerifyLenstraECFI64ii
+			}
+
+			// Test higher roots until beneath the highest division tested prime, 41^4 ~= 2.8M ; 41^5 ~= 115.8M
+			for pp := uint64(3); roottest > uint64(euler.PrimesSmallU8[pMax]); pp++ {
+				roottest = euler.RootU64(uint64(ii), pp)
+				if ii == int64(euler.PowU64(roottest, pp)) {
+					continue TestOverkillVerifyLenstraECFI64ii
+				}
+			}
+
+			// LenstraECFI64 should normally be guarded against squares, but /2 and /3 alone should be fine for validation tests
+			f := euler.LenstraECFI64(ii)
+			if 2 > f || 0 != ii%f {
+				t.Errorf("LenstraECFI64 failed to factor %d, returned %d\n", ii, f)
+			}
 		}
 	}
 }
@@ -978,6 +1020,12 @@ func TestGeneralMaths(t *testing.T) {
 		res := uint32(euler.RootI64(int64(test.n), test.root, 32)) // NOTE: Precision matters greatly for higher roots and for larger numbers, in that order!
 		if test.res != res {
 			t.Errorf("Expected results: RootI64(%d, %d) => %d got %d\n", test.n, test.root, test.res, res)
+		}
+	}
+
+	for ii := 0; ii <= 512; ii++ {
+		if euler.PSRand.RandU32() == euler.PSRand.RandU32() {
+			t.Logf("This should only VERY rarely happen, got the same random value twice in a row.")
 		}
 	}
 }

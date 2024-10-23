@@ -196,14 +196,22 @@ func SLInt8[T ~[]int8](c T) []int8 {
 */
 
 // globals
+
+const (
+// Golang... WHY can't this be a constant?  If I had 16 manually defined uint8s it would be, and an array is different than a slice/vector; this is tediously annoying for no obvious reason.
+// PrimesSmallU8 = [...]uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53}
+)
+
 var (
 	Primes        *BVPrimes
-	PrimesSmallU8 [13]uint8 // {2, 3, 5, 7, 11,	13, 17, 19, 23, 29,	31, 37, 41}
+	PrimesSmallU8 [16]uint8 // {2, 3, 5, 7, 11,	13, 17, 19, 23, 29,	31, 37, 41}
+	PSRand        *PSRandPGC32
 )
 
 func init() {
 	Primes = NewBVPrimes()
-	PrimesSmallU8 = [...]uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41}
+	PrimesSmallU8 = [...]uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53} // 41 required for reasons, 53 nice for 16 total numbers; 16 bytes of memory, 1/4th cache line
+	PSRand = NewPSRandPGC32(0x4d595df4d0f33173, 1442695040888963407)                       // Seed could be _anything_, inc must be any odd constant values from https://en.wikipedia.org/wiki/Permuted_congruential_generator#Example_code
 }
 
 // Deprecated, DO NOT USE, no replacement planned
@@ -1846,6 +1854,52 @@ func (ra *Rational) Divide() {
 
 }
 
+/*
+https://en.wikipedia.org/wiki/Category:Pseudorandom_number_generators
+Older, but might have been heard of https://en.wikipedia.org/wiki/Mersenne_Twister
+
+Current state of good enough art for projects like this (if /dev/urandom isn't easy to use..)
+
+https://en.wikipedia.org/wiki/Permuted_congruential_generator
+
+Current (2020+) Linux /dev/random state of the art
+https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
+
+*/
+
+func Rotr32(reg uint32, rot uint8) uint32 {
+	return reg>>rot | reg<<((^rot)&31)
+}
+
+const PSRandPGC32mul = 6364136223846793005
+
+type PSRandPGC32 struct {
+	State, Inc uint64 // Inc can be any arbitrary odd constant
+}
+
+func NewPSRandPGC32(seed, inc uint64) *PSRandPGC32 {
+	r := &PSRandPGC32{State: seed + inc, Inc: inc}
+	r.RandU32()
+	return r
+}
+
+func (r *PSRandPGC32) RandU32() uint32 {
+	count := uint8(r.State >> 59) // 64 - 5 (bit size of output index)
+	temp := r.State
+	r.State = temp*PSRandPGC32mul + r.Inc
+	temp ^= temp >> 18                     // (64 - (32 - 5)) / 2
+	return Rotr32(uint32(temp>>27), count) // 32 - 5 = 27
+}
+
+/*
+https://en.wikipedia.org/wiki/Modular_arithmetic
+
+https://en.wikipedia.org/wiki/Modular_arithmetic#Integers_modulo_m
+
+
+
+*/
+
 /**
 	https://en.wikipedia.org/wiki/Integer_factorization#Factoring_algorithms
 	Trial Division seems a bit easier and has the benefit of pre-sorting the result array.
@@ -2733,10 +2787,10 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 	// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
 	// smallPrimes := []uint32{3, 5, 7, 11}
 	// for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
-	pLim := len(PrimesSmallU8)
+	pMax := len(PrimesSmallU8) - 1
 	var base, power uint32
 	// Start at 1 : skip already checked 2
-	for ii := 1; ii < pLim; ii++ {
+	for ii := 1; ii <= pMax; ii++ {
 		qd := uint64(PrimesSmallU8[ii])
 		for 0 == q%qd {
 			q /= qd
@@ -2759,14 +2813,36 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 			break
 		}
 
+		// FIXME: Factorization
+
 		// try just one iteration, returns 0 on 'no factors found' (but search not exhausted)
+		// KEEP one pass (this is faster when it works!)
 		unk = Factor1980PollardMonteCarlo(q, 0)
+
+		// Aiming to replace this with code that extracts factors rather than just testing for factors...
+		/*
+			roottest = SqrtU64(q)
+			if q == roottest*roottest {
+				return roottest
+			}
+
+			// Test higher roots until beneath the highest division tested prime, 41^4 ~= 2.8M ; 41^5 ~= 115.8M
+			for ii := uint64(3); roottest > PrimesSmallU8[pMax] ; ii++ {
+				roottest = RootU64(q, ii)
+				if q == PowU64(roottest, ii) {
+					return roottest
+				}
+			}
+
+			See beneath for the better tests...
+		*/
 
 		// aggressive search
 		if unk == 0 {
 			if big.NewInt(int64(q)).ProbablyPrime(int(8)) {
 				unk = q
 			} else {
+				// Replace this with LECF
 				unk = Factor1980AutoPMC_Pass2(q, false)
 			}
 		}
@@ -2808,6 +2884,284 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 
 func ProbablyPrimeI64(num, kStrBases int64) bool {
 	return big.NewInt(num).ProbablyPrime(int(kStrBases))
+}
+
+/*
+
+
+FIXME: At the very least, clean this section up in a future update...
+
+It was very difficult to find good reference material for the harder 'math' subject elements.  Wikipedia's pages tend to be higher level for most subjects, glossing over key steps that someone in the field likely assumes a reader would know.  Similarly they use maths notation since someone who's not bumping into a subject on an extremely rare basis should know that shorthand.
+
+I'm also not ENTIRELY sure the addition function is correct.  slopeY / slopeX is a rational not necessary an integer...
+
+
+
+Integer Factorization is likely very similar to Primality (Probably Prime) tests, with the difference that proof (a factor that cleanly divides) must be found, rather than statistical lack of evidence of a proof.
+
+Step 1 : trial division / wheel factorization / filtering of known small primes.  Just shoot a bunch at it; really only the first 4 primes are required but, __testing higher primes helps later nth root tests!__
+
+Note: due to 2 and 3 in the derivative, primes 2 and 3 MUST be ruled out early for EC tests.
+
+// https://stackoverflow.com/a/2274520
+
+Step ? : (maybe?) ONE round of 1980PollardMonteCarlo
+
+Step ? : nth root tests (down to largest tested prime?) this scales up pretty fast nice 41^5 ~= 115.8M
+
+Step ? : Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
+
+Step +1 : <= 10^100 Quadratic Sieve
+Step +2 : >= 10^100 General Number Field Sieve
+
+https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization
+
+Wikipedia summary:
+Factor N
+1.a :	Pick a random Curve over (mod N) using an equation of the form: y*y = x*x*x - a*x + b (mod N) ((NOTE: FIXME is that modN for every operation, or for both sides?))
+1.b :	Pick a non-trivial (?) point on it P(x, y) ; which can be done most easily working _backwards_ from x, y ; b = (F(x0, y0)) ~~ y*y  - x*x*x - a * x (mod N)
+
+2.	'Addition' of two points on the curve can define a Group (see Wikipedia) ... ?? 'division by some V mod N includes calculation of GCD(V, N)
+	Math curves group theory I don't understand well enough to confidently summarize.
+	When it has a GCD != 1 that indicates a 'non-trivial' factor of N
+
+3.	Compute a sum of curves? ( mod N ) ; k is the product ( * ) of many small primes raised to small powers (**Maybe I can use PrimesSmallU8 rather than Factorial?)
+	If no 'non-invertable' elements were found, then the curves' ( mod **Primes ) order wasn't Smooth enough, try again with a different starting Point (and thus A+B)
+	If gcd(V,N) != 1, n that's a non-trivial factor of N.
+
+// FIXME: Twisted Edwards curve variation is better? https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization#Twisted_Edwards_curves
+*/
+
+type Point3DI64 struct {
+	X, Y, Z int64
+}
+
+func ExtendedGCDI64(a, b int64) (int64, int64, int64) {
+	var quo, r, rP, s, sP, t, tP int64
+	// https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
+	rP, r = a, b
+	sP, s = 1, 0
+	tP, t = 0, 1
+
+	for 0 != r {
+		// Haven't tested it, but golang is probably smart enough to collect the remainder and quotient in one div operation
+		rP, quo, r = r, rP/r, rP%r
+		sP, s = s, sP-quo*s
+		tP, t = t, tP-quo*t
+	}
+	if 0 > rP {
+		if (0 > a && 0 > t) || (0 < a && 0 < t) {
+			t = -t
+		}
+		if (0 > b && 0 > s) || (0 < b && 0 < s) {
+			s = -s
+		}
+	} else {
+		if (0 > a && 0 < t) || (0 < a && 0 > t) {
+			t = -t
+		}
+		if (0 > b && 0 < s) || (0 < b && 0 > s) {
+			s = -s
+		}
+	}
+	// Bezout CoEff sP, tP
+	// GCD rP
+	// Quo divided by GCD, (t, s) (respectively)
+	return t, s, rP
+}
+
+// https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law
+// https://sites.math.washington.edu/~morrow/336_16/2016papers/thomas.pdf (pg9-10)
+func ECaddMod(p, q Point3DI64, A, mod int64) Point3DI64 {
+	var slopeY, slopeX, x, y int64
+	if 0 == p.Z {
+		return q
+	}
+	if 0 == q.Z {
+		return p
+	}
+	// P and Q are two Points on the Curve ~ https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law ELSE is Tangent
+	// Slope (ycombinator) IF P != Q { (Yp - Yq) / (Xp - Xq) } ELSE (P==Q) { (3x*x + a) / (2y) }
+	// If x.=x. but yp = -yq then ??? P+Q = 'Infinity' and P contains a factor
+	slopeX = (q.X - p.X) % mod
+	if p.X != q.X && 0 != slopeX {
+		slopeY = (q.Y - p.Y) % mod
+	} else {
+		if 0 == (p.Y+q.Y)%mod {
+			return Point3DI64{X: 0, Y: 1, Z: 0} // Infinity? identity
+		}
+		slopeY, slopeX = (3*p.X*p.X+A)%mod, (2*p.Y)%mod
+	}
+	// Thomas Pg.10
+	_, _, gcd := ExtendedGCDI64(slopeY, mod)
+	//if 1 == gcd && (slopeY != test) {
+	//	fmt.Printf("%d != %d (gcd %d)\n", slopeY, test, gcd)
+	//	panic("Logic Error, ExtendedGCDI64 has reversed outputs\n")
+	//}
+	//if mod == gcd {
+	//	panic("Logic Error, ECaddMod didn't filter GCD of mod\n")
+	//}
+	if 1 < gcd && gcd < mod {
+		return Point3DI64{Z: gcd}
+	}
+	slopeY, slopeX, _ = ExtendedGCDI64(slopeY, slopeX)
+	if 0 == slopeY/slopeX && 0 < slopeY {
+		fmt.Printf("ECadd, slope is wrong? %d / %d == 0\n", slopeY, slopeX)
+	}
+
+	// DANGER: FIXME: the point calculation is wrong, and it's ~ 3am ; this isn't in a production code segment.
+
+	// L1 =: (slopeY / slopeX) * ( x - p.X ) + p.Y
+	// L1 R(x3, y3) =:	( (slopeY / slopeX)*(slopeY / slopeX) - p.X - q.X	, (slopeY / slopeX)*(x3 - p.X) + p.Y )
+	// L2 R(x3, -y3) =:	( (slopeY / slopeX)*(slopeY / slopeX) - p.X - q.X	, (slopeY / slopeX)*(2*p.X + q.X - (slopeY / slopeX)*(slopeY / slopeX))   -  p.Y )
+	x = ((slopeY/slopeX)*(slopeY/slopeX) - p.X - q.X) % mod
+	y = ((slopeY/slopeX)*(2*p.X+q.X-(slopeY/slopeX)*(slopeY/slopeX)) - p.Y) % mod
+	return Point3DI64{X: x, Y: y, Z: 1}
+}
+
+// https://sites.math.washington.edu/~morrow/336_16/2016papers/thomas.pdf (pg11)
+// https://math.uchicago.edu/~may/REU2014/REUPapers/Parker.pdf (pg7-8)
+func ECmulMod(k, A, mod int64, pow2 Point3DI64) Point3DI64 {
+	ret := Point3DI64{0, 1, 0} // the infinity / O point
+	// Use P for Powers of 2, prepare the next P at the end of each cycle
+	// 'repeated doubling and k's binary expression
+	for {
+		// If this power of 2 is part of the result, add it
+		if 0 < k&1 {
+			ret = ECaddMod(ret, pow2, A, mod)
+		}
+		// every addition should be a valid point, so every GCD return is desired
+		if 1 < ret.Z {
+			return ret
+		}
+
+		k >>= 1
+		if 0 == k {
+			break
+		}
+
+		// Compute the next power of 2
+		pow2 = ECaddMod(pow2, pow2, A, mod)
+		// every addition should be a valid point, so every GCD return is desired
+		if 1 < pow2.Z {
+			return pow2
+		}
+	}
+	return ret
+}
+
+func LenstraECFI64(n int64) int64 {
+	// NOTE: MUST have already tested for /2 and /3 minimum, this version picks BLCM on the PRECONDITION primes in PrimesSmallU8 have all been tested
+	var N, A, B, X0, Y0, BLCM, gcd int64
+	spMax := len(PrimesSmallU8) - 1
+	if 0 < n {
+		N = int64(n)
+	} else {
+		N = -int64(n)
+	}
+
+	// TODO more effective curve forms? https://en.wikipedia.org/wiki/Elliptic_curve#Non-Weierstrass_curves
+
+euler_LenstraECFI64_recurse:
+	for {
+		// https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization#The_algorithm_with_projective_coordinates
+		seed := PSRand.RandU32()
+		// 1.
+		// Strongly random isn't as necessary as just 'not trivial' and 'not always the same'
+		// Mod N the inputs, A can probably be above N by one?
+		A, X0, Y0 = int64((seed&0x003F_FC00)>>10)%N, int64((seed&0xFFFF_0000)>>16)%N, int64((seed&0xFFFF))%N
+		// A is not allowed to be 0
+		if 0 == A || 0 == X0 || 0 == Y0 {
+			seed = ^seed
+			if 0 == A {
+				A = int64((seed&0x003F_FC00)>>10) % N
+			}
+			if 0 == A {
+				A++
+			}
+			if 0 == X0 {
+				X0 = int64((seed&0xFFFF_0000)>>16) % N
+			}
+			if 0 == X0 {
+				X0++
+			}
+			if 0 == Y0 {
+				Y0 = int64((seed & 0xFFFF)) % N
+			}
+			if 0 == Y0 {
+				Y0++
+			}
+		}
+		// 2.
+		B = (Y0*Y0 - X0*X0*X0 - A*X0) % N
+
+		// math.SE Step 4
+		// https://math.stackexchange.com/questions/859116/lenstras-elliptic-curve-algorithm
+		// for the Y^2 = X^3... curve (derivative?)
+		// check gcd(4 * A*A*A + 27 * B * B , N ) == 1 (OK) || N (Bad, New A, recheck) || between 1 and N => YAY (maybe composite)Factor found
+
+		// Test that the curve is 'square free' in X? https://en.wikipedia.org/wiki/Elliptic_curve
+		// Discriminant https://en.wikipedia.org/wiki/Discriminant
+		// """ the quantity which appears under the square root in the quadratic formula. If a ≠ 0 , {\displaystyle a\neq 0,} this discriminant is zero if and only if the polynomial has a double root. In the case of real coefficients, it is positive if the polynomial has two distinct real roots, and negative if it has two distinct complex conjugate roots.[1] Similarly, the discriminant of a cubic polynomial is zero if and only if the polynomial has a multiple root. In the case of a cubic with real coefficients, the discriminant is positive if the polynomial has three distinct real roots, and negative if it has one real root and two distinct complex conjugate roots.
+		// tests properties of roots of the curve
+		Discr := 4*A*A*A + 27*B*B
+		if 0 == Discr {
+			// Bad roll, try again
+			continue euler_LenstraECFI64_recurse
+		}
+		gcd = GCDbin(Discr, N)
+		if gcd == N {
+			// Bad roll, try again
+			continue euler_LenstraECFI64_recurse
+		}
+		if 1 < gcd {
+			// Lucky roll, found a GCD between 1 and N
+			return gcd
+		}
+
+		// https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law
+		// Since the curve is symmetric about the x-axis, given any point P, we can take −P to be the point opposite it. We then have − O = O {\displaystyle -O=O}, as O {\displaystyle O} lies on the XZ-plane, so that − O {\displaystyle -O} is also the symmetrical of O {\displaystyle O} about the origin, and thus represents the same projective point.
+		// FIXME: is P(x0,y0) -> Q(x0, - y0) given this symmetry?
+		// Z is 1, multiplicative identity
+		// P, Q := Point3DI64{X: x0, Y: y0, Z: 1}, Point3DI64{X: x0, Y: -y0, Z: 1} // is it (-y0) % N to force it to wrap to some positive number?
+		P := Point3DI64{X: X0, Y: Y0, Z: 1}
+
+		// 3. + 4. ???
+		// math.SE Step 5 (BLCM == k)
+		//	Choose B -- All Prime Factors must be Less than or Equal to B ;
+		BLCMtarget := N / int64(PrimesSmallU8[spMax])
+		BLCM = 30 // 2 * 3 * 5
+		ii := 3
+		for BLCM < BLCMtarget {
+			// https://math.mit.edu/research/highschool/primes/materials/2018/conf/7-2%20Rhee.pdf
+			// I think that's slide 15, with Lenstra's Factorization Method and steps 1 .. 11
+			// This is Step 5, but 6..9 are built within this loop
+			// Compute ? Q using d * P (mod n) 'and set P = Q'
+			P = ECmulMod(BLCM, A, N, P)
+			if 1 < P.Z && P.Z < N {
+				return P.Z
+			}
+			ii++
+			if ii > spMax {
+				ii = 0
+			}
+			BLCM *= int64(PrimesSmallU8[ii])
+
+		}
+		// 5.
+
+		// math.SE Step 6
+		// Compute k*P = ( (Ak/D^2vk , Bk /d^3vk ) ... Multiply the first X,Y point P?  FIXME: Wikipedia lookup
+
+		// math.SE Step 7
+		// Calc D = gcd(Dk, n) Same general rules as Step 5 above, 1<D<N => D is a non-trivial factor, else Raise K or roll again.
+
+		// P and Q are two Points on the Curve ~ https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law ELSE is Tangent
+		// Slope (ycombinator) IF P != Q { (Yp - Yq) / (Xp - Xq) } ELSE (P==Q) { (3x*x + a) / (2y) }
+		// If x.=x. but yp = -yq then ??? P+Q = 'Infinity' and P contains a factor
+
+		// Curve times the LCM?  lcm(...) * P (mod N)  Valid point, or a Factor found
+	}
 }
 
 // By Euler 0058 it was clear that a better primality test is REQUIRED
