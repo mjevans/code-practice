@@ -2949,20 +2949,15 @@ func ExtendedGCDI64(a, b int64) (int64, int64, int64) {
 		sP, s = s, sP-quo*s
 		tP, t = t, tP-quo*t
 	}
+	// Sign correction - didn't test if rP being wrong means both of the other two must be corrected, but this guards more edge cases, and it IS possible for t or s to __independently__ be incorrect while the other is correct.
 	if 0 > rP {
-		if (0 > a && 0 > t) || (0 < a && 0 < t) {
-			t = -t
-		}
-		if (0 > b && 0 > s) || (0 < b && 0 < s) {
-			s = -s
-		}
-	} else {
-		if (0 > a && 0 < t) || (0 < a && 0 > t) {
-			t = -t
-		}
-		if (0 > b && 0 < s) || (0 < b && 0 > s) {
-			s = -s
-		}
+		rP = -rP
+	}
+	if (0 > a && 0 < t) || (0 < a && 0 > t) {
+		t = -t
+	}
+	if (0 > b && 0 < s) || (0 < b && 0 > s) {
+		s = -s
 	}
 	// Bezout CoEff sP, tP
 	// GCD rP
@@ -2970,10 +2965,16 @@ func ExtendedGCDI64(a, b int64) (int64, int64, int64) {
 	return t, s, rP
 }
 
+// More refs...
+// https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication
+// https://stackoverflow.com/questions/30017367/lenstras-elliptic-curve-factorization-problems
+
+// DANGER NOTE: Some of the operations (E.G. 3 * pX * pX + A) could overflow the 63 bit limit before the mod; I'm _mostly_ sure that their construction method should keep them within bounds, but some larger N to factor might make them overflow...
 // https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law
 // https://sites.math.washington.edu/~morrow/336_16/2016papers/thomas.pdf (pg9-10)
+// https://math.uchicago.edu/~may/REU2014/REUPapers/Parker.pdf
 func ECaddMod(p, q Point3DI64, A, mod int64) Point3DI64 {
-	var slopeY, slopeX, x, y int64
+	var slopeY, slopeX, x, y, l1C int64
 	if 0 == p.Z {
 		return q
 	}
@@ -2984,37 +2985,65 @@ func ECaddMod(p, q Point3DI64, A, mod int64) Point3DI64 {
 	// Slope (ycombinator) IF P != Q { (Yp - Yq) / (Xp - Xq) } ELSE (P==Q) { (3x*x + a) / (2y) }
 	// If x.=x. but yp = -yq then ??? P+Q = 'Infinity' and P contains a factor
 	slopeX = (q.X - p.X) % mod
-	if p.X != q.X && 0 != slopeX {
+	// Test first, Lenstra.pdf
+	// Why test first?  1) a factor might be in the GCD, done.  2) if slopeX == 0 => GCD == mod (N) ELSE it equals 1
+	_, _, gcd := ExtendedGCDI64(slopeX, mod)
+	if 1 == gcd {
 		slopeY = (q.Y - p.Y) % mod
+	} else if gcd < mod {
+		return Point3DI64{Z: gcd}
 	} else {
 		if 0 == (p.Y+q.Y)%mod {
 			return Point3DI64{X: 0, Y: 1, Z: 0} // Infinity? identity
 		}
 		slopeY, slopeX = (3*p.X*p.X+A)%mod, (2*p.Y)%mod
 	}
-	// Thomas Pg.10
-	_, _, gcd := ExtendedGCDI64(slopeY, mod)
-	//if 1 == gcd && (slopeY != test) {
-	//	fmt.Printf("%d != %d (gcd %d)\n", slopeY, test, gcd)
-	//	panic("Logic Error, ExtendedGCDI64 has reversed outputs\n")
-	//}
-	//if mod == gcd {
-	//	panic("Logic Error, ECaddMod didn't filter GCD of mod\n")
-	//}
-	if 1 < gcd && gcd < mod {
-		return Point3DI64{Z: gcd}
-	}
 	slopeY, slopeX, _ = ExtendedGCDI64(slopeY, slopeX)
-	if 0 == slopeY/slopeX && 0 < slopeY {
-		fmt.Printf("ECadd, slope is wrong? %d / %d == 0\n", slopeY, slopeX)
-	}
 
 	// DANGER: FIXME: the point calculation is wrong, and it's ~ 3am ; this isn't in a production code segment.
 
+	// These are correct for pen and paper... or Rational Numbers - Are __integer__ forms possible?
 	// L1 =: (slopeY / slopeX) * ( x - p.X ) + p.Y
 	// L1 R(x3, y3) =:	( (slopeY / slopeX)*(slopeY / slopeX) - p.X - q.X	, (slopeY / slopeX)*(x3 - p.X) + p.Y )
 	// L2 R(x3, -y3) =:	( (slopeY / slopeX)*(slopeY / slopeX) - p.X - q.X	, (slopeY / slopeX)*(2*p.X + q.X - (slopeY / slopeX)*(slopeY / slopeX))   -  p.Y )
-	x = ((slopeY/slopeX)*(slopeY/slopeX) - p.X - q.X) % mod
+	// x = ((slopeY/slopeX)*(slopeY/slopeX) - p.X - q.X) % mod
+	// x = ((slopeY * slopeY)/(slopeX * slopeX) - p.X - q.X) % mod
+	// x = ((sYY)/(sXX) - p.X - q.X) % mod
+	// x = ((sYY)/(sXX) - p.X*(sXX)/(sXX) - q.X*(sXX)/(sXX)) % mod
+	// x = (sYY - p.X*(sXX) - q.X*(sXX))/(sXX) % mod
+	//
+	// Start from scratch...
+	//
+	// y = dY/dX * x + Ip
+	// Ip = dY/dX * p.X - p.Y // Does not HAVE to be an integer
+	// https://en.wikipedia.org/wiki/Algebraic_curve#Intersection_with_a_line
+	// dY*x - dX*y + C = 0
+	// C = dX*y - dY*x
+	l1C = slopeX*p.Y - slopeY*p.X
+	_ = l1C
+	// https://en.wikipedia.org/wiki/B%C3%A9zout%27s_theorem#Examples_(plane_curves)
+	// dX*y = dY*x - C
+	// y = (dY*x - C)/dX
+	// ###	y*y = x*x*x + A*x + B (mod N)	###
+	// (dY*x - l1C)/dX)*((dY*x - l1C)/dX) = x*x*x + A*x + B
+	// (dY*x - l1C)*(dY*x - l1C)/(dX*dX) = x*x*x + A*x + B
+	// (dY*x - l1C)*(dY*x - l1C) = (dX*dX)*x*x*x + (dX*dX)*A*x + (dX*dX)*B
+	// dY*dY*x*x - l1C*dY*x - l1C*dY*x + l1C*l1C = (dX*dX)*x*x*x + (dX*dX)*A*x + (dX*dX)*B
+	// dY*dY*x*x - 2*l1C*dY*x + l1C*l1C = (dX*dX)*x*x*x + (dX*dX)*A*x + (dX*dX)*B
+	// 0 = dX*dX*x*x*x - dY*dY*x*x + dX*dX*A*x + 2*l1C*dY*x + dX*dX*B - l1C*l1C
+	// 0 = dX*dX * x*x*x  -  dY*dY * x*x  +  (dX*dX*A* + 2*l1C*dY) * x  +  dX*dX*B - l1C*l1C
+	// So... https://en.wikipedia.org/wiki/B%C3%A9zout%27s_theorem#A_line_and_a_curve
+	// 3 points exist where X becomes zero.  (x + pX)*(x + qX)*(x + rX)
+	//
+
+	sYY, sXX := slopeY*slopeY, slopeX*slopeX
+	x = sYY - p.X*sXX - q.X*sXX
+	if 0 != x%sXX {
+		fmt.Printf("ECadd, slope is wrong? %d / %d == 0\n", x, sXX)
+		panic("Still wrong")
+	}
+	x /= sXX
+
 	y = ((slopeY/slopeX)*(2*p.X+q.X-(slopeY/slopeX)*(slopeY/slopeX)) - p.Y) % mod
 	return Point3DI64{X: x, Y: y, Z: 1}
 }
@@ -3092,7 +3121,9 @@ euler_LenstraECFI64_recurse:
 				Y0++
 			}
 		}
-		// 2.
+		// Note 'choice of B' https://wstein.org/edu/Fall2001/124/lenstra/lenstra.pdf pg 662
+
+		// 2. y*y = x*x*x + A*x + B (mod N)
 		B = (Y0*Y0 - X0*X0*X0 - A*X0) % N
 
 		// math.SE Step 4
