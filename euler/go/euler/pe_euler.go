@@ -2965,6 +2965,54 @@ func ExtendedGCDI64(a, b int64) (int64, int64, int64) {
 	return t, s, rP
 }
 
+
+
+/*
+
+NOTE: Lenstra_elliptic-curve_factorization
+
+IMPORTANT: The most likely to be confused / overlooked as an already known concept is the __modular inverse__ of a number as the Wikipedia article on it helpfully notes 'notation abuse' is likely to confuse a reader that (term)^(-1) is NOT to the negative power or a notation for division by, but rather that it is a special term MEANING the modular inverse therein.
+
+As a preface:
+***
+* https://en.wikipedia.org/wiki/Modular_multiplicative_inverse
+***
+* https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization
+* https://en.wikipedia.org/wiki/Elliptic_curve#The_group_law
+* https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
+* https://en.wikipedia.org/wiki/Elliptic_curve
+* https://en.wikipedia.org/wiki/Algebraic_curve#Intersection_with_a_line
+* https://en.wikipedia.org/wiki/B%C3%A9zout%27s_theorem#A_line_and_a_curve  (but also skim the rest)
+* https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication
+
+Educational papers / slides
+* https://math.stackexchange.com/questions/859116/lenstras-elliptic-curve-algorithm
+* https://wstein.org/edu/124/lenstra/lenstra.pdf
+* https://math.uchicago.edu/~may/REU2014/REUPapers/Parker.pdf
+* https://sites.math.washington.edu/~morrow/336_16/2016papers/thomas.pdf
+* https://web.ma.utexas.edu/users/sl55444/CompsciTalk.pdf
+* https://math.mit.edu/research/highschool/primes/materials/2018/conf/7-2%20Rhee.pdf
+* https://en.wikipedia.org/wiki/Addition_chain (only LOOSELY related...)
+* http://www.additionchains.com/ << Find: Scholz-Brauer Conjecture look at the number chain... Then think about the doubling, repeated multiplication by 2, how that relates to the storage form of a number...
+* https://en.wikipedia.org/wiki/Modular_exponentiation#Right-to-left_binary_method
+
+*** THIS is when I FINALLY found something that mentioned Modular_multiplicative_inverse , with an example so I could understand how it differed from what I thought the words meant!
+* https://stackoverflow.com/a/75765566
+
+Additionally; many examples assume (or worse cargo cult) that the programmer understands they're specific to the shape of numeric system described in the initial Lenstra_elliptic-curve_factorization W example.
+
+I think the full (and gory) proof of how the third point R is calculated would probably also help me understand the Discriminant. https://en.wikipedia.org/wiki/Discriminant
+
+2^2*A^3 + 3^2*B^2 ??? 4*A*A*A + 27*B*B  -  I think it relates to the 'secret' of math being solved by the work; the answer to the multi-dimensional version of (x - pX)*(x - pQ)*(x - pR) = 0 .
+
+Having stated that, it's also time for me to throw out the nearly working initial draft and start from the top, better knowing what I didn't when I started.  Just like most initial versions.
+
+
+
+*/
+
+
+
 // More refs...
 // https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication
 // https://stackoverflow.com/questions/30017367/lenstras-elliptic-curve-factorization-problems
