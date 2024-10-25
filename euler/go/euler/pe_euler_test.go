@@ -24,7 +24,7 @@ import (
 
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 68) ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-	for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; go clean -testcache ; go test -v euler/
 -*/
 
 // https://pkg.go.dev/testing@go1.23.1
@@ -53,19 +53,23 @@ import (
 	func (c *T) TempDir() string
 */
 
-var primes = []uint64{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173}
+// var primes = []uint64{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173}
 
 // func TestXxx(t *testing.T) { t.  }
 
 func TestDeprPrimesFactor(t *testing.T) {
-	prLim := len(primes)
+	// prLim := len(primes)
 	var pr *([]int)
-	pr = euler.GetPrimes(pr, prLim)
-	for ii := 0; ii < prLim; ii++ {
-		if uint64((*pr)[ii]) != primes[ii] {
-			t.Errorf("Expected value %d got %d\n", primes[ii], (*pr)[ii])
+	pr = euler.GetPrimes(pr, euler.PrimesSmallU8MxVal)
+	for ii := 0; ii <= euler.PrimesSmallU8Mx; ii++ {
+		if uint64((*pr)[ii]) != uint64(euler.PrimesSmallU8[ii]) {
+			t.Errorf("Expected value %d got %d\t(%d / %d)\n", euler.PrimesSmallU8[ii], (*pr)[ii], ii, euler.PrimesSmallU8Mx)
 		}
 	}
+	if euler.PrimesSmallU8[euler.PrimesSmallU8Mx] != euler.PrimesSmallU8MxVal {
+		t.Errorf("euler.PrimesSmallU8MxVal set to %d got %d\n", euler.PrimesSmallU8MxVal, euler.PrimesSmallU8[euler.PrimesSmallU8Mx])
+	}
+
 	// Copied from TestFactorizeVsFactorMul
 	tests := []struct {
 		test uint
@@ -110,10 +114,10 @@ func TestBVPrimesPrimeAfter(t *testing.T) {
 		{7906, 7907},
 		// {  , },
 	}
-	for ii := 0; ii+1 < len(primes); ii++ {
-		res := euler.Primes.PrimeAfter(primes[ii])
-		if primes[ii+1] != res {
-			t.Errorf("Bad PrimeAfter(%d) %d != %d (expected)\n", primes[ii], res, primes[ii+1])
+	for ii := 0; ii+1 < euler.PrimesSmallU8Mx; ii++ {
+		res := euler.Primes.PrimeAfter(uint64(euler.PrimesSmallU8[ii]))
+		if uint64(euler.PrimesSmallU8[ii+1]) != res {
+			t.Errorf("Bad PrimeAfter(%d) %d != %d (expected)\n", euler.PrimesSmallU8[ii], res, euler.PrimesSmallU8[ii+1])
 		} else {
 			// t.Logf("PASS PrimeAfter(%d) == %d\n", primes[ii], res)
 		}
@@ -208,7 +212,8 @@ func TestOverkillSeed(t *testing.T) {
 	// const limit = uint( 0x400000 - 1) // 4M
 	// const limit = uint(0x1000000 - 1) // 16777215 ~ VERY SLOW ~15-20min on my home NAS/server ... Unless it's REALLY important to quickly know if a number is a prime or not, probably too long.  Only ~8MB of mem though, so easily worth computing once, SAVING, and then loading if doing repeatedly.
 
-	const limit = 0x100000 + 64
+	// const limit = 0x100000 + 64
+	const limit = 1_250_000
 	//const limit = uint(65535)
 	// const limit = uint(1025)
 	t.Logf("Seed primes upto: %d\n", limit)
@@ -428,13 +433,13 @@ TestOverkillVerifyOuter:
 
 func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
 	// const limit = 65535
-	const limit = 250000
+	const limit = 1_250_000
 	t.Logf("Verify Factor1980AutoPMC(p) upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
-	for ii := uint64(2); ii <= limit; ii++ {
-		if 0 == ii&0x3fff {
-			t.Logf("... %d", ii)
+	for ii := uint64(2); ii <= limit; ii += 2 {
+		if 0 == ii%3 || euler.Primes.KnownPrime(uint64(ii)) {
+			continue
 		}
 		f := euler.Factor1980AutoPMC(ii, true)
 		if false == euler.Primes.KnownPrime(f) {
@@ -444,44 +449,22 @@ func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
 	}
 }
 
-func TestOverkillVerifyLenstraECFI64(t *testing.T) {
-	t.Skip("Known Broken")
+func TestOverkillVerifyFactorLenstraECW(t *testing.T) {
+	// t.Skip("Known Broken")
+	// go test -run TestOverkillVerifyFactorLenstraECW -cpuprofile Lenstra.goprof -v euler/
+	// go tool pprof euler.test Lenstra.goprof
 	// const limit = 65535
-	const limit = 250000
-	t.Logf("Verify LenstraECFI64(p) upto: %d\n", limit)
+	const limit = 1_250_000
+	t.Logf("Verify FactorLenstraECW(p, 2) (force the extra checks path too) upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
-	pMax := len(euler.PrimesSmallU8) - 1
-TestOverkillVerifyLenstraECFI64ii:
 	for ii := int64(3); ii <= limit; ii += 2 {
-		if 0 == ii&0x3ffe {
-			t.Logf("... %d", ii)
+		if 0 == ii%3 || euler.Primes.KnownPrime(uint64(ii)) {
+			continue
 		}
-		if !euler.Primes.KnownPrime(uint64(ii)) {
-			for pp := 1; pp <= pMax; pp++ {
-				qd := int64(euler.PrimesSmallU8[pp])
-				if 0 == ii%qd {
-					continue TestOverkillVerifyLenstraECFI64ii
-				}
-			}
-			roottest := euler.SqrtU64(uint64(ii))
-			if uint64(ii) == roottest*roottest {
-				continue TestOverkillVerifyLenstraECFI64ii
-			}
-
-			// Test higher roots until beneath the highest division tested prime, 41^4 ~= 2.8M ; 41^5 ~= 115.8M
-			for pp := uint64(3); roottest > uint64(euler.PrimesSmallU8[pMax]); pp++ {
-				roottest = euler.RootU64(uint64(ii), pp)
-				if ii == int64(euler.PowU64(roottest, pp)) {
-					continue TestOverkillVerifyLenstraECFI64ii
-				}
-			}
-
-			// LenstraECFI64 should normally be guarded against squares, but /2 and /3 alone should be fine for validation tests
-			f := euler.LenstraECFI64(ii)
-			if 2 > f || 0 != ii%f {
-				t.Errorf("LenstraECFI64 failed to factor %d, returned %d\n", ii, f)
-			}
+		f := euler.FactorLenstraECW(ii, 2)
+		if 2 > f || 0 != ii%f {
+			t.Errorf("FactorLenstraECW failed to factor %d, returned %d\n", ii, f)
 		}
 	}
 }
@@ -1052,5 +1035,5 @@ func TestGeneralMaths(t *testing.T) {
 }
 
 /*
-	for ii in *\/*.go ; do go fmt "$ii" ; done ; go test -v euler/
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; go clean -testcache ; go test -v euler/
 /*/

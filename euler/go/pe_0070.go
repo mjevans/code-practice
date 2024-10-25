@@ -38,7 +38,7 @@ func Euler0070(toMax uint64) uint64 {
 	var bestI, ii, phi, bestFI, fi uint64
 	var bestF, flNphi float64
 	ptarget := toMax // Most of the runtime is trying to factor difficult numbers, the edge cases dominate...
-	// ptarget := toMax / 10 // Tried adding better root / square root functions, Factorizing is still too expensive...  Unsure if I need a better Factorizing method, better Phi method, or both.
+	// ptarget := uint64(500_000) // Tried adding better root / square root functions, Factorizing is still too expensive...  Unsure if I need a better Factorizing method, better Phi method, or both.
 	fmt.Printf("Finding primes to %d\n", ptarget)
 	euler.Primes.Grow(ptarget)
 	bestF, bestFI = 3.00, 3 // Not really but I know this value is higher than a real best which is 2 so...
