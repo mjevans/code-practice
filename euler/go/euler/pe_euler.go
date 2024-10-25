@@ -2973,13 +2973,15 @@ func FactorStep2ProbablyNotPrime(q uint64) bool {
 }
 
 func FactorStep3BigPrimeTests(q, maxTestedPrime uint64) uint64 {
-	// Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
-	if q < 500_000 {
-		r := Factor1980PollardMonteCarlo(q, 0)
-		if 0 != r && r != q {
-			return r
-		}
+	// Reportedly, good up to ~70bits https://stackoverflow.com/questions/2267146/what-is-the-fastest-integer-factorization-algorithm
+	// if q < 500_000 {
+	// I've found this can miss squares, and for other numbers resists convergence
+	r := Factor1980PollardMonteCarlo(q, 0)
+	if 0 != r && r != q {
+		return r
 	}
+	// }
+	// Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
 	return uint64(FactorLenstraECW(int64(q), int64(maxTestedPrime)))
 }
 
@@ -3697,7 +3699,7 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	return res
 }
 
-func EulerTotientPhi(n uint64) uint64 {
+func EulerTotientPhi_old(n uint64) uint64 {
 	if 1 == n {
 		return 1
 	}
@@ -3716,6 +3718,79 @@ func (f *Factorized) EulerTotientPhi() uint64 {
 		}
 		ret *= uint64(f.Fact[ii].Base) - 1
 	}
+	return ret
+}
+
+func EulerTotientPhi(q, rmin uint64) uint64 {
+	var ret, qd, qdqd uint64
+	//if 2 > q {
+	//	return 1
+	//}
+	qdqd, ret = 1, q
+
+	// https://en.wikipedia.org/wiki/Euler%27s_totient_function#Computing_Euler's_totient_function
+	// Why is this so slow?  Integer version has SO MANY div / multiplies while the fraction version can ignore that and also give an immediate remaining residual
+	// Of course the later wasn't considered as part of a generic interface... so that optimization option is (maybe?) Euler 70 specific
+
+	// 2
+	if 0 == q&1 {
+		ret -= ret >> 1 // *(1 - 1/qd)
+		for 0 == q&1 {
+			q >>= 1
+		}
+		qdqd = 4
+	}
+
+	// Start at 1 : skip already checked 2
+	for ii := 1; 1 < q && q > qdqd && rmin < ret && ii <= PrimesSmallU8Mx; ii++ {
+		qd := uint64(PrimesSmallU8[ii])
+		if 0 == q%qd {
+			ret -= ret / qd // *(1 - 1/qd)
+			for 0 == q%qd {
+				q /= qd
+			}
+		}
+		qdqd = qd * qd
+	}
+	if 1 == q || rmin > ret {
+		return ret
+	}
+	if q <= qdqd {
+		return ret - ret/q
+	}
+
+	for 1 < q && rmin < ret {
+		// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
+		if q < qdqd || Primes.ProbPrime(q) {
+			// q must be a single prime number
+			return ret - ret/q
+		}
+
+		// pprof-ed slow, but much slower without *shrug*
+		qd = Factor1980PollardMonteCarlo(q, 0)
+		if 0 != qd && 0 == q%qd {
+			ret -= ret / qd // *(1 - 1/qd)
+			for 0 == q%qd {
+				q /= qd
+			}
+			continue
+		}
+
+		for q > qdqd {
+			qd = Primes.PrimeAfter(qd)
+			qdqd = qd * qd
+			if 0 == q%qd {
+				ret -= ret / qd // *(1 - 1/qd)
+				for 0 == q%qd {
+					q /= qd
+				}
+				break // 1
+			}
+		}
+	}
+	// qd := FactorStep1RootsFilter(q, uint64(PrimesSmallU8MxVal))
+	// Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
+	//return uint64(FactorLenstraECW(int64(q), int64(PrimesSmallU8MxVal)))
 	return ret
 }
 

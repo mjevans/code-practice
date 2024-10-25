@@ -942,9 +942,16 @@ func TestEulerTotientPhi(t *testing.T) {
 	}
 	for ii := 1; ii < len(testTotientPhi); ii++ {
 		// for ii := 1; ii < 20; ii++ {
-		phi := euler.EulerTotientPhi(uint64(ii))
+		phi := euler.EulerTotientPhi_old(uint64(ii))
 		if phi != testTotientPhi[ii] {
 			t.Errorf("Expected results: EulerTotientPhi(%d) => %d got %d\n", ii, testTotientPhi[ii], phi)
+		}
+	}
+	for ii := 1; ii < len(testTotientPhi); ii++ {
+		// for ii := 1; ii < 20; ii++ {
+		phi := euler.EulerTotientPhi(uint64(ii), 0)
+		if phi != testTotientPhi[ii] {
+			t.Errorf("Expected results: EulerTotientPhi_exp(%d) => %d got %d\n", ii, testTotientPhi[ii], phi)
 		}
 	}
 }

@@ -106,7 +106,7 @@ func Euler0069(toMax uint64) uint64 {
 	var bestF, flNphi float64
 	euler.Primes.Grow(toMax)
 	for ii = 1; ii <= toMax; ii++ {
-		phi = euler.EulerTotientPhi(ii)
+		phi = euler.EulerTotientPhi(ii, 0)
 		fi = ii / phi
 		if fi >= bestFI {
 			flNphi = float64(ii) / float64(phi)

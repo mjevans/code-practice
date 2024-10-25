@@ -32,21 +32,25 @@ import (
 	// "os" // os.Stdout
 	// "strconv"
 	// "strings"
+	// "runtime/pprof"
 )
 
 func Euler0070(toMax uint64) uint64 {
-	var bestI, ii, phi, bestFI, fi uint64
+	var bestI, ii, phi, phiMin, bestFI, fi uint64
 	var bestF, flNphi float64
-	ptarget := toMax // Most of the runtime is trying to factor difficult numbers, the edge cases dominate...
+	_, _ = bestFI, fi
+	ptarget := euler.SqrtU64(toMax) // Most of the runtime is trying to factor difficult numbers, the edge cases dominate...
 	// ptarget := uint64(500_000) // Tried adding better root / square root functions, Factorizing is still too expensive...  Unsure if I need a better Factorizing method, better Phi method, or both.
 	fmt.Printf("Finding primes to %d\n", ptarget)
 	euler.Primes.Grow(ptarget)
 	bestF, bestFI = 3.00, 3 // Not really but I know this value is higher than a real best which is 2 so...
 Euler0070ii:
-	for ii = 2; ii <= toMax; ii++ {
-		phi = euler.EulerTotientPhi(ii)
-		fi = ii / phi
-		if fi <= bestFI {
+	for ii = toMax; 2 <= ii; ii-- {
+		phiMin = uint64(float64(ii) / bestF)
+		phi = euler.EulerTotientPhi(ii, phiMin)
+		// fi = ii / phi
+		// if fi <= bestFI {
+		if phi > phiMin {
 			flNphi = float64(ii) / float64(phi)
 			if flNphi < bestF {
 				slii := euler.Uint8CopyInsertSort(euler.Uint64ToDigitsUint8(ii, 10))
@@ -60,7 +64,7 @@ Euler0070ii:
 						continue Euler0070ii
 					}
 				}
-				fmt.Printf("Found new best N/phi: %d/%d ~= %1.40f > %1.40f\n", ii, phi, flNphi, bestF)
+				fmt.Printf("Found new best N/phi: %d/%d ~= %1.40f < %1.40f\n", ii, phi, flNphi, bestF)
 				bestF, bestFI, bestI = flNphi, fi, ii
 			}
 		}
@@ -84,11 +88,53 @@ Found new best N/phi: 8316907/8310976 ~= 1.0007136345959848355846588674467056989
 Found new best N/phi: 8319823/8313928 ~= 1.0007090511248113440245788297033868730068 > 1.0007136345959848355846588674467056989670
 Found best N/phi: 8319823 ~= 1.0007090511248113440245788297033868730068
 Euler 70: Totient Permutation: 8319823
+
+After a change in algorithm to allow for early aborts it now runs in less than 1 min of runtime.
+
+for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 70 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go build -o $(printf "pe_%04d" "$ii") $(printf "pe_%04d.go" "$ii") ; time ./$(printf "pe_%04d" "$ii") || break ; done
+Finding primes to 3162
+Found new best N/phi: 9983167/9973816 ~= 1.0009375548937338162858168288948945701122 < 3.0000000000000000000000000000000000000000
+Found new best N/phi: 9848203/9840328 ~= 1.0008002782021088172825784567976370453835 < 1.0009375548937338162858168288948945701122
+Found new best N/phi: 8357821/8351872 ~= 1.0007122953991631764125713743851520121098 < 1.0008002782021088172825784567976370453835
+Found new best N/phi: 8319823/8313928 ~= 1.0007090511248113440245788297033868730068 < 1.0007122953991631764125713743851520121098
+Found best N/phi: 8319823 ~= 1.0007090511248113440245788297033868730068
+Euler 70: Totient Permutation: 8319823
+
+go tool pprof pe_0070 latest.goprof
+File: pe_0070
+Type: cpu
+Time: Oct 25, 2024 at 10:56pm (UTC)
+Duration: 43.86s, Total samples = 45.77s (104.34%)
+Entering interactive mode (type "help" for commands, "o" for options)
+(pprof) top
+Showing nodes accounting for 33.05s, 72.21% of 45.77s total
+Dropped 213 nodes (cum <= 0.23s)
+Showing top 10 nodes out of 64
+
+	  flat  flat%   sum%        cum   cum%
+	14.66s 32.03% 32.03%     14.71s 32.14%  math/rand.seedrand (inline) << math.big BigInt.ProbablyPrime()  I do need a non math.big probably prime test
+	 4.89s 10.68% 42.71%     19.60s 42.82%  math/rand.(*rngSource).Seed
+	 2.77s  6.05% 48.77%      4.60s 10.05%  math/big.divWVW
+	 2.17s  4.74% 53.51%     12.72s 27.79%  math/big.nat.expNN
+	 1.86s  4.06% 57.57%     43.44s 94.91%  euler.EulerTotientPhi
+	 1.56s  3.41% 60.98%      8.82s 19.27%  math/big.nat.div
+	 1.43s  3.12% 64.10%      1.43s  3.12%  math/big.nat.norm (inline)
+	 1.38s  3.02% 67.12%      1.38s  3.02%  euler.GCDbin[go.shape.uint64]
+	 1.20s  2.62% 69.74%      2.74s  5.99%  runtime.mallocgc
+	 1.13s  2.47% 72.21%      1.14s  2.49%  math/big.reciprocalWord (inline)
+
 .
 */
 func main() {
 	//test
 	// tested in the golang tests for "euler"
+
+	// f, err := os.Create("latest.goprof")
+	// if nil != err {
+	//	panic("Unable to create latest.goprof file\n")
+	// }
+	// pprof.StartCPUProfile(f)
+	// defer pprof.StopCPUProfile()
 
 	//run
 	fmt.Printf("Euler 70: Totient Permutation: %d\n", Euler0070(10_000_000))
