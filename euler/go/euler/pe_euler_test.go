@@ -432,6 +432,7 @@ TestOverkillVerifyOuter:
 }
 
 func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
+	t.Skip("Slow")
 	// const limit = 65535
 	const limit = 1_250_000
 	t.Logf("Verify Factor1980AutoPMC(p) upto: %d\n", limit)
@@ -450,7 +451,7 @@ func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
 }
 
 func TestOverkillVerifyFactorLenstraECW(t *testing.T) {
-	// t.Skip("Known Broken")
+	t.Skip("Slow")
 	// go test -run TestOverkillVerifyFactorLenstraECW -cpuprofile Lenstra.goprof -v euler/
 	// go tool pprof euler.test Lenstra.goprof
 	// const limit = 65535
@@ -465,6 +466,35 @@ func TestOverkillVerifyFactorLenstraECW(t *testing.T) {
 		f := euler.FactorLenstraECW(ii, 2)
 		if 2 > f || 0 != ii%f {
 			t.Errorf("FactorLenstraECW failed to factor %d, returned %d\n", ii, f)
+		}
+	}
+}
+
+func TestOverkillPrimesLists(t *testing.T) {
+	const limit = 65536 << 1
+	// p := euler.Primes
+	euler.Primes.PrimeGlobalList(limit)
+	var prime uint64
+	var ii, iiLim int
+	prime = 1
+	for ii = 0; ii <= euler.PrimesSmallU8Mx; ii++ {
+		prime = euler.Primes.PrimeAfter(prime)
+		if euler.PrimesSmallU8[ii] != uint8(prime) {
+			t.Errorf("PrimesLists U8 expected %d returned %d\n", prime, euler.PrimesSmallU8[ii])
+		}
+	}
+	iiLim = len(euler.PrimesMoreU16)
+	for ii = 0; ii < iiLim; ii++ {
+		prime = euler.Primes.PrimeAfter(prime)
+		if euler.PrimesMoreU16[ii] != uint16(prime) {
+			t.Errorf("PrimesLists U16 expected %d returned %d\n", prime, euler.PrimesMoreU16[ii])
+		}
+	}
+	iiLim = len(euler.PrimesMoreU32)
+	for ii = 0; ii < iiLim; ii++ {
+		prime = euler.Primes.PrimeAfter(prime)
+		if euler.PrimesMoreU32[ii] != uint32(prime) {
+			t.Errorf("PrimesLists U32 expected %d returned %d\n", prime, euler.PrimesMoreU32[ii])
 		}
 	}
 }

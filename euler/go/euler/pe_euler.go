@@ -209,13 +209,18 @@ const (
 var (
 	Primes        *BVPrimes
 	PrimesSmallU8 [PrimesSmallU8Mx + 1]uint8 // {2, 3, 5, 7, ...}
-	PSRand        *PSRandPGC32
+	PrimesMoreU16 []uint16
+	PrimesMoreU32 []uint32 // I do see where 65535 could be insufficient
+	// PrimesMoreU64 []uint64 // I don't foresee any algorithms that need a LIST of continuous known primes greater than 32billion; that's clearly the range of other tools...
+	PSRand *PSRandPGC32
 )
 
 func init() {
 	Primes = NewBVPrimes()
 	PrimesSmallU8 = [PrimesSmallU8Mx + 1]uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251} // 41 required for reasons, 53 nice for 16 total numbers; 16 bytes of memory, 1/4th cache line
-	PSRand = NewPSRandPGC32(0x4d595df4d0f33173, 1442695040888963407)                                                                                                                                                                                                                            // Seed could be _anything_, inc must be any odd constant values from https://en.wikipedia.org/wiki/Permuted_congruential_generator#Example_code
+	PrimesMoreU16 = []uint16{}
+	PrimesMoreU32 = []uint32{}
+	PSRand = NewPSRandPGC32(0x4d595df4d0f33173, 1442695040888963407) // Seed could be _anything_, inc must be any odd constant values from https://en.wikipedia.org/wiki/Permuted_congruential_generator#Example_code
 }
 
 // Deprecated, DO NOT USE, no replacement planned
@@ -2107,6 +2112,70 @@ func (p *BVPrimes) primeAfterUnsafe(input, limit uint64) uint64 {
 	return 0
 }
 
+func (p *BVPrimes) PrimeGlobalList(pmax uint64) {
+	var pg, pgMx, pidx, pidxMx, bb uint32
+	var prime uint64
+	p.Grow(pmax)
+	PrimesMoreU16 = make([]uint16, 0, BVl1/2)
+	PrimesMoreU32 = make([]uint32, 0, BVl1/4)
+	prime = PrimesSmallU8MxVal
+	pidx = uint32(PrimesSmallU8MxVal) + 2 - 3 // +2 for the prime _after_ the current prime...
+	bb = (pidx & BVprimeByteBitMask) >> 1
+	pidx >>= BVprimeByteBitShift
+	pg, pidx = pidx/BVpagesize, pidx%BVpagesize
+	pidxMx = (uint32(p.Last) - 3) >> BVprimeByteBitShift
+	pgMx, pidxMx = pidxMx/BVpagesize, pidxMx%BVpagesize
+BVPrimes_PrimeGlobalList_U16primes:
+	for pg <= pgMx {
+		// pidx
+		for (pg < pgMx && pidx < BVpagesize) || (pg == pgMx && pidx <= pidxMx) {
+			// bb
+			for ; bb < BVbitsPerByte; bb++ {
+				if 0 == p.PV[pg][pidx]&(uint8(1)<<bb) {
+					prime = (uint64(pg*BVpagesize|pidx) << BVprimeByteBitShift) | uint64(bb)<<1 + 3
+					if prime <= pmax && prime <= 65535 {
+						PrimesMoreU16 = append(PrimesMoreU16, uint16(prime))
+					} else if prime <= pmax {
+						PrimesMoreU32 = append(PrimesMoreU32, uint32(prime))
+						bb++
+						break BVPrimes_PrimeGlobalList_U16primes // break 3
+					} else {
+						return
+					}
+				}
+			}
+			bb = 0 // reset after scanning the initial index bits
+			pidx++
+		}
+		if pidx >= BVpagesize {
+			pg++
+			pidx = 0
+		}
+	}
+	for pg <= pgMx {
+		// pidx
+		for (pg < pgMx && pidx < BVpagesize) || (pg == pgMx && pidx <= pidxMx) {
+			// bb
+			for ; bb < BVbitsPerByte; bb++ {
+				if 0 == p.PV[pg][pidx]&(uint8(1)<<bb) {
+					prime = (uint64(pg*BVpagesize|pidx) << BVprimeByteBitShift) | uint64(bb)<<1 + 3
+					if prime <= pmax {
+						PrimesMoreU32 = append(PrimesMoreU32, uint32(prime))
+					} else {
+						return
+					}
+				}
+			}
+			bb = 0 // reset after scanning the initial index bits
+			pidx++
+		}
+		if pidx >= BVpagesize {
+			pg++
+			pidx = 0
+		}
+	}
+}
+
 func (p *BVPrimes) wheelFactCL1Unsafe(start, prime, maxPrime uint64) (uint64, uint64) {
 	// https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
 	// https://en.wikipedia.org/wiki/Sieve_of_Sundaram
@@ -2948,6 +3017,29 @@ func FactorStep0TD(q uint64) uint64 {
 	//}
 }
 
+func FactorReduceStep0TDlimit(q, limit uint64) uint64 {
+	var qd uint64
+	if 2 > q {
+		return q
+	}
+	// Special test & extract: base2, /2
+	for 0 == q&1 {
+		return 2
+	}
+
+	// Start at 1 : skip already checked 2
+	for ii := 1; ii <= PrimesSmallU8Mx && qd < limit; ii++ {
+		qd = uint64(PrimesSmallU8[ii])
+		if q < qd*qd {
+			return q
+		}
+		if 0 == q%qd {
+			return qd
+		}
+	}
+	return 0
+}
+
 func FactorStep1RootsFilter(q, maxTestedPrime uint64) uint64 {
 	roottest := SqrtU64(q)
 	if roottest < maxTestedPrime {
@@ -3367,6 +3459,216 @@ FactorLenstraECW_reroll:
 // == MR + LL
 // https://en.wikipedia.org/wiki/Lucas_pseudoprime
 
+func PrimeProbMillerRabinInner(n, blim uint64, prob uint8) uint64 {
+	// Returns 0 if 'might be prime', 1 if it's composite but unfactored, and (multiple of factor(s)) otherwise
+	// blim allows targeted tests by an external function https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Testing_against_small_sets_of_bases
+	var a, x, s, d, y uint64
+	if 0 == prob {
+		prob = 1
+	}
+	if 4 > n {
+		return 0
+	}
+	// find s and d
+	d = n - 1
+	for 0 == d&0xFF {
+		s += 8
+		d >>= 8
+	}
+	if 0 == d&0xF {
+		s += 4
+		d >>= 4
+	}
+	if 0 == d&0x3 {
+		s += 2
+		d >>= 2
+	}
+	if 0 == d&0x1 {
+		s++
+		d >>= 1
+	}
+	if n-1 != d<<s {
+		panic("Programmer Logic Error!")
+	}
+	// for d * (1 << s) != a {
+	//	s++
+	//	d = a / (1 << s)
+	// }
+	for ; 0 < prob; prob-- {
+		if 1 < blim {
+			a, prob = blim, 1
+		} else {
+			a = PSRand.RandInt(n-2) + 2
+		}
+		x = PowU64(a, d) % n
+		for ; 0 < s; s-- {
+			y = (x * x) % n
+			if 1 == y && 1 != x && x != n {
+				return GCDbin(x-1, n)
+			}
+			x = y
+		}
+		if 1 != y {
+			return 1
+		}
+	}
+	return 0
+}
+
+func PrimeOptiTestMillerRabin(q uint64) uint64 {
+	var a []uint8
+	// Pomerance, Selfridge, Wagstaff[4] and Jaeschke
+	switch {
+	case 2047 > q:
+		a = []uint8{2}
+	case 1_373_653 > q:
+		a = []uint8{2, 3}
+	case 9_080_191 > q:
+		a = []uint8{31, 73}
+	case 25_326_001 > q:
+		a = []uint8{2, 3, 5}
+	case 3_215_031_751 > q:
+		a = []uint8{2, 3, 5, 7}
+	case 4_759_123_141 > q:
+		a = []uint8{2, 7, 61}
+	//case 1_122_004_669_633 > q:
+	//	a = []uint8{2,13,23,1_662_803} // THIS is the only outlier for uint16, let alone uint8 which every other number falls into; and it's only one less test than the 2 billion seq
+	case 2_152_302_898_747 > q:
+		a = []uint8{2, 3, 5, 7, 11}
+	case 3_474_749_660_383 > q:
+		a = []uint8{2, 3, 5, 7, 11, 13}
+	case 341_550_071_728_321 > q:
+		a = []uint8{2, 3, 5, 7, 11, 13, 17}
+	case 3_825_123_056_546_413_051 > q:
+		a = []uint8{2, 3, 5, 7, 11, 13, 17, 19, 23}
+	default:
+		// < 2^64 Feitsma and Galway
+		a = []uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}
+		// Sorenson and Webster[13]
+		// < 318,665,857,834,031,151,167,461 :: a = 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37
+		// < 3,317,044,064,679,887,385,961,981 :: a = 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41
+	}
+	iiLim := len(a)
+	for ii := 0; ii < iiLim; ii++ {
+		res := PrimeProbMillerRabinInner(q, uint64(a[ii]), 1)
+		if 0 != res {
+			return res
+		}
+	}
+	return 0
+}
+
+func JacobiSym(n, d int64) int8 {
+	var ret int8
+	if 0 > d || 0 == d&1 {
+		return -127
+	}
+	// https://en.wikipedia.org/wiki/Jacobi_symbol#Calculating_the_Jacobi_symbol
+	ret = 1
+	// #1 rule 2 ; #3 == Rule 3 ; re-do step 1# rule 2
+	for n %= d; 0 != n; n %= d {
+		// #2 rule 9
+		for 0 == n&1 {
+			n >>= 1
+			// rule 9 ^4 == 3 || 5
+			if 3 == (d&7)&(^4) {
+				ret = -ret
+			}
+		}
+		// #4 flip rule 6 (flip the return if both are 3 in mod 4
+		n, d = d, n
+		if 3 == n&3 && 3 == d&3 {
+			ret = -ret
+		}
+	}
+	// Rule 3 use ret (gcd) if == 1, otherwise 0
+	if 1 == d {
+		return ret
+	}
+	return 0
+}
+
+func PrimeProbLucasStrongInner(n, D, Q, P int64) int64 {
+	// https://en.wikipedia.org/wiki/Lucas_pseudoprime#Strong_Lucas_pseudoprimes
+	// https://en.wikipedia.org/wiki/Lucas_sequence
+	/*
+		var Umm, Vmm, U, V int64
+		U = GCDbin(n, D)
+		if 1 != U {
+			return U
+		}
+		Umm, Vmm, U, V = 0, 2, 1, P // iteration == 1
+
+		//for ... {
+		// Slow loop step style
+		// Umm, Vmm, U, V = U, V, ( (P * Umm + Vmm) / 2 ) % n, ( ((P*P - 4 * Q)*Umm + P*Vmm) / 2 ) % n
+
+		// Faster doubled step
+		Umm, Vmm, U, V = U, V, (U*V)%n, ((V*V+D*U*U)/2)%n
+
+		// 2k+1 step...
+		Umm, Vmm = U, V
+		U, V = P*Umm+Vmm, D*Umm+P*Vmm
+		if U & 1 {
+			U += n
+		}
+		if V & 1 {
+			V += n
+		}
+		U, V = (U/2)%n, (V/2)%n // FIXME ??? Should the mod n be before divide by 2?
+		//}
+	*/
+	return 0
+}
+
+func PrimeProbBailliePSWInner(q int64) int64 {
+	// https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test#The_test
+	// This assumes that no factors were found using
+	// 0# Trial Division (of small primes) E.G. FactorStep0TD(q) // FactorReduceStep0TDlimit(q, 7)
+	// 1# PrimeProbMillerRabinInner(q, n, 1)
+
+	var D, Q, P, qd int64
+	if 0 > q {
+		q = -q
+	}
+	P, D = 1, -3 // become 5 in test 0
+	for ii := 0; ; ii++ {
+		// Remark #4 -- doing an even+odd test each cycle, 10 tests should warrant a square check
+		if 5 == ii {
+			qd = int64(SqrtU64(uint64(q)))
+			if qd*qd == q {
+				return qd
+			}
+		}
+		D = 2 - D
+		Q = int64(JacobiSym(D, q))
+		if -1 == Q {
+			Q = (1 - D) / 4
+			// Remark #5 + FIXME #6 "These two congruences involve almost no extra computational cost, and are only rarely true if n is composite: " V(n+1) = 2Q (mod n) and Q^((n+2)/2) = Q * Q^((n-2)/2) = Q * (Q/n) (mod n)
+			if -1 != Q && 1 != Q {
+				break
+			}
+			ii = 255
+		} else if 0 == Q { // In normal use these should never be reached, since 'convenient small primes' (up to 1000 !?! says the pdf!) covers them
+			return D
+		}
+		D = -2 - D
+		Q = int64(JacobiSym(D, q))
+		if -1 == Q {
+			Q = (1 - D) / 4
+			// Remark #5
+			if -1 != Q && 1 != Q {
+				break
+			}
+			ii = 255
+		} else if 0 == Q {
+			return -D
+		}
+	}
+	//
+	return P - 0
+}
+
 /* Go 1.8+ (at least) has https://pkg.go.dev/math/big@go1.22.6#Int.ProbablyPrime
    It might be useful for uint64 but for trivial code just use the library that already does the right test!
 func (p *BVPrimes) PrimalityTestBig(qt ???) ??? {
@@ -3381,11 +3683,8 @@ func (p *BVPrimes) PrimalityTestBig(qt ???) ??? {
 	//	MR can use rounds of 'base' prime up to 37 for extremely high confidence in numbers < 2^64
 	//	With 41 showing extremely high confidence.  2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41
 
-	smallPrimes := [...]uint8{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41}
-	smallPrimesLen := len(smallPrimes)
-	for ii := 0 ; ii < smallPrimesLen ; ii++ {
-		if 0 == qt % smallPrimes[ii] { return smallPrimes[ii] }
-	}
+	factor := FactorReduceStep0TDlimit(qt, 41)
+	if 0 != factor { return factor }
 
 	// == 2 ==
 	// A is the base BPSW test only uses MR with Base 2 mode anyway.
@@ -3723,9 +4022,7 @@ func (f *Factorized) EulerTotientPhi() uint64 {
 
 func EulerTotientPhi(q, rmin uint64) uint64 {
 	var ret, qd, qdqd uint64
-	//if 2 > q {
-	//	return 1
-	//}
+	var ii, iiLim int
 	qdqd, ret = 1, q
 
 	// https://en.wikipedia.org/wiki/Euler%27s_totient_function#Computing_Euler's_totient_function
@@ -3742,24 +4039,26 @@ func EulerTotientPhi(q, rmin uint64) uint64 {
 	}
 
 	// Start at 1 : skip already checked 2
-	for ii := 1; 1 < q && q > qdqd && rmin < ret && ii <= PrimesSmallU8Mx; ii++ {
+	for ii = 1; 1 < q && q > qdqd && rmin < ret && ii <= PrimesSmallU8Mx; ii++ {
 		qd := uint64(PrimesSmallU8[ii])
 		if 0 == q%qd {
-			ret -= ret / qd // *(1 - 1/qd)
 			for 0 == q%qd {
 				q /= qd
 			}
+			ret -= ret / qd // *(1 - 1/qd)
 		}
 		qdqd = qd * qd
 	}
-	if 1 == q || rmin > ret {
+	// fmt.Printf("%d:\tq: %d\trmin: %d\tret: %d\tqtqd: %d\t\n", qcopy, q, rmin, ret, qdqd)
+	if 1 == q || rmin >= ret {
 		return ret
 	}
 	if q <= qdqd {
 		return ret - ret/q
 	}
 
-	for 1 < q && rmin < ret {
+	ii, iiLim = 0, len(PrimesMoreU16)
+	for 1 < q && rmin < ret && ii < iiLim {
 		// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
 		if q < qdqd || Primes.ProbPrime(q) {
 			// q must be a single prime number
@@ -3769,29 +4068,62 @@ func EulerTotientPhi(q, rmin uint64) uint64 {
 		// pprof-ed slow, but much slower without *shrug*
 		qd = Factor1980PollardMonteCarlo(q, 0)
 		if 0 != qd && 0 == q%qd {
-			ret -= ret / qd // *(1 - 1/qd)
 			for 0 == q%qd {
 				q /= qd
 			}
+			ret -= ret / qd // *(1 - 1/qd)
 			continue
 		}
 
-		for q > qdqd {
-			qd = Primes.PrimeAfter(qd)
+		// fmt.Printf("Debug q16: q: %d\tqdqd: %d\tii: %d\tiiLim %d\n", q, qdqd, ii, iiLim)
+		for q > qdqd && ii < iiLim {
+			qd = uint64(PrimesMoreU16[ii]) // Primes.PrimeAfter(qd)
+			ii++
 			qdqd = qd * qd
 			if 0 == q%qd {
-				ret -= ret / qd // *(1 - 1/qd)
 				for 0 == q%qd {
 					q /= qd
 				}
-				break // 1
+				ret -= ret / qd // *(1 - 1/qd)
+				break           // 1
+			}
+		}
+	}
+	ii, iiLim = 0, len(PrimesMoreU32)
+	for 1 < q && rmin < ret && ii < iiLim {
+		// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
+		if q < qdqd || Primes.ProbPrime(q) {
+			// q must be a single prime number
+			return ret - ret/q
+		}
+
+		// pprof-ed slow, but much slower without *shrug*
+		qd = Factor1980PollardMonteCarlo(q, 0)
+		if 0 != qd && 0 == q%qd {
+			for 0 == q%qd {
+				q /= qd
+			}
+			ret -= ret / qd // *(1 - 1/qd)
+			continue
+		}
+
+		for q > qdqd && ii < iiLim {
+			qd = uint64(PrimesMoreU32[ii]) // Primes.PrimeAfter(qd)
+			ii++
+			qdqd = qd * qd
+			if 0 == q%qd {
+				for 0 == q%qd {
+					q /= qd
+				}
+				ret -= ret / qd // *(1 - 1/qd)
+				break           // 1
 			}
 		}
 	}
 	// qd := FactorStep1RootsFilter(q, uint64(PrimesSmallU8MxVal))
 	// Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
 	//return uint64(FactorLenstraECW(int64(q), int64(PrimesSmallU8MxVal)))
-	return ret
+	return ret - ret/q
 }
 
 /*

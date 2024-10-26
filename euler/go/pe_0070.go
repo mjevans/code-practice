@@ -42,7 +42,8 @@ func Euler0070(toMax uint64) uint64 {
 	ptarget := euler.SqrtU64(toMax) // Most of the runtime is trying to factor difficult numbers, the edge cases dominate...
 	// ptarget := uint64(500_000) // Tried adding better root / square root functions, Factorizing is still too expensive...  Unsure if I need a better Factorizing method, better Phi method, or both.
 	fmt.Printf("Finding primes to %d\n", ptarget)
-	euler.Primes.Grow(ptarget)
+	// euler.Primes.Grow(ptarget)
+	euler.Primes.PrimeGlobalList(ptarget)
 	bestF, bestFI = 3.00, 3 // Not really but I know this value is higher than a real best which is 2 so...
 Euler0070ii:
 	for ii = toMax; 2 <= ii; ii-- {
@@ -74,7 +75,7 @@ Euler0070ii:
 }
 
 /*
-	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 70 ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 70 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
 Found new best N/phi: 5050429/5045920 ~= 1.0008935932396867407589979848125949501991 > 1.0010763255282499883946911722887307405472
 Found new best N/phi: 5380657/5375860 ~= 1.0008923223447039330125107881030999124050 > 1.0008935932396867407589979848125949501991
