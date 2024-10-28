@@ -9,6 +9,7 @@ import (
 	"container/heap"
 	"euler" // I would __really__ like Go to just support path relative imports E.G. "./euler" means, just look in the CWD, it's here.
 	"fmt"
+	"math/big"
 	"testing"
 )
 
@@ -577,13 +578,15 @@ func TestOverkillVerifyPrimeTests(t *testing.T) {
 		}
 	}
 	_ = testProbablyPrime
-	t.Logf("\n\nSKIPPING the SOME large PrimeOptiTestMillerRabin tests, still working on the 128bit UU64DivQD for slow-path modulus required for numbers >32 bits\n\n")
+
+	// t.Logf("\n\nSKIPPING the SOME large PrimeOptiTestMillerRabin tests, still working on the 128bit UU64DivQD for slow-path modulus required for numbers >32 bits\n\n")
 	for _, test := range testProbablyPrime {
-		if 0x1_0000_0000 < test.num {
-			continue
-		}
+		//if 0x1_0000_0000 < test.num {
+		//	continue
+		//}
+		// t.Logf("testing: 0x%x\n", test.num)
 		if test.isPrime != (0 == euler.PrimeOptiTestMillerRabin(test.num)) {
-			t.Errorf("PrimeOptiTestMillerRabin returned incorrect result for %d\n", test.num)
+			t.Fatalf("PrimeOptiTestMillerRabin returned incorrect result for 0x%x\n", test.num)
 		}
 	}
 	for ii := uint64(3); ii <= limit && 10 > errors; ii++ {
@@ -1235,6 +1238,52 @@ func TestGeneralMaths(t *testing.T) {
 			t.Errorf("Expected results: ExtendedGCDI64(%d, %d) => %d, %d, %d got %d, %d, %d\n", test.a, test.b, test.s, test.t, test.gcd, s, tN, gcd)
 		}
 	}
+
+	b1, b0 := big.NewInt(1), big.NewInt(0)
+	b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
+	b1.Add(b1, b0)
+	b0.Mul(b0, b0)
+	// t.Logf("b0: %s / b1: %s\n", b0.Text(16), b1.Text(16))
+	b0.DivMod(b0, b1, b1)
+	// t.Logf("Match: %s , %s\n", b0.Text(16), b1.Text(16))
+
+	testUU64Mul := []struct {
+		a, b, h, l uint64
+	}{
+		{0x8000_0000_0000_0000, 0x8000_0000_0000_0000, 0x4000_0000_0000_0000, 0},
+		{0x1_0000_0000, 0x0001_1000, 0, 0x1_1000_0000_0000},
+		{0x1000_0000, 0x0001_1000, 0, 0x1100_0000_0000},
+		{0xFFFF_FFFF_FFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF, b0.Uint64(), b1.Uint64()},
+		{0xffffffffffffffc5, 0xcc5fb7b7273cc444, 0xcc5fb7b7273cc414, 0x1_4bfc_0325_6092_5a99 - 0x660b_5a5b_6b93_9645},
+		{0x4060148b2d3fffff, 0x7ffffffffffffe79, 0x20300a45969fff9d, 0x2d409f6de3400187},
+		{0xe4bc2b74f0572bbb, 0xe4bc2b74f0572bbb, 0xcc5fb7b8273cc415, 0x4bfc032560925a99},
+	}
+	for _, test := range testUU64Mul {
+		h, l := euler.UU64Mul(test.a, test.b)
+		if test.h != h || test.l != l {
+			t.Errorf("Expected results: UU64Mul(0x%x, 0x%x) => 0x%x, 0x%x got 0x%x, 0x%x\n", test.a, test.b, test.h, test.l, h, l)
+		}
+	}
+
+	testUU64SubUU64 := []struct {
+		ah, al, bh, bl, rh, rl uint64
+	}{
+		{1, 0, 0, 1, 0, ^uint64(0)},
+		{2, 0, 0, 1, 1, ^uint64(0)},
+		{3, 1, 0, 1, 3, 0},
+		{4, 1, 0, 1, 4, 0},
+		{5, 2, 0, 1, 5, 1},
+		{6, 2, 0, 1, 6, 1},
+		{7, 2, 0, 4, 6, ^uint64(1)},
+		{8, 2, 0, 5, 7, ^uint64(2)},
+	}
+	for _, test := range testUU64SubUU64 {
+		rh, rl := euler.UU64SubUU64(test.ah, test.al, test.bh, test.bl)
+		if test.rh != rh || test.rl != rl {
+			t.Errorf("Expected results: UU64SubUU64(0x%x_%x, 0x%x_%x) => 0x%x, 0x%x got 0x%x, 0x%x\n", test.ah, test.al, test.bh, test.bl, test.rh, test.rl, rh, rl)
+		}
+	}
+
 }
 
 /*

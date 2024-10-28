@@ -426,7 +426,7 @@ func UU64Mul(a, b uint64) (uint64, uint64) {
 	// https://en.wikipedia.org/wiki/Karatsuba_algorithm
 	// https://en.wikipedia.org/wiki/Toom%E2%80%93Cook_multiplication (Karatsuba AKA Toom-2)
 	var z1minus bool
-	var Ah, Al, Bh, Bl, Z2, Z1, Z0 uint64
+	var Ah, Al, Bh, Bl, Z2, Z0 uint64
 	Al = uint64(a)
 	Bl = uint64(b)
 	// fixed split @ 32 bits
@@ -437,25 +437,31 @@ func UU64Mul(a, b uint64) (uint64, uint64) {
 		Al = Ah - Al
 		z1minus = !z1minus
 	} else {
-		Al -= Ah
+		Al = Al - Ah
 	}
 	if Bh < Bl {
 		Bl = Bl - Bh
 		z1minus = !z1minus
 	} else {
-		Bl -= Bh
+		Bl = Bh - Bl
 	}
 	Ah = Al * Bl
+	// if 0x7ffffffffffffe79 == b {
+	//	fmt.Printf("UU64Mul: Z1: %#x =? %x * %x (z1-%t)\n", Ah, Al, Bl, z1minus)
+	// 0x9900A28DD20B2B8
+	// 0x9900a28dd20b2b8
+	//}
+	// Every step of Z1 might overflow, in assembly the carry flags could help, but higher level it's just less errant to use the wider functions
+	_, Bh, Bl = UU64AddUU64(0, Z2, 0, Z0) // Z1
 	if z1minus {
-		Z1 = Z2 + Z0
-		if Z1 < Ah {
-			fmt.Printf("MulOF64Mod: Programmer Logic Error, Term Z1, %d < %d\n", Z1, Ah)
-		}
-		Z1 -= Ah
+		Bh, Bl = UU64SubUU64(Bh, Bl, 0, Ah)
 	} else {
-		Z1 = Z2 + Z0 + Ah
+		_, Bh, Bl = UU64AddUU64(Bh, Bl, 0, Ah)
 	}
-	Ah, Al = Z1>>16, (Z1&0xFFFF)<<16
+	Ah, Al = Bh<<32|Bl>>32, (Bl&0xFFFF_FFFF)<<32
+	// if 0xe4bc2b74f0572bbb == b {
+	//	fmt.Printf("UU64Mul: debug: %16x + %x .. %16x + %x (z1-%t)\n", Z2, Ah, Z0, Al, z1minus)
+	// }
 	Z0 += Al
 	if Z0 < Al {
 		Ah++ // addition overflowed, add it to the high half
@@ -465,17 +471,184 @@ func UU64Mul(a, b uint64) (uint64, uint64) {
 	//
 	// Mul complete... 128 bit split word Z2, Z0
 	//
+	b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
+	b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
+	b1.Add(b1, b0)
+	b0.SetUint64(a)
+	bd.SetUint64(b)
+	b0.Mul(b0, bd)
+	b0.DivMod(b0, b1, b1)
+	if Z2 != b0.Uint64() || Z0 != b1.Uint64() {
+		fmt.Printf("UU64Mul: Output does not match (%#x, %#x) should be %#x %x got %#x %x\n", a, b, b0.Uint64(), b1.Uint64(), Z2, Z0)
+		panic("UU64Mul")
+	}
+
 	return Z2, Z0
 }
 
+func UU64AddUU64(ah, al, bh, bl uint64) (uint64, uint64, uint64) {
+	var carry uint64
+	bl = al + bl
+	// modulo overflow
+	if bl < al {
+		carry++
+	}
+	bh = ah + bh + carry
+	carry = 0
+	// modulo overflow
+	if bh < ah {
+		carry++
+	}
+	return carry, bh, bl
+}
+
+// Note, data is passed around as uint64s but underflow can result in negative numbers that are binary equal to int64s
+func UU64SubUU64(ah, al, bh, bl uint64) (uint64, uint64) {
+	bl = al - bl
+	// modulo wrap occurred
+	if bl > al {
+		ah--
+	}
+	return ah - bh, bl
+}
+
+func UU64Cmp(ah, al, bh, bl uint64) int {
+	if ah > bh {
+		return 1
+	}
+	if ah < bh {
+		return -1
+	}
+	if al > bl {
+		return 1
+	}
+	if al < bl {
+		return -1
+	}
+	return 0 // ==
+}
+
 func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
-	// https://en.wikipedia.org/wiki/Division_algorithm#Newton%E2%80%93Raphson_division
-	panic("UU64DivQD")
+	// https://en.wikipedia.org/wiki/Division_algorithm#Large-integer_methods
+	// ~~ Vaguely inspired by https://en.wikipedia.org/wiki/Division_algorithm#Newton%E2%80%93Raphson_division
+	var X, low, high, rh, rl, r, th, tl uint64
+	// if 0xffffffffffffffc5 == d {
+	//	fmt.Printf("UU64DivQD: Invoked with 0x%x, 0x%x, 0x%x\n", h, l, d)
+	//}
+	if 0 == d {
+		fmt.Printf("UU64DivQD: Division by Zero, no error path, returning zero. %x_%16x / %x", h, l, d)
+		return 0, 0, 0
+	}
+	if 1 == d {
+		return h, l, 0
+	}
+	// Ponder: is it worth trying to detect an exact power of 2 divisor?
+	if 0 == h {
+		// Fast path, there's no high part
+		l, r = l/d, l%d
+		return 0, l, r
+	}
+
+	low, high = 0, ^uint64(0)
+	// https://en.wikipedia.org/wiki/Binary_search -- sort of
+	for low != high {
+		// X= (low + high) / 2 // without overflow
+		X = (low >> 1) + (high >> 1) + (low&1)&(high&1)
+		th, tl = UU64Mul(X, d)
+		rh, rl = UU64SubUU64(h, l, th, tl)
+		cmp := UU64Cmp(h, l, th, tl)
+		// if 0xffffffffffffffc5 == d && 0xcc5fb7b7273cc415 == h && 0x4bfc032560925a99 == l {
+		//	fmt.Printf("debug trace: %x : l %16x h %16x\tX: %16x\tsub %16x %16x\n", d, low, high, X, rh, rl)
+		//}
+		if 0 == rh {
+			// fmt.Printf("Debug return rh 0\n")
+			if 0 == rl {
+				// Winner
+				return 0, X, 0
+			}
+			// Runner Up
+			rh, r = rl/d, rl%d
+			rh += X
+			if rh < X {
+				return 1, rh, r
+			}
+			return 0, rh, r
+		} else if 1 == rh && rl < (d-1) {
+			// fmt.Printf("debug rh1: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, X, h, l, th, tl, rh, rl)
+			// Edge cases like: 0x2 , 0xfffffffffffff8d5 , 0x3fffffffffffff67
+			rl += 1 + ((^uint64(0)) % d)
+			if rl >= d {
+				X++
+				rl %= d
+			}
+			rh = X + ((^uint64(0)) / d) + (((^uint64(0))%d)+1+rl)/d
+			if rh < X {
+				return 1, rh, rl
+			}
+			return 0, rh, rl
+		} else if -1 == cmp {
+			// X*d > h_l
+			high = X - 1
+		} else {
+			// X*d < h_l -- If rh == 1 the remainder may be at this location
+			low = X + 1
+		}
+	}
+	th, tl = UU64Mul(low, d)
+	rh, rl = UU64SubUU64(h, l, th, tl)
+	fmt.Printf("debug outer: %x : l %16x h %16x\tX: %16x\tsub %16x %16x\n", d, low, high, low, rh, rl)
+	if 0 == rh && rl < d {
+		fmt.Printf("Debug return Outer\n")
+		return 0, low, rl
+	}
+	fmt.Printf("debug outer: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, low, h, l, th, tl, rh, rl)
+	b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
+	b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
+	b1.Add(b1, b0)
+	b0.SetUint64(h)
+	b0.Mul(b0, b1)
+	bd.SetUint64(l)
+	b0.Add(b0, bd)
+	bd.SetUint64(d)
+	b0.DivMod(b0, bd, b1)
+	fmt.Printf("Big Div: q: 0x%s\tr: 0x%s\n", b0.Text(16), b1.Text(16))
+	// 0xcc5fb7b7273cc444
+	//   cc5fb7b7cc5fb7b6
+	panic("exit")
+	// d is _way_ smaller than h_l
+	// low has become the low of the quotient
+	th, tl, r = UU64DivQD(rh, rl, d)
+	high, th, tl = UU64AddUU64(th, tl, 0, low)
+	// fmt.Printf("debug unstk: %x : l %16x r %16x\th: %16x\tadd %16x %16x\n", d, low, r, high, rh, rl)
+	if 0 != high {
+		fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should not have overflowed, this should be unreachable.\n", h, l, d)
+		panic("too big")
+	} else {
+		fmt.Printf("Debug return Outer 2\n")
+		return th, tl, r
+	}
+	fmt.Printf("debug back failed: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\n", d, low, h, l, th, tl)
+	panic("what now?")
+
+	fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should have returned during the binary search rather than exited. This should be unreachable.\n", h, l, d)
+	// panic("UU64DivQD")
 	return 0, 0, 0
 }
 
 func UU64Mod(h, l, mod uint64) uint64 {
-	_, _, r := UU64DivQD(h, l, mod)
+	b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
+	b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
+	b1.Add(b1, b0)
+	b0.SetUint64(h)
+	b0.Mul(b0, b1)
+	bd.SetUint64(l)
+	b0.Add(b0, bd)
+	bd.SetUint64(mod)
+	b0.DivMod(b0, bd, b1)
+	qh, ql, r := UU64DivQD(h, l, mod)
+	if b1.Uint64() != r {
+		fmt.Printf("Big Div: %x %x / %x =>\tq: 0x%s\tr: 0x%s\t got: %x %x r %x\n", h, l, mod, b0.Text(16), b1.Text(16), qh, ql, r)
+	}
 	return r
 }
 
@@ -506,8 +679,7 @@ func BitsLeadingZeros64[INT ~uint | ~int | ~uint64 | ~int64](n INT) int {
 	return zeros
 }
 
-// I don't know any shortcuts, just do it the obvious way
-// I've (re?)learned of better ways https://en.wikipedia.org/wiki/Modular_exponentiation#Right-to-left_binary_method
+// Compatibility interface
 func PowU64(n, pow uint64) uint64 {
 	return PowInt(n, pow)
 }
@@ -526,6 +698,7 @@ func PowInt[INT ~uint | ~int | ~uint64 | ~int64](n, pow INT) INT {
 		return INT(1) << pow
 	}
 
+	//  (re?)learned of better ways https://en.wikipedia.org/wiki/Modular_exponentiation#Right-to-left_binary_method
 	// MSB (set) to LSB ; each step will be either np*np OR np*np + n
 	// 100 == n*n, n*n * n*n ; 101 == n*n, n*n n*n * n
 	var np INT
