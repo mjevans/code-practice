@@ -204,6 +204,7 @@ const (
 	PrimesSmallU8MxVal          = 251
 	PrimesSmallU8MxValCompAfter = 256
 	PrimesSmallU8MxValPow2After = 0x1_0000 // 256 * 256
+	Debug128bitInts             = false
 )
 
 var (
@@ -471,16 +472,18 @@ func UU64Mul(a, b uint64) (uint64, uint64) {
 	//
 	// Mul complete... 128 bit split word Z2, Z0
 	//
-	b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
-	b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
-	b1.Add(b1, b0)
-	b0.SetUint64(a)
-	bd.SetUint64(b)
-	b0.Mul(b0, bd)
-	b0.DivMod(b0, b1, b1)
-	if Z2 != b0.Uint64() || Z0 != b1.Uint64() {
-		fmt.Printf("UU64Mul: Output does not match (%#x, %#x) should be %#x %x got %#x %x\n", a, b, b0.Uint64(), b1.Uint64(), Z2, Z0)
-		panic("UU64Mul")
+	if Debug128bitInts {
+		b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
+		b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
+		b1.Add(b1, b0)
+		b0.SetUint64(a)
+		bd.SetUint64(b)
+		b0.Mul(b0, bd)
+		b0.DivMod(b0, b1, b1)
+		if Z2 != b0.Uint64() || Z0 != b1.Uint64() {
+			fmt.Printf("UU64Mul: Output does not match (%#x, %#x) should be %#x %x got %#x %x\n", a, b, b0.Uint64(), b1.Uint64(), Z2, Z0)
+			panic("UU64Mul")
+		}
 	}
 
 	return Z2, Z0
@@ -594,60 +597,66 @@ func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
 			low = X + 1
 		}
 	}
-	th, tl = UU64Mul(low, d)
-	rh, rl = UU64SubUU64(h, l, th, tl)
-	fmt.Printf("debug outer: %x : l %16x h %16x\tX: %16x\tsub %16x %16x\n", d, low, high, low, rh, rl)
-	if 0 == rh && rl < d {
-		fmt.Printf("Debug return Outer\n")
-		return 0, low, rl
-	}
-	fmt.Printf("debug outer: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, low, h, l, th, tl, rh, rl)
-	b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
-	b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
-	b1.Add(b1, b0)
-	b0.SetUint64(h)
-	b0.Mul(b0, b1)
-	bd.SetUint64(l)
-	b0.Add(b0, bd)
-	bd.SetUint64(d)
-	b0.DivMod(b0, bd, b1)
-	fmt.Printf("Big Div: q: 0x%s\tr: 0x%s\n", b0.Text(16), b1.Text(16))
-	// 0xcc5fb7b7273cc444
-	//   cc5fb7b7cc5fb7b6
-	panic("exit")
-	// d is _way_ smaller than h_l
-	// low has become the low of the quotient
-	th, tl, r = UU64DivQD(rh, rl, d)
-	high, th, tl = UU64AddUU64(th, tl, 0, low)
-	// fmt.Printf("debug unstk: %x : l %16x r %16x\th: %16x\tadd %16x %16x\n", d, low, r, high, rh, rl)
-	if 0 != high {
-		fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should not have overflowed, this should be unreachable.\n", h, l, d)
-		panic("too big")
-	} else {
-		fmt.Printf("Debug return Outer 2\n")
-		return th, tl, r
-	}
-	fmt.Printf("debug back failed: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\n", d, low, h, l, th, tl)
-	panic("what now?")
+	fmt.Printf("debug: UU64DivQD: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, X, h, l, th, tl, rh, rl)
+	panic("UU64DivQD: 128bit div: This should not be reached.  Expected return path is via binary search resolution.")
+	/*
+		th, tl = UU64Mul(low, d)
+		rh, rl = UU64SubUU64(h, l, th, tl)
+		fmt.Printf("debug outer: %x : l %16x h %16x\tX: %16x\tsub %16x %16x\n", d, low, high, low, rh, rl)
+		if 0 == rh && rl < d {
+			fmt.Printf("Debug return Outer\n")
+			return 0, low, rl
+		}
+		fmt.Printf("debug outer: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, low, h, l, th, tl, rh, rl)
+		b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
+		b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
+		b1.Add(b1, b0)
+		b0.SetUint64(h)
+		b0.Mul(b0, b1)
+		bd.SetUint64(l)
+		b0.Add(b0, bd)
+		bd.SetUint64(d)
+		b0.DivMod(b0, bd, b1)
+		fmt.Printf("Big Div: q: 0x%s\tr: 0x%s\n", b0.Text(16), b1.Text(16))
+		// 0xcc5fb7b7273cc444
+		//   cc5fb7b7cc5fb7b6
+		panic("exit")
+		// d is _way_ smaller than h_l
+		// low has become the low of the quotient
+		th, tl, r = UU64DivQD(rh, rl, d)
+		high, th, tl = UU64AddUU64(th, tl, 0, low)
+		// fmt.Printf("debug unstk: %x : l %16x r %16x\th: %16x\tadd %16x %16x\n", d, low, r, high, rh, rl)
+		if 0 != high {
+			fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should not have overflowed, this should be unreachable.\n", h, l, d)
+			panic("too big")
+		} else {
+			fmt.Printf("Debug return Outer 2\n")
+			return th, tl, r
+		}
+		fmt.Printf("debug back failed: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\n", d, low, h, l, th, tl)
+		panic("what now?")
 
-	fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should have returned during the binary search rather than exited. This should be unreachable.\n", h, l, d)
-	// panic("UU64DivQD")
+		fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should have returned during the binary search rather than exited. This should be unreachable.\n", h, l, d)
+		// panic("UU64DivQD")
+	*/
 	return 0, 0, 0
 }
 
 func UU64Mod(h, l, mod uint64) uint64 {
-	b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
-	b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
-	b1.Add(b1, b0)
-	b0.SetUint64(h)
-	b0.Mul(b0, b1)
-	bd.SetUint64(l)
-	b0.Add(b0, bd)
-	bd.SetUint64(mod)
-	b0.DivMod(b0, bd, b1)
 	qh, ql, r := UU64DivQD(h, l, mod)
-	if b1.Uint64() != r {
-		fmt.Printf("Big Div: %x %x / %x =>\tq: 0x%s\tr: 0x%s\t got: %x %x r %x\n", h, l, mod, b0.Text(16), b1.Text(16), qh, ql, r)
+	if Debug128bitInts {
+		b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
+		b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
+		b1.Add(b1, b0)
+		b0.SetUint64(h)
+		b0.Mul(b0, b1)
+		bd.SetUint64(l)
+		b0.Add(b0, bd)
+		bd.SetUint64(mod)
+		b0.DivMod(b0, bd, b1)
+		if b1.Uint64() != r {
+			fmt.Printf("Big Div: %x %x / %x =>\tq: 0x%s\tr: 0x%s\t got: %x %x r %x\n", h, l, mod, b0.Text(16), b1.Text(16), qh, ql, r)
+		}
 	}
 	return r
 }
@@ -3634,6 +3643,9 @@ Having stated that, it's also time for me to throw out the nearly working initia
 
 
 */
+
+
+// FIXME: TODO: Restructure to work with 128bit intermediary values if necessary, unsigned numbers.
 
 func FactorLenstraECW(q, maxTestedPrime int64) int64 {
 
