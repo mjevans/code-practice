@@ -343,16 +343,253 @@ func FactorialDivFactU64toBig(ii, div uint64) *big.Int {
 	return ret
 }
 
+/*
+	A challenge to help me better understand a method.
+	It's obvious if considering E.G. u8 vs u16 how 256*256 is 65536 or rather, how 255*255 can't overflow 65535.
+	If the number is small take the fast path and do things with native ints that fit.
+	Otherwise, 'make it fit'.
+
+	E.G. Consider the toy example of nibbles, 4 bit values.  Their values can't overflow an octet / byte, but they are good toy examples.
+	5 * 4 = 101 * 100  Oh no, it overflows the nibble as 10100
+
+	An idea I came across in search results; split the value up so it doesn't overflow.  Though I didn't look at enough detail to know exactly how.
+	5 * 4	=> 101 * 100
+	01 01 * 01 00
+	h*h		l*l
+	01 (0000)	00	|= 010000  That got the high bits correct, but it's missing 100  The patterns don't make it clear enough where that should come from though...
+
+	01 11 * 10 00 (7*8 = 56 = 111000)
+	10 (0000)	00	|= 100000  H0*H1 + L0*L1 missing H0*L1 and H1*L0 ?
+	10 (0000) + 0110 (00) + 0000 (00) + 00	|=	111000
+
+	Also, if the two numbers are known to be the same number, the middle term is doubled (<<1); though that seems unlikely to matter for long when a modulus is involved.
+
+	That makes this much easier to follow.
+
+	However, there's better:
+	https://en.wikipedia.org/wiki/Karatsuba_algorithm
+	https://en.wikipedia.org/wiki/Toom%E2%80%93Cook_multiplication (Karatsuba aka Toom-2)
+	2019~2021 Annals of Mathematics https://en.wikipedia.org/wiki/Multiplication_algorithm#Further_improvements
+
+	Modulus though...
+	https://en.wikipedia.org/wiki/Division_algorithm#Integer_division_(unsigned)_with_remainder
+	https://en.wikipedia.org/wiki/Binary_number#Division
+	Maybe good for education of those new to math https://en.wikipedia.org/wiki/Chunking_(division) https://en.wikipedia.org/wiki/Long_division
+	Considering these
+	https://en.wikipedia.org/wiki/Fourier_division
+	** https://en.wikipedia.org/wiki/Division_algorithm#Newton%E2%80%93Raphson_division
+	https://en.wikipedia.org/wiki/Short_division#Modulo_division << Appealing at a glance as it's direct BUT, this would require operation across H+L as one word.
+	Interesting
+	https://en.wikipedia.org/wiki/Division_algorithm#Goldschmidt_division
+	https://en.wikipedia.org/wiki/Division_algorithm#SRT  F00F
+
+
+
+
+*/
+
+func MulOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
+	var minus bool
+	var Al, Bl uint64
+	minus = false
+	if 0 > a {
+		Al = uint64(-a)
+		minus = !minus
+	} else {
+		Al = uint64(a)
+	}
+	if 0 > b {
+		Bl = uint64(-b)
+		minus = !minus
+	} else {
+		Bl = uint64(b)
+	}
+	bits := BitsLeadingZeros64(Al) + BitsLeadingZeros64(Bl)
+	if bits >= 64 {
+		// a and b fit the fast path this time!!!
+		// This misses _some_ cases that fit, but a full check should cost about as much as taking the slow path
+		// E.G. 0x7F * 0x02 1 bit + 6 bits == 7 bit fits, but 0x7F * 0x03 does not fit 8 bits.  F*F fits (E1) as would F*0x11 , but not 0x12
+		if minus {
+			return -INT((Al * Bl) % uint64(mod))
+		}
+		return INT((Al * Bl) % uint64(mod))
+	}
+
+	Al, Bl = UU64Mul(Al, Bl)
+	if minus {
+		return -INT(UU64Mod(Al, Bl, uint64(mod)))
+	}
+	return INT(UU64Mod(Al, Bl, uint64(mod)))
+}
+
+func UU64Mul(a, b uint64) (uint64, uint64) {
+	// https://en.wikipedia.org/wiki/Karatsuba_algorithm
+	// https://en.wikipedia.org/wiki/Toom%E2%80%93Cook_multiplication (Karatsuba AKA Toom-2)
+	var z1minus bool
+	var Ah, Al, Bh, Bl, Z2, Z1, Z0 uint64
+	Al = uint64(a)
+	Bl = uint64(b)
+	// fixed split @ 32 bits
+	Ah, Al, Bh, Bl = Al>>32, Al&0xFFFF_FFFF, Bl>>32, Bl&0xFFFF_FFFF
+	Z2, Z0 = Ah*Bh, Al*Bl
+	z1minus = false
+	if Al < Ah {
+		Al = Ah - Al
+		z1minus = !z1minus
+	} else {
+		Al -= Ah
+	}
+	if Bh < Bl {
+		Bl = Bl - Bh
+		z1minus = !z1minus
+	} else {
+		Bl -= Bh
+	}
+	Ah = Al * Bl
+	if z1minus {
+		Z1 = Z2 + Z0
+		if Z1 < Ah {
+			fmt.Printf("MulOF64Mod: Programmer Logic Error, Term Z1, %d < %d\n", Z1, Ah)
+		}
+		Z1 -= Ah
+	} else {
+		Z1 = Z2 + Z0 + Ah
+	}
+	Ah, Al = Z1>>16, (Z1&0xFFFF)<<16
+	Z0 += Al
+	if Z0 < Al {
+		Ah++ // addition overflowed, add it to the high half
+	}
+	Z2 += Ah
+
+	//
+	// Mul complete... 128 bit split word Z2, Z0
+	//
+	return Z2, Z0
+}
+
+func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
+	// https://en.wikipedia.org/wiki/Division_algorithm#Newton%E2%80%93Raphson_division
+	panic("UU64DivQD")
+	return 0, 0, 0
+}
+
+func UU64Mod(h, l, mod uint64) uint64 {
+	_, _, r := UU64DivQD(h, l, mod)
+	return r
+}
+
+func BitsLeadingZeros64[INT ~uint | ~int | ~uint64 | ~int64](n INT) int {
+	var test uint64
+	var zeros, shift int
+	shift = 64 // bits
+	// var negative bool // if it's negative, or even just a signed int, the leading sign bit should be assumed by the collar
+	// math/bits doesn't have Len functions for signed integers
+	if 0 > n {
+		test = uint64(-(n + 1))
+	} else {
+		test = uint64(n)
+	}
+	if 0 == n {
+		return shift
+	}
+	// math/bits uses a look-up table for the last byte, but I'll trust in the branch predictor, cache, and tighter code; or if I'm wrong the compiler to be smart enough to unroll this 6 times
+	for 1 < shift {
+		shift >>= 1
+		if (uint64(1) << shift) <= test {
+			test >>= shift
+		} else {
+			zeros += shift
+		}
+		// fmt.Printf("BLZ: %d\ts: %d\tz: %d\tt: %d\n", n, shift, zeros, test)
+	}
+	return zeros
+}
+
 // I don't know any shortcuts, just do it the obvious way
+// I've (re?)learned of better ways https://en.wikipedia.org/wiki/Modular_exponentiation#Right-to-left_binary_method
 func PowU64(n, pow uint64) uint64 {
-	if 0 == pow {
+	return PowInt(n, pow)
+}
+
+func PowInt[INT ~uint | ~int | ~uint64 | ~int64](n, pow INT) INT {
+	if 0 >= pow {
 		return 1
 	}
-	ret := n
-	for pow--; pow > 0; pow-- {
-		ret *= n
+	if 1 == pow {
+		return n
 	}
-	return ret
+	//
+	// PowInt does not guard against overflow, the answer won't fit anyway in those cases; and implicitly *mod* (U64Limit) this is the only possible answer.
+	//
+	if 2 == n {
+		return INT(1) << pow
+	}
+
+	// MSB (set) to LSB ; each step will be either np*np OR np*np + n
+	// 100 == n*n, n*n * n*n ; 101 == n*n, n*n n*n * n
+	var np INT
+	np = n // Always one is the first N ;; -1 to move from leading zeros to first one, then another -1 to move over the first 1 (MSB) into the first variable point.
+	for mask := INT(1) << (64 - BitsLeadingZeros64(pow) - 2); 0 < mask; mask >>= 1 {
+		// fmt.Printf("%05b\n%05b\n\n", pow, mask)
+		np *= np // double
+		if 0 < pow&mask {
+			np *= n // times n
+			//} else {
+		}
+	}
+	return np
+}
+
+func PowIntMod[INT ~uint | ~uint64 | ~int | ~int64](n, pow, mod INT) INT {
+	if 1 >= mod {
+		if 0 == mod {
+			fmt.Printf("PowIntMod(%d, %d, %d) incorrect arguments, modulus cannot be <1", n, pow, mod)
+			panic("Modulus cannot be < 1")
+		}
+		return 0 // Zero should be an incorrect mod...
+	}
+	if 0 >= pow {
+		return 1
+	}
+
+	n %= mod
+	if 1 == pow {
+		return n
+	}
+	if 2 == n && 64 > pow {
+		return (INT(1) << pow) % mod
+	}
+	var np, n64, pow64, mod64, mask uint64
+	// NP == Always one is the first N ;; -1 to move from leading zeros to first one, then another -1 to move over the first 1 (MSB) into the first variable point.
+	np, n64, pow64, mod64 = uint64(n), uint64(n), uint64(pow), uint64(mod)
+
+	// Test for overflow of (mod-1) * (mod-1) and divert to 'overflow' path.
+	if BitsLeadingZeros64((mod64 - 1)) >= 32 {
+		// No overflow, fast path
+
+		// MSB (set) to LSB ; each step will be either np*np OR np*np + n
+		// 100 == n*n, n*n * n*n ; 101 == n*n, n*n n*n * n
+		for mask = 1 << (64 - BitsLeadingZeros64(pow64) - 2); 0 < mask; mask >>= 1 {
+			// fmt.Printf("%05b\n%05b\n\n", pow, mask)
+			np = (np * np) % mod64 // double
+			if 0 < pow64&mask {
+				np = (np * n64) % mod64 // times n
+				//} else {
+			}
+		}
+	} else {
+		// Overflows possible slow path
+		for mask = 1 << (64 - BitsLeadingZeros64(pow64) - 2); 0 < mask; mask >>= 1 {
+			// fmt.Printf("%05b\n%05b\n\n", pow, mask)
+			np = MulOF64Mod(np, np, mod64) // double
+			if 0 < pow64&mask {
+				np = MulOF64Mod(np, n64, mod64) // times n
+				//} else {
+			}
+		}
+	}
+	return INT(np)
 }
 
 func SqrtU64(ii uint64) uint64 {
@@ -3052,7 +3289,7 @@ func FactorStep1RootsFilter(q, maxTestedPrime uint64) uint64 {
 	// Test higher roots until beneath the highest division tested prime, 41^4 ~= 2.8M ; 41^5 ~= 115.8M
 	for ii := uint64(3); roottest > maxTestedPrime; ii++ {
 		roottest = RootU64(q, ii)
-		if q == PowU64(roottest, ii) {
+		if q == PowInt(roottest, ii) {
 			return roottest
 		}
 	}
@@ -3463,6 +3700,9 @@ func PrimeProbMillerRabinInner(n, blim uint64, prob uint8) uint64 {
 	// Returns 0 if 'might be prime', 1 if it's composite but unfactored, and (multiple of factor(s)) otherwise
 	// blim allows targeted tests by an external function https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Testing_against_small_sets_of_bases
 	var a, x, s, d, y uint64
+	if 0 == n&1 {
+		return 2
+	}
 	if 0 == prob {
 		prob = 1
 	}
@@ -3487,7 +3727,8 @@ func PrimeProbMillerRabinInner(n, blim uint64, prob uint8) uint64 {
 		s++
 		d >>= 1
 	}
-	if n-1 != d<<s {
+	if n-1 != d<<s || 1 != d&1 || 0 == s {
+		fmt.Printf("n-1 ? 2^d => %d == %d\ts: %d\td: %d\n", n-1, d<<s, s, d)
 		panic("Programmer Logic Error!")
 	}
 	// for d * (1 << s) != a {
@@ -3498,17 +3739,18 @@ func PrimeProbMillerRabinInner(n, blim uint64, prob uint8) uint64 {
 		if 1 < blim {
 			a, prob = blim, 1
 		} else {
-			a = PSRand.RandInt(n-2) + 2
+			a = PSRand.RandInt(n-4) + 2
 		}
-		x = PowU64(a, d) % n
+		x = PowIntMod(a, d, n)
 		for ; 0 < s; s-- {
-			y = (x * x) % n
-			if 1 == y && 1 != x && x != n {
+			y = PowIntMod(x, 2, n)
+			if 1 == y && 1 != x && x != n-1 {
 				return GCDbin(x-1, n)
 			}
 			x = y
 		}
 		if 1 != y {
+			// fmt.Printf("\tx: %d\ty: %d", x, y)
 			return 1
 		}
 	}
@@ -3517,6 +3759,7 @@ func PrimeProbMillerRabinInner(n, blim uint64, prob uint8) uint64 {
 
 func PrimeOptiTestMillerRabin(q uint64) uint64 {
 	var a []uint8
+	// https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Testing_against_small_sets_of_bases
 	// Pomerance, Selfridge, Wagstaff[4] and Jaeschke
 	switch {
 	case 2047 > q:
@@ -3531,8 +3774,12 @@ func PrimeOptiTestMillerRabin(q uint64) uint64 {
 		a = []uint8{2, 3, 5, 7}
 	case 4_759_123_141 > q:
 		a = []uint8{2, 7, 61}
-	//case 1_122_004_669_633 > q:
-	//	a = []uint8{2,13,23,1_662_803} // THIS is the only outlier for uint16, let alone uint8 which every other number falls into; and it's only one less test than the 2 billion seq
+	case 1_122_004_669_633 > q:
+		a = []uint8{2, 13, 23} // ,1_662_803  THIS is the only outlier for uint16, let alone uint8 which every other number falls into
+		res := PrimeProbMillerRabinInner(q, 1_662_803, 1)
+		if 0 != res {
+			return res // These don't have to be run in any particular order?  Probably fine...
+		}
 	case 2_152_302_898_747 > q:
 		a = []uint8{2, 3, 5, 7, 11}
 	case 3_474_749_660_383 > q:
@@ -3617,6 +3864,14 @@ func PrimeProbLucasStrongInner(n, D, Q, P int64) int64 {
 		}
 		U, V = (U/2)%n, (V/2)%n // FIXME ??? Should the mod n be before divide by 2?
 		//}
+
+		// Addition Chian?
+		// Example	44 = 101100
+		//	2k	22	0
+		//	2k	11	0
+		//	2k+1	5	0+1
+		//	2k+1	2	0+1
+		//	2k	1	0
 	*/
 	return 0
 }

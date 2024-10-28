@@ -470,6 +470,134 @@ func TestOverkillVerifyFactorLenstraECW(t *testing.T) {
 	}
 }
 
+func TestOverkillVerifyPrimeTests(t *testing.T) {
+	// t.Skipf("Known Broken - working on E.G. PowIntMod\n")
+	const limit = 750_000
+	var errors, factor uint64
+	euler.Primes.Grow(limit)
+
+	testProbablyPrime := []struct {
+		num     uint64
+		isPrime bool
+	}{
+		//{ , },
+		{5915587277, true},
+		{1500450271, true},
+		{3267000013, true},
+		{5754853343, true},
+		{4093082899, true},
+		{9576890767, true},
+		{3628273133, true},
+		{2860486313, true},
+		{5463458053, true},
+		{3367900313, true},
+
+		// Test times out... +600 seconds
+		// {12764787846358441471, true},
+	}
+	// https://t5k.org/lists/2small/0bit.html
+	testPowPrimes := []struct {
+		shift uint8
+		subK  []uint16
+	}{
+		{8, []uint16{5, 15, 17, 23, 27, 29, 33, 45, 57, 59}},
+		{9, []uint16{3, 9, 13, 21, 25, 33, 45, 49, 51, 55}},
+		{10, []uint16{3, 5, 11, 15, 27, 33, 41, 47, 53, 57}},
+		{11, []uint16{9, 19, 21, 31, 37, 45, 49, 51, 55, 61}},
+		{12, []uint16{3, 5, 17, 23, 39, 45, 47, 69, 75, 77}},
+		{13, []uint16{1, 13, 21, 25, 31, 45, 69, 75, 81, 91}},
+		{14, []uint16{3, 15, 21, 23, 35, 45, 51, 65, 83, 111}},
+		{15, []uint16{19, 49, 51, 55, 61, 75, 81, 115, 121, 135}},
+		{16, []uint16{15, 17, 39, 57, 87, 89, 99, 113, 117, 123}},
+		{17, []uint16{1, 9, 13, 31, 49, 61, 63, 85, 91, 99}},
+		{18, []uint16{5, 11, 17, 23, 33, 35, 41, 65, 75, 93}},
+		{19, []uint16{1, 19, 27, 31, 45, 57, 67, 69, 85, 87}},
+		{20, []uint16{3, 5, 17, 27, 59, 69, 129, 143, 153, 185}},
+		{21, []uint16{9, 19, 21, 55, 61, 69, 105, 111, 121, 129}},
+		{22, []uint16{3, 17, 27, 33, 57, 87, 105, 113, 117, 123}},
+		{23, []uint16{15, 21, 27, 37, 61, 69, 135, 147, 157, 159}},
+		{24, []uint16{3, 17, 33, 63, 75, 77, 89, 95, 117, 167}},
+		{25, []uint16{39, 49, 61, 85, 91, 115, 141, 159, 165, 183}},
+		{26, []uint16{5, 27, 45, 87, 101, 107, 111, 117, 125, 135}},
+		{27, []uint16{39, 79, 111, 115, 135, 187, 199, 219, 231, 235}},
+		{28, []uint16{57, 89, 95, 119, 125, 143, 165, 183, 213, 273}},
+		{29, []uint16{3, 33, 43, 63, 73, 75, 93, 99, 121, 133}},
+		{30, []uint16{35, 41, 83, 101, 105, 107, 135, 153, 161, 173}},
+		{31, []uint16{1, 19, 61, 69, 85, 99, 105, 151, 159, 171}},
+		{32, []uint16{5, 17, 65, 99, 107, 135, 153, 185, 209, 267}},
+		{33, []uint16{9, 25, 49, 79, 105, 285, 301, 303, 321, 355}},
+		{34, []uint16{41, 77, 113, 131, 143, 165, 185, 207, 227, 281}},
+		{35, []uint16{31, 49, 61, 69, 79, 121, 141, 247, 309, 325}},
+		{36, []uint16{5, 17, 23, 65, 117, 137, 159, 173, 189, 233}},
+		{37, []uint16{25, 31, 45, 69, 123, 141, 199, 201, 351, 375}},
+		{38, []uint16{45, 87, 107, 131, 153, 185, 191, 227, 231, 257}},
+		{39, []uint16{7, 19, 67, 91, 135, 165, 219, 231, 241, 301}},
+		{40, []uint16{87, 167, 195, 203, 213, 285, 293, 299, 389, 437}},
+		{41, []uint16{21, 31, 55, 63, 73, 75, 91, 111, 133, 139}},
+		{42, []uint16{11, 17, 33, 53, 65, 143, 161, 165, 215, 227}},
+		{43, []uint16{57, 67, 117, 175, 255, 267, 291, 309, 319, 369}},
+		{44, []uint16{17, 117, 119, 129, 143, 149, 287, 327, 359, 377}},
+		{45, []uint16{55, 69, 81, 93, 121, 133, 139, 159, 193, 229}},
+		{46, []uint16{21, 57, 63, 77, 167, 197, 237, 287, 305, 311}},
+		{47, []uint16{115, 127, 147, 279, 297, 339, 435, 541, 619, 649}},
+		{48, []uint16{59, 65, 89, 93, 147, 165, 189, 233, 243, 257}},
+		{49, []uint16{81, 111, 123, 139, 181, 201, 213, 265, 283, 339}},
+		{50, []uint16{27, 35, 51, 71, 113, 117, 131, 161, 195, 233}},
+		{51, []uint16{129, 139, 165, 231, 237, 247, 355, 391, 397, 439}},
+		{52, []uint16{47, 143, 173, 183, 197, 209, 269, 285, 335, 395}},
+		{53, []uint16{111, 145, 231, 265, 315, 339, 343, 369, 379, 421}},
+		{54, []uint16{33, 53, 131, 165, 195, 245, 255, 257, 315, 327}},
+		{55, []uint16{55, 67, 99, 127, 147, 169, 171, 199, 207, 267}},
+		{56, []uint16{5, 27, 47, 57, 89, 93, 147, 177, 189, 195}},
+		{57, []uint16{13, 25, 49, 61, 69, 111, 195, 273, 363, 423}},
+		{58, []uint16{27, 57, 63, 137, 141, 147, 161, 203, 213, 251}},
+		{59, []uint16{55, 99, 225, 427, 517, 607, 649, 687, 861, 871}},
+		{60, []uint16{93, 107, 173, 179, 257, 279, 369, 395, 399, 453}},
+		{61, []uint16{1, 31, 45, 229, 259, 283, 339, 391, 403, 465}},
+		{62, []uint16{57, 87, 117, 143, 153, 167, 171, 195, 203, 273}},
+		{63, []uint16{25, 165, 259, 301, 375, 387, 391, 409, 457, 471}},
+		{64, []uint16{59, 83, 95, 179, 189, 257, 279, 323, 353, 363}},
+	}
+	for _, row := range testPowPrimes {
+		if 64 == row.shift {
+			// 64 bits is the integer size, must use modular math wraparound (mod 2^64)
+			for _, val := range row.subK {
+				testProbablyPrime = append(testProbablyPrime, struct {
+					num     uint64
+					isPrime bool
+				}{uint64(0) - uint64(val), true})
+			}
+			continue
+		}
+		for _, val := range row.subK {
+			testProbablyPrime = append(testProbablyPrime, struct {
+				num     uint64
+				isPrime bool
+			}{(uint64(1) << row.shift) - uint64(val), true})
+		}
+	}
+	_ = testProbablyPrime
+	t.Logf("\n\nSKIPPING the SOME large PrimeOptiTestMillerRabin tests, still working on the 128bit UU64DivQD for slow-path modulus required for numbers >32 bits\n\n")
+	for _, test := range testProbablyPrime {
+		if 0x1_0000_0000 < test.num {
+			continue
+		}
+		if test.isPrime != (0 == euler.PrimeOptiTestMillerRabin(test.num)) {
+			t.Errorf("PrimeOptiTestMillerRabin returned incorrect result for %d\n", test.num)
+		}
+	}
+	for ii := uint64(3); ii <= limit && 10 > errors; ii++ {
+		if 0 == ii&0xFFFF {
+			t.Logf("\t@%d", ii)
+		}
+		factor = euler.PrimeOptiTestMillerRabin(ii)
+		if euler.Primes.KnownPrime(ii) != (0 == factor) {
+			t.Errorf("PrimeOptiTestMillerRabin returned incorrect result for %d, got factor %d\n", ii, factor)
+			errors++
+		}
+	}
+}
+
 func TestOverkillPrimesLists(t *testing.T) {
 	const limit = 65536 << 1
 	// p := euler.Primes
@@ -987,6 +1115,44 @@ func TestEulerTotientPhi(t *testing.T) {
 }
 
 func TestGeneralMaths(t *testing.T) {
+	testLeadingZeros := []struct {
+		in uint64
+		r  int
+	}{
+		{1, 63},
+		{0, 64},
+		{0x8000_0000_0000_0000, 0},
+		{0x8000_0000, 32},
+		{0x8000, 48},
+		{0x80, 56},
+		{0x8, 60},
+	}
+	for _, test := range testLeadingZeros {
+		r := euler.BitsLeadingZeros64(test.in)
+		if test.r != r {
+			t.Errorf("Expected results: BitsLeadingZeros64(%d) = %d got %d\n", test.in, test.r, r)
+		}
+	}
+
+	testPowInt := []struct {
+		n, p, r uint64
+	}{
+		{64, 0, 1},
+		{64, 1, 64},
+		{2, 64, 0},
+		{2, 63, 0x8000_0000_0000_0000},
+		{2, 2, 4},
+		{11, 18, 0x4D28CB56C33FA539},
+		{17, 10, 0x1D56299ADA1},
+		{3, 29, 0x3E6B41437D93},
+	}
+	for _, test := range testPowInt {
+		r := euler.PowInt(test.n, test.p)
+		if test.r != r {
+			t.Errorf("Expected results: PowInt(%d, %d) = %d got %d\n", test.n, test.p, test.r, r)
+		}
+	}
+
 	testSqrtI := []struct {
 		n, sq uint64
 	}{
