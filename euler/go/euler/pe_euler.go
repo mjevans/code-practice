@@ -389,6 +389,13 @@ func FactorialDivFactU64toBig(ii, div uint64) *big.Int {
 
 */
 
+func Mod1toN[INT ~uint | ~int | ~uint64 | ~int64](a, mod INT) INT {
+	if 0 == a {
+		return mod
+	}
+	return a % mod
+}
+
 func AddOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
 	// func UU64AddUU64(ah, al, bh, bl uint64) (uint64, uint64, uint64) {
 	var minusA, minusB bool
@@ -479,6 +486,7 @@ func MulOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
 	} else {
 		Bl = uint64(b)
 	}
+	// FIXME: Optimize - a or b is a power off 2, including 1
 	bits := BitsLeadingZeros64(Al) + BitsLeadingZeros64(Bl)
 	if bits >= 64 {
 		// a and b fit the fast path this time!!!
@@ -497,6 +505,14 @@ func MulOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
 	return INT(UU64Mod(Al, Bl, uint64(mod)))
 }
 
+func UU64MulWrap(a, b uint64) (uint64, uint64) {
+	bits := BitsLeadingZeros64(a) + BitsLeadingZeros64(b)
+	if bits >= 64 {
+		return 0, a * b
+	}
+	return UU64Mul(a, b)
+}
+
 func UU64Mul(a, b uint64) (uint64, uint64) {
 	// https://en.wikipedia.org/wiki/Karatsuba_algorithm
 	// https://en.wikipedia.org/wiki/Toom%E2%80%93Cook_multiplication (Karatsuba AKA Toom-2)
@@ -504,6 +520,7 @@ func UU64Mul(a, b uint64) (uint64, uint64) {
 	var Ah, Al, Bh, Bl, Z2, Z0 uint64
 	Al = uint64(a)
 	Bl = uint64(b)
+	// FIXME: Optimize - a or b is a power off 2, including 1
 	// fixed split @ 32 bits
 	Ah, Al, Bh, Bl = Al>>32, Al&0xFFFF_FFFF, Bl>>32, Bl&0xFFFF_FFFF
 	Z2, Z0 = Ah*Bh, Al*Bl
@@ -619,6 +636,7 @@ func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
 	if 1 == d {
 		return h, l, 0
 	}
+	// FIXME: Optimize - a or b is a power off 2, including 1
 	// Ponder: is it worth trying to detect an exact power of 2 divisor?
 	if 0 == h {
 		// Fast path, there's no high part
@@ -2778,7 +2796,7 @@ func (p *BVPrimes) libraryProbPrimeBVl1(start uint64) {
 	for bbPos <= bbLimit {
 		if 0 == p.PV[pg][bbPos>>(BVprimeByteBitShift-1)]&(uint8(1)<<(bbPos&BVprimeByteBitMaskPost)) {
 			posPrime := (pg * BVpagesize << BVprimeByteBitShift) + (bbPos << 1) + 3
-			if false == big.NewInt(int64(posPrime)).ProbablyPrime(int(8)) {
+			if false == big.NewInt(int64(posPrime)).ProbablyPrime(int(0)) {
 				// fmt.Printf(" %d", posPrime)
 				p.PV[pg][bbPos>>(BVprimeByteBitShift-1)] |= uint8(1) << (bbPos & BVprimeByteBitMaskPost)
 			}
@@ -2956,7 +2974,7 @@ func (p *BVPrimes) ProbPrime(q uint64) bool {
 			return false
 		}
 	}
-	return big.NewInt(int64(q)).ProbablyPrime(int(8))
+	return big.NewInt(int64(q)).ProbablyPrime(int(0))
 }
 
 func (p *BVPrimes) GetPrimesInt(primes *[]int, num int) *[]int {
@@ -3432,8 +3450,10 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 		*/
 
 		// aggressive search
-		if unk == 0 {
-			if big.NewInt(int64(q)).ProbablyPrime(int(8)) {
+		if 0 == unk {
+			//if big.NewInt(int64(q)).ProbablyPrime(int(0)) {
+			unk = PrimeProbBailliePSWppo(q)
+			if 0 == unk {
 				unk = q
 			} else {
 				unk = FactorStep1RootsFilter(q, PrimesSmallU8MxVal)
@@ -3481,7 +3501,7 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 }
 
 func ProbablyPrimeI64(num, kStrBases int64) bool {
-	return big.NewInt(num).ProbablyPrime(int(kStrBases))
+	return big.NewInt(num).ProbablyPrime(int(0)) // 0 is sufficient for 64 bit integers
 }
 
 // returns the first factor found, q if unable to find a factor (Maybe Prime, might just be a big factor) -- anything less than 256*256 or PrimesSmallU8MxValPow2After must be prime.
@@ -3555,9 +3575,14 @@ func FactorStep1RootsFilter(q, maxTestedPrime uint64) uint64 {
 	return q
 }
 
+func FactorStep2ProbablyPrimeOrFactor(q uint64) uint64 {
+	return PrimeProbBailliePSWppo(q)
+}
+
 func FactorStep2ProbablyNotPrime(q uint64) bool {
 	// FIXME: Write something that can be used without math/big
-	return false == big.NewInt(int64(q)).ProbablyPrime(int(8))
+	//return false == big.NewInt(int64(q)).ProbablyPrime(int(0))
+	return 0 != PrimeProbBailliePSWppo(q)
 }
 
 func FactorStep3BigPrimeTests(q, maxTestedPrime uint64) uint64 {
@@ -3742,8 +3767,9 @@ func FactorLenstraECW(q, maxTestedPrime uint64) uint64 {
 		if A != q {
 			return A
 		}
-		if !FactorStep2ProbablyNotPrime(uint64(q)) {
-			return q
+		A = FactorStep2ProbablyPrimeOrFactor(uint64(q))
+		if 0 == A {
+			return 0
 		}
 		maxTestedPrime = PrimesSmallU8MxVal
 	}
@@ -3831,8 +3857,6 @@ func FactorLenstraECW(q, maxTestedPrime uint64) uint64 {
 		// 2. y*y = x*x*x + A*x + B (mod N)
 		// B = (Y0*Y0 - X0*X0*X0 - A*X0) % N
 		B = SubOF64Mod(SubOF64Mod(MulOF64Mod(Y0, Y0, N), MulOF64Mod(X0, MulOF64Mod(X0, X0, N), N), N), MulOF64Mod(A, X0, N), N)
-
-		// 		return SubOF64Mod(SubOF64Mod(dY, x0, N), x1, N), SubOF64Mod(MulOF64Mod(modMulInv, SubOF64Mod(AddOF64Mod(MulOF64Mod(2, x0, N), x1, N), dY, N)), y0, N), 1
 
 		// math.SE Step 4
 		// https://math.stackexchange.com/questions/859116/lenstras-elliptic-curve-algorithm
@@ -4067,6 +4091,7 @@ func PrimeOptiTestMillerRabin(q uint64) uint64 {
 	return 0
 }
 
+/*
 func JacobiSym(n, d int64) int8 {
 	var ret int8
 	if 1 > d || 0 == d&1 {
@@ -4096,70 +4121,264 @@ func JacobiSym(n, d int64) int8 {
 	}
 	return 0
 }
+*/
 
-func PrimeProbLucasStrongInner(n, D, Q, P int64) int64 {
-	// https://en.wikipedia.org/wiki/Lucas_pseudoprime#Strong_Lucas_pseudoprimes
-	// https://en.wikipedia.org/wiki/Lucas_sequence
-	/*
-		var Umm, Vmm, U, V int64
-		U = GCDbin(n, D)
-		if 1 != U {
-			return U
+func JacobiSym(sn int64, d uint64) int8 {
+	var ret int8
+	if 1 > d || 0 == d&1 {
+		return -127
+	}
+	// https://en.wikipedia.org/wiki/Jacobi_symbol#Calculating_the_Jacobi_symbol
+	ret = 1
+	n := uint64(sn) % d
+	// #1 rule 2 ; #3 == Rule 3 ; re-do step 1# rule 2
+	for ; 0 != n; n %= d {
+		// #2 rule 9
+		for 0 == n&1 {
+			n >>= 1
+			// rule 9 == 3 || 5
+			if 3 == d&(0b111) || 5 == d&(0b111) {
+				ret = -ret
+			}
 		}
-		Umm, Vmm, U, V = 0, 2, 1, P // iteration == 1
-
-		//for ... {
-		// Slow loop step style
-		// Umm, Vmm, U, V = U, V, ( (P * Umm + Vmm) / 2 ) % n, ( ((P*P - 4 * Q)*Umm + P*Vmm) / 2 ) % n
-
-		// Faster doubled step
-		Umm, Vmm, U, V = U, V, (U*V)%n, ((V*V+D*U*U)/2)%n
-
-		// 2k+1 step...
-		Umm, Vmm = U, V
-		U, V = P*Umm+Vmm, D*Umm+P*Vmm
-		if U & 1 {
-			U += n
+		// #4 flip rule 6 (flip the return if both are 3 in mod 4
+		n, d = d, n
+		if 3 == n&3 && 3 == d&3 {
+			ret = -ret
 		}
-		if V & 1 {
-			V += n
-		}
-		U, V = (U/2)%n, (V/2)%n // FIXME ??? Should the mod n be before divide by 2?
-		//}
-
-		// Addition Chian?
-		// Example	44 = 101100
-		//	2k	22	0
-		//	2k	11	0
-		//	2k+1	5	0+1
-		//	2k+1	2	0+1
-		//	2k	1	0
-	*/
+	}
+	// Rule 3 use ret (gcd) if == 1, otherwise 0
+	if 1 == d {
+		return ret
+	}
 	return 0
 }
 
-func PrimeProbBailliePSWInner(q int64) int64 {
+func PrimeProbLucasInner(n uint64, p, q, d int64) uint64 {
+	// https://en.wikipedia.org/wiki/Lucas_pseudoprime#Strong_Lucas_pseudoprimes
+	// https://en.wikipedia.org/wiki/Lucas_sequence
+	var Umm, Vmm, U, V, Q, Q1, D, P, iter, th, tl, sh, sl, ii uint64
+	_, _, _, _ = th, tl, sh, sl
+	D, Q, P = uint64(d)%n, uint64(q)%n, uint64(p)%n
+	Umm, Vmm = 0, 2
+	U, V, Q1 = 1, P, Q
+	ii = 1
+
+	//
+	// FIXME DANGER
+	//
+
+	ppLucasDoubleN := func() {
+		// 0 == doubled step
+		// Umm, Vmm, U, V = U, V, (U*V)%n,  V*V - 2*Qk // ==  ((V*V+D*U*U)/2)%n
+		Umm, Vmm = U, V
+		U = MulOF64Mod(Umm, Vmm, n)
+		V = SubOF64Mod(MulOF64Mod(Vmm, Vmm, n), MulOF64Mod(2, Q, n), n)
+		Q = MulOF64Mod(Q, Q, n)
+		ii = ii << 1
+	}
+
+	ppLucasDoubleNPlusOne := func() {
+		// 2k+1 step... Similar calculate a thing, if it's odd add n, and divide by 2
+		// P*Umm+Vmm ... /2 , D*Umm+P*Vmm ... /2
+		ii += ii + 1
+		Umm, Vmm = U, V
+
+		/*
+			U = AddOF64Mod(MulOF64Mod(P, Umm, n), Vmm, n)
+			V = AddOF64Mod(MulOF64Mod(D, Umm, n), MulOF64Mod(P, Vmm, n), n)
+			if 0 != U&1 {
+				U = AddOF64Mod(U, n, n)
+			}
+			U >>= 1 // Already mod n hopefully it's OK to do this _before_ that division
+			if 0 != V&1 {
+				V = AddOF64Mod(V, n, n)
+			}
+			V >>= 1 // Already mod n hopefully it's OK to do this _before_ that division
+		*/
+
+		// U...
+		th, tl = UU64MulWrap(P, Umm)
+		_, th, tl = UU64AddUU64(0, Vmm, th, tl)
+		if 0 != tl&1 {
+			_, th, tl = UU64AddUU64(th, tl, 0, n)
+		}
+		th, tl = th>>1, (th&1<<63)|(tl>>1)
+		if 0 != th {
+			U = UU64Mod(th, tl, n)
+		} else {
+			U = tl % n
+		}
+
+		// V...
+		th, tl = UU64MulWrap(D, Umm)
+		sh, sl = UU64MulWrap(P, Vmm)
+		_, th, tl = UU64AddUU64(th, tl, sh, sl)
+		if 0 != tl&1 {
+			_, th, tl = UU64AddUU64(th, tl, 0, n)
+		}
+		th, tl = th>>1, (th&1<<63)|(tl>>1)
+		if 0 != th {
+			V = UU64Mod(th, tl, n)
+		} else {
+			V = tl % n
+		}
+
+		Q = MulOF64Mod(Q, Q1, n)
+	}
+	// LSB to MSB working up
+	iter = (n + 1) >> 1 // n+1 is always even for primes that will be tested
+	ppLucasDoubleN()
+	fmt.Printf("Lucas: %d : %d\tU: %d\tV: %d\tUmm: %d\n", n, ii, U, V, Umm)
+	for ; 1 < iter; iter >>= 1 {
+		if 0 < iter&1 {
+			ppLucasDoubleNPlusOne()
+			fmt.Printf("Lucas: %d : %d\tU: %d\tV: %d\tUmm: %d\n", n, ii, U, V, Umm)
+		} else {
+			ppLucasDoubleN()
+		}
+		fmt.Printf("Lucas: %d : %d\tU: %d\tV: %d\tUmm: %d\n", n, ii, U, V, Umm)
+	}
+	if 0 != Umm {
+		return 1 // U(n+1) must be zero, else N is Probably a Prime (but this didn't factor it)
+	}
+	return 0 // No signs of factors found, Probably Prime
+}
+
+func PrimeProbLucasInner_maybe(N uint64, p, q, d int64) uint64 {
+	// https://en.wikipedia.org/wiki/Lucas_pseudoprime#Strong_Lucas_pseudoprimes
+	// https://en.wikipedia.org/wiki/Lucas_sequence
+	var n, Umm, Vmm, U, V, Q, Q1, D, P, iter, th, tl, sh, sl int64
+	if 0 < N&(1<<63) {
+		return 0
+	}
+	n = int64(N)
+	_, _, _, _ = th, tl, sh, sl
+	D, Q, P = int64(d)%n, int64(q)%n, int64(p)%n
+	Umm, Vmm = 0, 2
+	U, V, Q1 = 1, P, Q
+
+	ppLucasDoubleN := func() {
+		// 0 == doubled step
+		// Umm, Vmm, U, V = U, V, (U*V)%n,  V*V - 2*Qk // ==  ((V*V+D*U*U)/2)%n
+		Umm, Vmm = U, V
+		U = (Umm * Vmm) % n
+		V = (V*V - Q<<1) % n
+		Q = (Q * Q) % n
+	}
+
+	ppLucasDoubleNPlusOne := func() {
+		// 2k+1 step... Similar calculate a thing, if it's odd add n, and divide by 2
+		// P*Umm+Vmm ... /2 , D*Umm+P*Vmm ... /2
+		Umm, Vmm = U, V
+
+		U = P*Umm + Vmm
+		V = D*Umm + P*Vmm
+		if 0 != U&1 {
+			U += n
+		}
+		U >>= 1 // Already mod n hopefully it's OK to do this _before_ that division
+		U %= n
+		if 0 != V&1 {
+			V += n
+		}
+		V >>= 1 // Already mod n hopefully it's OK to do this _before_ that division
+		V %= n
+
+		/*
+			// U...
+			th, tl = UU64MulWrap(P, Umm)
+			_, th, tl = UU64AddUU64(0, Vmm, th, tl)
+			if 0 != tl&1 {
+				_, th, tl = UU64AddUU64(th, tl, 0, n)
+			}
+			th, tl = th>>1, (th&1<<63)|(tl>>1)
+			if 0 != th {
+				U = UU64Mod(th, tl, n)
+			} else {
+				U = tl % n
+			}
+
+			// V...
+			th, tl = UU64MulWrap(D, Umm)
+			sh, sl = UU64MulWrap(P, Vmm)
+			_, th, tl = UU64AddUU64(th, tl, sh, sl)
+			if 0 != tl&1 {
+				_, th, tl = UU64AddUU64(th, tl, 0, n)
+			}
+			th, tl = th>>1, (th&1<<63)|(tl>>1)
+			if 0 != th {
+				V = UU64Mod(th, tl, n)
+			} else {
+				V = tl % n
+			}
+		*/
+		Q = (Q * Q1) % n
+	}
+	// LSB to MSB working up
+	for iter = n + 1; 0 < iter; iter >>= 1 {
+		ppLucasDoubleN()
+		if 0 < iter&1 {
+			ppLucasDoubleNPlusOne()
+		}
+	}
+	if 0 != U {
+		return 1 // U(n+1) must be zero, else N is Probably a Prime (but this didn't factor it)
+	}
+	return 0 // No signs of factors found, Probably Prime
+}
+
+/*
+	I took a couple hours Monday and couldn't quite get the Lucas Probable Prime test to work based on what was on Wikipedia.
+	Golang's math/big library has a working implementation and even at a quick skim it mentions some things I'd been unclear about (E.G. the Jacobi Symbol prefs for a stronger test).
+	https://cs.opensource.google/go/go/+/refs/tags/go1.23.1:src/math/big/prime.go;l=26
+
+	I'll be trying to annotate where my current attempts and the working example differ.
+
+	It also references:
+	//
+	Baillie and Wagstaff, "Lucas Pseudoprimes", Mathematics of Computation 35(152),
+	October 1980, pp. 1391-1417, especially page 1401.
+	https://www.ams.org/journals/mcom/1980-35-152/S0025-5718-1980-0583518-6/S0025-5718-1980-0583518-6.pdf
+	//
+	Grantham, "Frobenius Pseudoprimes", Mathematics of Computation 70(234),
+	March 2000, pp. 873-891.
+	https://www.ams.org/journals/mcom/2001-70-234/S0025-5718-00-01197-2/S0025-5718-00-01197-2.pdf
+	//
+	Baillie, "Extra strong Lucas pseudoprimes", OEIS A217719, https://oeis.org/A217719.
+	//
+	Jacobsen, "Pseudoprime Statistics, Tables, and Data", http://ntheory.org/pseudoprimes.html.
+	//
+	Nicely, "The Baillie-PSW Primality Test", https://web.archive.org/web/20191121062007/http://www.trnicely.net/misc/bpsw.html.
+	(Note that Nicely's definition of the "extra strong" test gives the wrong Jacobi condition,
+	as pointed out by Jacobsen.)
+	//
+	Crandall and Pomerance, Prime Numbers: A Computational Perspective, 2nd ed.
+	Springer, 2005.
+
+
+*/
+
+func PrimeProbBailliePSWInner(q uint64) uint64 {
 	// https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test#The_test
 	// This assumes that no factors were found using
 	// 0# Trial Division (of small primes) E.G. FactorStep0TD(q) // FactorReduceStep0TDlimit(q, 7)
 	// 1# PrimeProbMillerRabinInner(q, n, 1)
 
-	var D, Q, P, qd int64
-	if 0 > q {
-		q = -q
-	}
+	var D, Q, P, js int64
+	var qd uint64
 	P, D = 1, -3 // become 5 in test 0
 	for ii := 0; ; ii++ {
 		// Remark #4 -- doing an even+odd test each cycle, 10 tests should warrant a square check
 		if 5 == ii {
-			qd = int64(SqrtU64(uint64(q)))
+			qd = uint64(SqrtU64(uint64(q)))
 			if qd*qd == q {
 				return qd
 			}
 		}
 		D = 2 - D
-		Q = int64(JacobiSym(D, q))
-		if -1 == Q {
+		js = int64(JacobiSym(D, q))
+		if -1 == js {
 			Q = (1 - D) / 4
 			// Remark #5 + FIXME #6 "These two congruences involve almost no extra computational cost, and are only rarely true if n is composite: " V(n+1) = 2Q (mod n) and Q^((n+2)/2) = Q * Q^((n-2)/2) = Q * (Q/n) (mod n)
 			if -1 != Q && 1 != Q {
@@ -4167,11 +4386,11 @@ func PrimeProbBailliePSWInner(q int64) int64 {
 			}
 			ii = 255
 		} else if 0 == Q { // In normal use these should never be reached, since 'convenient small primes' (up to 1000 !?! says the pdf!) covers them
-			return D
+			return uint64(D)
 		}
 		D = -2 - D
-		Q = int64(JacobiSym(D, q))
-		if -1 == Q {
+		js = int64(JacobiSym(D, q))
+		if -1 == js {
 			Q = (1 - D) / 4
 			// Remark #5
 			if -1 != Q && 1 != Q {
@@ -4179,11 +4398,38 @@ func PrimeProbBailliePSWInner(q int64) int64 {
 			}
 			ii = 255
 		} else if 0 == Q {
-			return -D
+			return uint64(-D)
 		}
 	}
+	qd = GCDbin(q, uint64(P))
+	if 1 < qd && qd < q {
+		return qd
+	}
+	qd = GCDbin(q, uint64(Q))
+	if 1 < qd && qd < q {
+		return qd
+	}
 	//
-	return P - 0
+	return uint64(PrimeProbLucasInner(q, P, Q, D))
+}
+
+func PrimeProbBailliePSW(N uint64) uint64 {
+	var ret uint64
+	ret = FactorReduceStep0TDlimit(N, 7)
+	if 0 != ret {
+		return ret
+	}
+	return PrimeProbBailliePSWppo(N)
+}
+
+func PrimeProbBailliePSWppo(N uint64) uint64 {
+	var ret uint64
+	return PrimeOptiTestMillerRabin(N) // FIXME - Covering broken BPSW, remove when ready
+	ret = PrimeProbMillerRabinInner(N, 2, 1)
+	if 0 != ret {
+		return ret
+	}
+	return PrimeProbBailliePSWInner(N)
 }
 
 /* Go 1.8+ (at least) has https://pkg.go.dev/math/big@go1.22.6#Int.ProbablyPrime
