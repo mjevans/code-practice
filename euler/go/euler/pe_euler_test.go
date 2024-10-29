@@ -460,7 +460,7 @@ func TestOverkillVerifyFactorLenstraECW(t *testing.T) {
 	t.Logf("Verify FactorLenstraECW(p, 2) (force the extra checks path too) upto: %d\n", limit)
 	// p := euler.Primes
 	euler.Primes.Grow(limit)
-	for ii := int64(3); ii <= limit; ii += 2 {
+	for ii := uint64(3); ii <= limit; ii += 2 {
 		if 0 == ii%3 || euler.Primes.KnownPrime(uint64(ii)) {
 			continue
 		}
@@ -1281,6 +1281,56 @@ func TestGeneralMaths(t *testing.T) {
 		rh, rl := euler.UU64SubUU64(test.ah, test.al, test.bh, test.bl)
 		if test.rh != rh || test.rl != rl {
 			t.Errorf("Expected results: UU64SubUU64(0x%x_%x, 0x%x_%x) => 0x%x, 0x%x got 0x%x, 0x%x\n", test.ah, test.al, test.bh, test.bl, test.rh, test.rl, rh, rl)
+		}
+	}
+
+	testAddSubOF64ModU := []struct {
+		a, b, m, pp, mm uint64
+	}{
+		{0, 1, ^uint64(0), 1, 1},
+		{0xFFFF_FFFF_FFFF_FFFF, 1, ^uint64(0), 1, 0xFFFF_FFFF_FFFF_FFFE},
+		{0xFFFF_FFFF_FFFF_FFFF, 1, 0x10, 1, 0xE},
+	}
+	for _, test := range testAddSubOF64ModU {
+		pp, mm := euler.AddOF64Mod(test.a, test.b, test.m), euler.SubOF64Mod(test.a, test.b, test.m)
+		if test.pp != pp || test.mm != mm {
+			t.Errorf("Expected results: U AddOF64Mod~SubOF64Mod(%#x, %#x, %#x) => %#x ~ %#x got %#x, %#x\n", test.a, test.b, test.m, test.pp, test.mm, pp, mm)
+		}
+	}
+
+	testAddSubOF64ModI := []struct {
+		a, b, m, pp, mm int64
+	}{
+		{0, 1, ^int64(0), 1, 1},
+		{0x7FFF_FFFF_FFFF_FFFF, 1, 0x10, 0, 0xE},
+	}
+	for _, test := range testAddSubOF64ModI {
+		pp, mm := euler.AddOF64Mod(test.a, test.b, test.m), euler.SubOF64Mod(test.a, test.b, test.m)
+		if test.pp != pp || test.mm != mm {
+			t.Errorf("Expected results: S AddOF64Mod~SubOF64Mod(%#x, %#x, %#x) => %#x ~ %#x got %#x, %#x\n", test.a, test.b, test.m, test.pp, test.mm, pp, mm)
+		}
+	}
+
+	testJacobiSym := []struct {
+		// func JacobiSym(n, d int64) int8
+		// { , []uint8{0, 1, }},
+		n int8
+		k []int8
+	}{
+		{3, []int8{0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0}},
+		{5, []int8{0, 1, -1, -1, 1, 0, 1, -1, -1, 1, 0, 1, -1, -1, 1, 0, 1, -1, -1, 1, 0, 1, -1, -1, 1, 0, 1, -1, -1, 1, 0}},
+		{7, []int8{0, 1, 1, -1, 1, -1, -1, 0, 1, 1, -1, 1, -1, -1, 0, 1, 1, -1, 1, -1, -1, 0, 1, 1, -1, 1, -1, -1, 0, 1, 1}},
+		{9, []int8{0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0}},
+		{11, []int8{0, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1, 0, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1, 0, 1, -1, 1, 1, 1, -1, -1, -1}},
+		{13, []int8{0, 1, -1, 1, 1, -1, -1, -1, -1, 1, 1, -1, 1, 0, 1, -1, 1, 1, -1, -1, -1, -1, 1, 1, -1, 1, 0, 1, -1, 1, 1}},
+	}
+	for _, test := range testJacobiSym {
+		ii := 1
+		for iiLim := len(test.k); ii < iiLim; ii++ {
+			ret := euler.JacobiSym(int64(ii), int64(test.n))
+			if test.k[ii] != ret {
+				t.Errorf("Expected results: JacobiSym(%d, %d) = %d got %d\n", ii, test.n, test.k[ii], ret)
+			}
 		}
 	}
 

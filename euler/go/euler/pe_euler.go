@@ -389,6 +389,80 @@ func FactorialDivFactU64toBig(ii, div uint64) *big.Int {
 
 */
 
+func AddOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
+	// func UU64AddUU64(ah, al, bh, bl uint64) (uint64, uint64, uint64) {
+	var minusA, minusB bool
+	var Al, Bl, Rh, Rl uint64
+	minusA, minusB = false, false
+	if 0 > a {
+		Al = uint64(-a)
+		minusA = true
+	} else {
+		Al = uint64(a)
+	}
+	if 0 > b {
+		Bl = uint64(-b)
+		minusB = true
+	} else {
+		Bl = uint64(b)
+	}
+	if minusA == minusB {
+		_, Rh, Rl = UU64AddUU64(0, Al, 0, Bl)
+	} else if minusB {
+		Rh, Rl = UU64SubUU64(0, Al, 0, Bl)
+	} else {
+		Rh, Rl = UU64SubUU64(0, Bl, 0, Al) // minusA
+	}
+	minusA = (0 < Rh&(uint64(1)<<63))
+	if 0 == Rh || 0 == ^Rh {
+		if minusA {
+			return -INT(^(Rl % uint64(mod)))
+		}
+		return INT(Rl % uint64(mod))
+	}
+	if minusA {
+		return -INT(UU64Mod(Al, Bl, uint64(mod)))
+	}
+	return INT(UU64Mod(Al, Bl, uint64(mod)))
+}
+
+func SubOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
+	// func UU64SubUU64(ah, al, bh, bl uint64) (uint64, uint64) {
+	var minusA, minusB bool
+	var Al, Bl, Rh, Rl uint64
+	minusA, minusB = false, true
+	if 0 > a {
+		Al = uint64(-a)
+		minusA = true
+	} else {
+		Al = uint64(a)
+	}
+	if 0 > b {
+		Bl = uint64(-b)
+		minusB = false
+	} else {
+		Bl = uint64(b)
+	}
+	if minusA == minusB {
+		_, Rh, Rl = UU64AddUU64(0, Al, 0, Bl)
+	} else if minusB {
+		Rh, Rl = UU64SubUU64(0, Al, 0, Bl)
+	} else {
+		Rh, Rl = UU64SubUU64(0, Bl, 0, Al) // minusA
+	}
+	minusA = (0 < Rh&(uint64(1)<<63))
+	if 0 == Rh || 0 == ^Rh {
+		if minusA {
+			return -INT(^(Rl % uint64(mod)))
+		}
+		return INT(Rl % uint64(mod))
+	}
+	if minusA {
+		return -INT(UU64Mod(Al, Bl, uint64(mod)))
+	}
+	return INT(UU64Mod(Al, Bl, uint64(mod)))
+}
+
 func MulOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
 	var minus bool
 	var Al, Bl uint64
@@ -643,6 +717,9 @@ func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
 }
 
 func UU64Mod(h, l, mod uint64) uint64 {
+	if 0 == h || 0 == ^h {
+		return l % mod
+	}
 	qh, ql, r := UU64DivQD(h, l, mod)
 	if Debug128bitInts {
 		b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
@@ -3361,7 +3438,7 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 			} else {
 				unk = FactorStep1RootsFilter(q, PrimesSmallU8MxVal)
 				if unk == q {
-					unk = uint64(FactorLenstraECW(int64(q), int64(PrimesSmallU8MxVal)))
+					unk = uint64(FactorLenstraECW(uint64(q), uint64(PrimesSmallU8MxVal)))
 				}
 				// Replace this with LECF
 				// unk = Factor1980AutoPMC_Pass2(q, false)
@@ -3493,7 +3570,7 @@ func FactorStep3BigPrimeTests(q, maxTestedPrime uint64) uint64 {
 	}
 	// }
 	// Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
-	return uint64(FactorLenstraECW(int64(q), int64(maxTestedPrime)))
+	return uint64(FactorLenstraECW(uint64(q), uint64(maxTestedPrime)))
 }
 
 /*
@@ -3644,25 +3721,24 @@ Having stated that, it's also time for me to throw out the nearly working initia
 
 */
 
-
 // FIXME: TODO: Restructure to work with 128bit intermediary values if necessary, unsigned numbers.
 
-func FactorLenstraECW(q, maxTestedPrime int64) int64 {
+func FactorLenstraECW(q, maxTestedPrime uint64) uint64 {
 
 	// TODO more effective curve forms? https://en.wikipedia.org/wiki/Elliptic_curve#Non-Weierstrass_curves
 
-	var N, A, B, X0, Y0, K, Kmx, Kmulmx, gcd, loop int64
+	var N, A, B, X0, Y0, K, Kmx, Kmulmx, gcd, loop uint64
 	var ii, iiMx, iiPow, iiPowMx uint8
 	// iiMx = PrimesSmallU8Mx
 	// Tune
 	iiMx, iiPowMx, _ = 4, 2, Kmulmx
 	if maxTestedPrime < 3 {
 		// MUST have already tested for /2 and /3 minimum - so take reasonable steps...
-		A = int64(FactorStep0TD(uint64(q)))
+		A = uint64(FactorStep0TD(uint64(q)))
 		if A != q || q < PrimesSmallU8MxValPow2After {
 			return A
 		}
-		A = int64(FactorStep1RootsFilter(uint64(q), PrimesSmallU8MxVal))
+		A = uint64(FactorStep1RootsFilter(uint64(q), PrimesSmallU8MxVal))
 		if A != q {
 			return A
 		}
@@ -3672,27 +3748,21 @@ func FactorLenstraECW(q, maxTestedPrime int64) int64 {
 		maxTestedPrime = PrimesSmallU8MxVal
 	}
 
-	if 0 > q {
-		N = -q
-	} else {
-		N = q
-	}
-	// arbitrary
-	//if 17 > maxTestedPrime {
-	//	Kmulmx = 17
+	N = q
+	//if 0 > q {
+	//	N = -q
 	//} else {
-	//	//Kmulmx = int64(SqrtU64(uint64(maxTestedPrime)))
-	//	Kmulmx = maxTestedPrime
+	//	N = q
 	//}
 
-	__LenECWaddMod := func(x0, y0, z0, x1, y1, z1 int64) (int64, int64, int64) {
+	__LenECWaddMod := func(x0, y0, z0, x1, y1, z1 uint64) (uint64, uint64, uint64) {
 		// returns rX, rY, gcd
 		// https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication#Point_addition
-		var modMulInv, dY int64
+		var modMulInv, dY uint64
 		if x0 != x1 || y0 != y1 {
-			dY, modMulInv = y1-y0, GCDeuc(N, (x1-x0)%N)
+			dY, modMulInv = SubOF64Mod(y1, y0, N), GCDeuc(N, (x1-x0)%N)
 		} else {
-			dY, modMulInv = 3*x0*x0+A, GCDeuc(N, (2*y0)%N)
+			dY, modMulInv = AddOF64Mod(MulOF64Mod(3, MulOF64Mod(x0, x0, N), N), A, N), GCDeuc(N, MulOF64Mod(2, y0, N))
 		}
 		if 1 < modMulInv && modMulInv < N {
 			return 0, 1, modMulInv
@@ -3702,13 +3772,16 @@ func FactorLenstraECW(q, maxTestedPrime int64) int64 {
 		// L2 R(x3, -y3) =:	( (dY * modMulInv)*(dY * modMulInv) - x0 - x1	, (dY * modMulInv)*(2*x0 + x1 - (dY * modMulInv)*(dY * modMulInv))   -  y0 )
 
 		// REUSE: dY is now 'slope'^2 and modMullInv is now single slope
-		modMulInv = (modMulInv * dY) % N
-		dY = (modMulInv * modMulInv) % N
-		return (dY - x0 - x1) % N, (modMulInv*(2*x0+x1-dY) - y0) % N, 1
+		modMulInv = MulOF64Mod(modMulInv, dY, N)
+		dY = MulOF64Mod(modMulInv, modMulInv, N)
+		// L2 R(x3, -y3) =:	( (dY * modMulInv)*(dY * modMulInv) - x0 - x1	, (dY * modMulInv)*(2*x0 + x1 - (dY * modMulInv)*(dY * modMulInv))   -  y0 )
+		//	ALL (mod N)	dY * N - x0 - x1				modMulInv	*			(2*x0		+ x1	- dY)	- y0
+		return SubOF64Mod(SubOF64Mod(dY, x0, N), x1, N), SubOF64Mod(MulOF64Mod(modMulInv, SubOF64Mod(AddOF64Mod(MulOF64Mod(2, x0, N), x1, N), dY, N), N), y0, N), 1
+		// I *think* it's still correct to modulus every block of operations?  Unsure if it's faster to keep the word size small (my 128bit division binary search is SLOW, which is why I've biased towards the logic that modern CPU hardware has _way_ more human hours put into making it fast.)
 	}
 
-	__LenECWmulMod := func(k, x, y int64) (int64, int64, int64) {
-		var rx, ry, rz, z int64
+	__LenECWmulMod := func(k, x, y uint64) (uint64, uint64, uint64) {
+		var rx, ry, rz, z uint64
 		rx, ry, rz = 0, 1, 0 // the infinity / O point
 		z = 1                // constant input
 		// Use P for Powers of 2, prepare the next P at the end of each cycle
@@ -3738,25 +3811,28 @@ func FactorLenstraECW(q, maxTestedPrime int64) int64 {
 		return rx, ry, rz
 	}
 
-	__LenECWcurve := func() int64 {
+	__LenECWcurve := func() uint64 {
 		// Uses function context variables
 		// https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization#The_algorithm_with_projective_coordinates
 		// 1.
 		// Strongly random isn't as necessary as just 'not trivial' and 'not always the same'
 		A, X0, Y0 = 0, 0, 0
 		for 0 == A {
-			A = int64(PSRand.RandInt(uint64(N))) // >>4 + 1
+			A = uint64(PSRand.RandInt(uint64(N))) // >>4 + 1
 		}
 		for 0 == X0 {
-			X0 = int64(PSRand.RandInt(uint64(N)))
+			X0 = uint64(PSRand.RandInt(uint64(N)))
 		}
 		for 0 == Y0 {
-			Y0 = int64(PSRand.RandInt(uint64(N)))
+			Y0 = uint64(PSRand.RandInt(uint64(N)))
 		}
 		// Note 'choice of B' https://wstein.org/edu/Fall2001/124/lenstra/lenstra.pdf pg 662
 
 		// 2. y*y = x*x*x + A*x + B (mod N)
-		B = (Y0*Y0 - X0*X0*X0 - A*X0) % N
+		// B = (Y0*Y0 - X0*X0*X0 - A*X0) % N
+		B = SubOF64Mod(SubOF64Mod(MulOF64Mod(Y0, Y0, N), MulOF64Mod(X0, MulOF64Mod(X0, X0, N), N), N), MulOF64Mod(A, X0, N), N)
+
+		// 		return SubOF64Mod(SubOF64Mod(dY, x0, N), x1, N), SubOF64Mod(MulOF64Mod(modMulInv, SubOF64Mod(AddOF64Mod(MulOF64Mod(2, x0, N), x1, N), dY, N)), y0, N), 1
 
 		// math.SE Step 4
 		// https://math.stackexchange.com/questions/859116/lenstras-elliptic-curve-algorithm
@@ -3767,7 +3843,8 @@ func FactorLenstraECW(q, maxTestedPrime int64) int64 {
 		// Discriminant https://en.wikipedia.org/wiki/Discriminant
 		// """ the quantity which appears under the square root in the quadratic formula. If a ≠ 0 , {\displaystyle a\neq 0,} this discriminant is zero if and only if the polynomial has a double root. In the case of real coefficients, it is positive if the polynomial has two distinct real roots, and negative if it has two distinct complex conjugate roots.[1] Similarly, the discriminant of a cubic polynomial is zero if and only if the polynomial has a multiple root. In the case of a cubic with real coefficients, the discriminant is positive if the polynomial has three distinct real roots, and negative if it has one real root and two distinct complex conjugate roots.
 		// tests properties of roots of the curve
-		return 4*A*A*A + 27*B*B
+		// return 4*A*A*A + 27*B*B
+		return AddOF64Mod(MulOF64Mod(MulOF64Mod(4, A, N), MulOF64Mod(A, A, N), N), MulOF64Mod(27, MulOF64Mod(B, B, N), N), N)
 	}
 
 FactorLenstraECW_reroll:
@@ -3799,7 +3876,7 @@ FactorLenstraECW_reroll:
 		// 3. + 4. ???
 		// math.SE Step 5 (BLCM == k)
 		//	Choose B -- All Prime Factors must be Less than or Equal to B ;
-		Kmx = N / int64(maxTestedPrime)
+		Kmx = N / uint64(maxTestedPrime)
 		K = 2 // 2 * 3 * 5
 		iiPow, ii = 1, 0
 		for K < Kmx {
@@ -3824,7 +3901,7 @@ FactorLenstraECW_reroll:
 			if iiPow > iiPowMx {
 				continue FactorLenstraECW_reroll
 			}
-			K *= int64(PrimesSmallU8[ii])
+			K *= uint64(PrimesSmallU8[ii])
 
 		}
 	}
@@ -3992,7 +4069,7 @@ func PrimeOptiTestMillerRabin(q uint64) uint64 {
 
 func JacobiSym(n, d int64) int8 {
 	var ret int8
-	if 0 > d || 0 == d&1 {
+	if 1 > d || 0 == d&1 {
 		return -127
 	}
 	// https://en.wikipedia.org/wiki/Jacobi_symbol#Calculating_the_Jacobi_symbol
@@ -4002,8 +4079,8 @@ func JacobiSym(n, d int64) int8 {
 		// #2 rule 9
 		for 0 == n&1 {
 			n >>= 1
-			// rule 9 ^4 == 3 || 5
-			if 3 == (d&7)&(^4) {
+			// rule 9 == 3 || 5
+			if 3 == d&(0b111) || 5 == d&(0b111) {
 				ret = -ret
 			}
 		}
