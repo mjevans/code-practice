@@ -23,7 +23,7 @@ import (
 
 	https://go.dev/src/strings/search_test.go
 
-	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 68) ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in $(seq 1 71) ; do go fmt $(printf "pe_%04d.go" "$ii") ; go run $(printf "pe_%04d.go" "$ii") || break ; done
 
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; go clean -testcache ; go test -v euler/
 -*/
@@ -452,7 +452,7 @@ func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
 }
 
 func TestOverkillVerifyFactorLenstraECW(t *testing.T) {
-	t.Skip("Slow")
+	//t.Skip("Slow")
 	// go test -run TestOverkillVerifyFactorLenstraECW -cpuprofile Lenstra.goprof -v euler/
 	// go tool pprof euler.test Lenstra.goprof
 	// const limit = 65535
@@ -593,10 +593,10 @@ func TestOverkillVerifyPrimeTestMR(t *testing.T) {
 	}
 }
 
-func TestOverkillVerifyPrimeTestBPSW(t *testing.T) {
-	t.Skipf("Known Broken - current WIP\n")
+func TestOverkillVerifyPrimeTestLL(t *testing.T) {
+	// t.Skipf("Known Broken - current WIP\n")
 	const limit = 750_000
-	var errors, passed, factor uint64
+	var errors, passed, passedLL, passedMR, fMR, fLL uint64
 	euler.Primes.Grow(limit)
 
 	testProbablyPrime := []struct {
@@ -701,18 +701,24 @@ func TestOverkillVerifyPrimeTestBPSW(t *testing.T) {
 	}
 	_ = testProbablyPrime
 
-	t.Fatalf("just tests, 19\t%d\n", euler.PrimeProbLucasInner(19, 1, 13, 3))
-	// t.Logf("\n\nSKIPPING the SOME large PrimeProbBailliePSW tests, still working on the 128bit UU64DivQD for slow-path modulus required for numbers >32 bits\n\n")
 	for _, test := range testProbablyPrime {
-		//if 0x1_0000_0000 < test.num {
-		//	continue
-		//}
-		// t.Logf("testing: 0x%x\n", test.num)
-		factor = euler.PrimeProbBailliePSW(test.num)
-		if test.isPrime != (0 == factor) {
-			// t.Errorf("PrimeProbBailliePSW returned incorrect result for %#x, got factor %d\n", test.num, factor)
+		fLL = euler.PrimeProbLucasStrong(test.num)
+		fMR = euler.PrimeProbMillerRabinInner(test.num, 2, 1)
+		if test.isPrime == (0 == fLL) {
+			passedLL++
+		}
+		if test.isPrime == (0 == fMR) {
+			passedMR++
+		}
+		if (test.isPrime != (0 == fLL)) && (test.isPrime != (0 == fMR)) {
+			t.Errorf("PrimeProbLucasStrong returned incorrect result for %#x, got factor %d\n", test.num, fLL)
 			errors++
 		} else {
+			if test.isPrime != (0 == fLL) {
+				t.Errorf("Failed LL: %#x with factor %d\n", test.num, fLL)
+			} else {
+				// t.Logf("%#x passed\n", test.num)
+			}
 			passed++
 		}
 	}
@@ -720,15 +726,216 @@ func TestOverkillVerifyPrimeTestBPSW(t *testing.T) {
 		if 0 == ii&0xFFFF {
 			t.Logf("\t@%d", ii)
 		}
-		factor = euler.PrimeProbBailliePSW(ii)
-		if euler.Primes.KnownPrime(ii) != (0 == factor) {
-			// t.Errorf("PrimeProbBailliePSW returned incorrect result for %d, got factor %d\n", ii, factor)
+		isPrime := euler.Primes.KnownPrime(ii)
+		fLL = euler.PrimeProbLucasStrong(ii)
+		fMR = euler.PrimeProbMillerRabinInner(ii, 2, 1)
+		if isPrime == (0 == fLL) {
+			passedLL++
+		}
+		if isPrime == (0 == fMR) {
+			passedMR++
+		}
+		if (isPrime != (0 == fLL)) && (isPrime != (0 == fMR)) {
+			t.Errorf("PrimeProbLucasStrong returned incorrect result for %d, got factor %d\n", ii, fLL)
 			errors++
 		} else {
 			passed++
 		}
 	}
-	t.Errorf("Passed: %d\tErrors: %d\n", passed, errors)
+	t.Logf("PassedLL: %d\tPassedMR: %d\tPassed: %d\tErrors: %d\n", passedLL, passedMR, passed, errors)
+}
+
+func TestOverkillVerifyPrimeTestMR_BigOnly(t *testing.T) {
+	const limit = 750_000
+	euler.Primes.Grow(limit)
+
+	testProbablyPrime := []struct {
+		num     uint64
+		isPrime bool
+	}{
+		//{ , },
+		{5915587277, true},
+		{1500450271, true},
+		{3267000013, true},
+		{5754853343, true},
+		{4093082899, true},
+		{9576890767, true},
+		{3628273133, true},
+		{2860486313, true},
+		{5463458053, true},
+		{3367900313, true},
+		{12764787846358441471, true},
+	}
+	// https://t5k.org/lists/2small/0bit.html
+	testPowPrimes := []struct {
+		shift uint8
+		subK  []uint16
+	}{
+		{24, []uint16{3, 17, 33, 63, 75, 77, 89, 95, 117, 167}},
+		{25, []uint16{39, 49, 61, 85, 91, 115, 141, 159, 165, 183}},
+		{26, []uint16{5, 27, 45, 87, 101, 107, 111, 117, 125, 135}},
+		{27, []uint16{39, 79, 111, 115, 135, 187, 199, 219, 231, 235}},
+		{28, []uint16{57, 89, 95, 119, 125, 143, 165, 183, 213, 273}},
+		{29, []uint16{3, 33, 43, 63, 73, 75, 93, 99, 121, 133}},
+		{30, []uint16{35, 41, 83, 101, 105, 107, 135, 153, 161, 173}},
+		{31, []uint16{1, 19, 61, 69, 85, 99, 105, 151, 159, 171}},
+		{32, []uint16{5, 17, 65, 99, 107, 135, 153, 185, 209, 267}},
+		{33, []uint16{9, 25, 49, 79, 105, 285, 301, 303, 321, 355}},
+		{34, []uint16{41, 77, 113, 131, 143, 165, 185, 207, 227, 281}},
+		{35, []uint16{31, 49, 61, 69, 79, 121, 141, 247, 309, 325}},
+		{36, []uint16{5, 17, 23, 65, 117, 137, 159, 173, 189, 233}},
+		{37, []uint16{25, 31, 45, 69, 123, 141, 199, 201, 351, 375}},
+		{38, []uint16{45, 87, 107, 131, 153, 185, 191, 227, 231, 257}},
+		{39, []uint16{7, 19, 67, 91, 135, 165, 219, 231, 241, 301}},
+		{40, []uint16{87, 167, 195, 203, 213, 285, 293, 299, 389, 437}},
+		{41, []uint16{21, 31, 55, 63, 73, 75, 91, 111, 133, 139}},
+		{42, []uint16{11, 17, 33, 53, 65, 143, 161, 165, 215, 227}},
+		{43, []uint16{57, 67, 117, 175, 255, 267, 291, 309, 319, 369}},
+		{44, []uint16{17, 117, 119, 129, 143, 149, 287, 327, 359, 377}},
+		{45, []uint16{55, 69, 81, 93, 121, 133, 139, 159, 193, 229}},
+		{46, []uint16{21, 57, 63, 77, 167, 197, 237, 287, 305, 311}},
+		{47, []uint16{115, 127, 147, 279, 297, 339, 435, 541, 619, 649}},
+		{48, []uint16{59, 65, 89, 93, 147, 165, 189, 233, 243, 257}},
+		{49, []uint16{81, 111, 123, 139, 181, 201, 213, 265, 283, 339}},
+		{50, []uint16{27, 35, 51, 71, 113, 117, 131, 161, 195, 233}},
+		{51, []uint16{129, 139, 165, 231, 237, 247, 355, 391, 397, 439}},
+		{52, []uint16{47, 143, 173, 183, 197, 209, 269, 285, 335, 395}},
+		{53, []uint16{111, 145, 231, 265, 315, 339, 343, 369, 379, 421}},
+		{54, []uint16{33, 53, 131, 165, 195, 245, 255, 257, 315, 327}},
+		{55, []uint16{55, 67, 99, 127, 147, 169, 171, 199, 207, 267}},
+		{56, []uint16{5, 27, 47, 57, 89, 93, 147, 177, 189, 195}},
+		{57, []uint16{13, 25, 49, 61, 69, 111, 195, 273, 363, 423}},
+		{58, []uint16{27, 57, 63, 137, 141, 147, 161, 203, 213, 251}},
+		{59, []uint16{55, 99, 225, 427, 517, 607, 649, 687, 861, 871}},
+		{60, []uint16{93, 107, 173, 179, 257, 279, 369, 395, 399, 453}},
+		{61, []uint16{1, 31, 45, 229, 259, 283, 339, 391, 403, 465}},
+		{62, []uint16{57, 87, 117, 143, 153, 167, 171, 195, 203, 273}},
+		{63, []uint16{25, 165, 259, 301, 375, 387, 391, 409, 457, 471}},
+		{64, []uint16{59, 83, 95, 179, 189, 257, 279, 323, 353, 363}},
+	}
+	for _, row := range testPowPrimes {
+		if 64 == row.shift {
+			// 64 bits is the integer size, must use modular math wraparound (mod 2^64)
+			for _, val := range row.subK {
+				testProbablyPrime = append(testProbablyPrime, struct {
+					num     uint64
+					isPrime bool
+				}{uint64(0) - uint64(val), true})
+			}
+			continue
+		}
+		for _, val := range row.subK {
+			testProbablyPrime = append(testProbablyPrime, struct {
+				num     uint64
+				isPrime bool
+			}{(uint64(1) << row.shift) - uint64(val), true})
+		}
+	}
+	_ = testProbablyPrime
+
+	for _, test := range testProbablyPrime {
+		if test.isPrime != (0 == euler.PrimeOptiTestMillerRabin(test.num)) {
+			t.Fatalf("PrimeOptiTestMillerRabin returned incorrect result for 0x%x\n", test.num)
+		}
+	}
+}
+
+func TestOverkillVerifyPrimeTestLL_BigOnly(t *testing.T) {
+	// t.Skipf("Known Broken - current WIP\n")
+	const limit = 750_000
+	euler.Primes.Grow(limit)
+
+	testProbablyPrime := []struct {
+		num     uint64
+		isPrime bool
+	}{
+		//{ , },
+		{5915587277, true},
+		{1500450271, true},
+		{3267000013, true},
+		{5754853343, true},
+		{4093082899, true},
+		{9576890767, true},
+		{3628273133, true},
+		{2860486313, true},
+		{5463458053, true},
+		{3367900313, true},
+
+		// Test times out... +600 seconds
+		// {12764787846358441471, true},
+	}
+	// https://t5k.org/lists/2small/0bit.html
+	testPowPrimes := []struct {
+		shift uint8
+		subK  []uint16
+	}{
+		{24, []uint16{3, 17, 33, 63, 75, 77, 89, 95, 117, 167}},
+		{25, []uint16{39, 49, 61, 85, 91, 115, 141, 159, 165, 183}},
+		{26, []uint16{5, 27, 45, 87, 101, 107, 111, 117, 125, 135}},
+		{27, []uint16{39, 79, 111, 115, 135, 187, 199, 219, 231, 235}},
+		{28, []uint16{57, 89, 95, 119, 125, 143, 165, 183, 213, 273}},
+		{29, []uint16{3, 33, 43, 63, 73, 75, 93, 99, 121, 133}},
+		{30, []uint16{35, 41, 83, 101, 105, 107, 135, 153, 161, 173}},
+		{31, []uint16{1, 19, 61, 69, 85, 99, 105, 151, 159, 171}},
+		{32, []uint16{5, 17, 65, 99, 107, 135, 153, 185, 209, 267}},
+		{33, []uint16{9, 25, 49, 79, 105, 285, 301, 303, 321, 355}},
+		{34, []uint16{41, 77, 113, 131, 143, 165, 185, 207, 227, 281}},
+		{35, []uint16{31, 49, 61, 69, 79, 121, 141, 247, 309, 325}},
+		{36, []uint16{5, 17, 23, 65, 117, 137, 159, 173, 189, 233}},
+		{37, []uint16{25, 31, 45, 69, 123, 141, 199, 201, 351, 375}},
+		{38, []uint16{45, 87, 107, 131, 153, 185, 191, 227, 231, 257}},
+		{39, []uint16{7, 19, 67, 91, 135, 165, 219, 231, 241, 301}},
+		{40, []uint16{87, 167, 195, 203, 213, 285, 293, 299, 389, 437}},
+		{41, []uint16{21, 31, 55, 63, 73, 75, 91, 111, 133, 139}},
+		{42, []uint16{11, 17, 33, 53, 65, 143, 161, 165, 215, 227}},
+		{43, []uint16{57, 67, 117, 175, 255, 267, 291, 309, 319, 369}},
+		{44, []uint16{17, 117, 119, 129, 143, 149, 287, 327, 359, 377}},
+		{45, []uint16{55, 69, 81, 93, 121, 133, 139, 159, 193, 229}},
+		{46, []uint16{21, 57, 63, 77, 167, 197, 237, 287, 305, 311}},
+		{47, []uint16{115, 127, 147, 279, 297, 339, 435, 541, 619, 649}},
+		{48, []uint16{59, 65, 89, 93, 147, 165, 189, 233, 243, 257}},
+		{49, []uint16{81, 111, 123, 139, 181, 201, 213, 265, 283, 339}},
+		{50, []uint16{27, 35, 51, 71, 113, 117, 131, 161, 195, 233}},
+		{51, []uint16{129, 139, 165, 231, 237, 247, 355, 391, 397, 439}},
+		{52, []uint16{47, 143, 173, 183, 197, 209, 269, 285, 335, 395}},
+		{53, []uint16{111, 145, 231, 265, 315, 339, 343, 369, 379, 421}},
+		{54, []uint16{33, 53, 131, 165, 195, 245, 255, 257, 315, 327}},
+		{55, []uint16{55, 67, 99, 127, 147, 169, 171, 199, 207, 267}},
+		{56, []uint16{5, 27, 47, 57, 89, 93, 147, 177, 189, 195}},
+		{57, []uint16{13, 25, 49, 61, 69, 111, 195, 273, 363, 423}},
+		{58, []uint16{27, 57, 63, 137, 141, 147, 161, 203, 213, 251}},
+		{59, []uint16{55, 99, 225, 427, 517, 607, 649, 687, 861, 871}},
+		{60, []uint16{93, 107, 173, 179, 257, 279, 369, 395, 399, 453}},
+		{61, []uint16{1, 31, 45, 229, 259, 283, 339, 391, 403, 465}},
+		{62, []uint16{57, 87, 117, 143, 153, 167, 171, 195, 203, 273}},
+		{63, []uint16{25, 165, 259, 301, 375, 387, 391, 409, 457, 471}},
+		{64, []uint16{59, 83, 95, 179, 189, 257, 279, 323, 353, 363}},
+	}
+	for _, row := range testPowPrimes {
+		if 64 == row.shift {
+			// 64 bits is the integer size, must use modular math wraparound (mod 2^64)
+			for _, val := range row.subK {
+				testProbablyPrime = append(testProbablyPrime, struct {
+					num     uint64
+					isPrime bool
+				}{uint64(0) - uint64(val), true})
+			}
+			continue
+		}
+		for _, val := range row.subK {
+			testProbablyPrime = append(testProbablyPrime, struct {
+				num     uint64
+				isPrime bool
+			}{(uint64(1) << row.shift) - uint64(val), true})
+		}
+	}
+	_ = testProbablyPrime
+
+	for _, test := range testProbablyPrime {
+		if test.isPrime != (0 == euler.PrimeProbBailliePSWppo(test.num)) {
+			t.Errorf("PrimeProbLucasStrong returned incorrect result for %#x, got factor %d\n", test.num, 0)
+		}
+	}
 }
 
 func TestOverkillPrimesLists(t *testing.T) {
