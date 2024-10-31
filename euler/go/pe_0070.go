@@ -39,11 +39,11 @@ func Euler0070(toMax uint64) uint64 {
 	var bestI, ii, phi, phiMin, bestFI, fi uint64
 	var bestF, flNphi float64
 	_, _ = bestFI, fi
-	ptarget := euler.SqrtU64(toMax) // Most of the runtime is trying to factor difficult numbers, the edge cases dominate...
+	// ptarget := euler.SqrtU64(toMax) // Most of the runtime is trying to factor difficult numbers, the edge cases dominate...
 	// ptarget := uint64(500_000) // Tried adding better root / square root functions, Factorizing is still too expensive...  Unsure if I need a better Factorizing method, better Phi method, or both.
-	fmt.Printf("Finding primes to %d\n", ptarget)
+	// fmt.Printf("Finding primes to %d\n", ptarget)
 	// euler.Primes.Grow(ptarget)
-	euler.Primes.PrimeGlobalList(ptarget)
+	// euler.Primes.PrimeGlobalList(ptarget)
 	bestF, bestFI = 3.00, 3 // Not really but I know this value is higher than a real best which is 2 so...
 Euler0070ii:
 	for ii = toMax; 2 <= ii; ii-- {
@@ -123,6 +123,14 @@ Showing top 10 nodes out of 64
 	 1.38s  3.02% 67.12%      1.38s  3.02%  euler.GCDbin[go.shape.uint64]
 	 1.20s  2.62% 69.74%      2.74s  5.99%  runtime.mallocgc
 	 1.13s  2.47% 72.21%      1.14s  2.49%  math/big.reciprocalWord (inline)
+
+math/big ProbablyPrime(0) is sufficient for 64 bit numbers, it runs the MR(2) + a Lucas Strong = B-PSW test internally, that's where the math/rand sink crept in.
+
+While writing a 64 bit (plus some 128 bit internal ops) version of the tests Lenstra was also improved and as a whole with both a Probably Prime filter AND Pollard + Lenstra factorization, it's possible to find Totient values without exhaustively proving all primes have been tested other than a final prime.
+
+Untuned:
+
+~ 4.98 S user time average across three runs.
 
 .
 */

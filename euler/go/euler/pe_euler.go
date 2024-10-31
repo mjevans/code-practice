@@ -691,16 +691,20 @@ func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
 	// h > 0
 
 	// This is _slightly_ faster, 0.05~0.1 seconds in the unit tests (out of 6 seconds) but still slightly.
-	// If this needs to be faster still, maybe something about the ratio of bits rather than the length?  Would need more thought and plotting to establish a better relation.
-	bitsQ, bitsD := uint64(64-BitsLeadingZeros64(h))+64, uint64(64-BitsLeadingZeros64(d))
-	low, high = 1<<(bitsQ-bitsD-1), bitsQ-bitsD+1
+	bitsN, bitsD := uint64(64-BitsLeadingZeros64(h))+64, uint64(64-BitsLeadingZeros64(d))
+	// low, high = 1<<(bitsN-bitsD-1), bitsN-bitsD+1
+	// low must be LESS so assume bitsN and bitsD+1 as the (less than) power of 2 value of the target Q
+	// high must be MORE so assume bitsN+1 and bitsD as the (more than) power of 2 value of the target Q
+	low, high = bitsN-bitsD-1, bitsN-bitsD+1
 	if 64 <= high {
+		// Need more data and though thought to establish a better relation than this...
 		high = ^uint64(0)
 	} else {
-		high = 1 << high
+		high = (1 << high) / d
 	}
+	low = (1 << low) / d
 
-	// fmt.Printf("debug trace: bQ: %d\tbD: %d\tl: %d\th: %d\n", bitsQ, bitsD, low, high)
+	// fmt.Printf("debug trace: bN: %d\tbD: %d\tl: %d\th: %d\n", bitsN, bitsD, low, high)
 
 	low, high = 0, ^uint64(0)
 	// https://en.wikipedia.org/wiki/Binary_search -- sort of
@@ -2705,6 +2709,9 @@ func (p *BVPrimes) PrimeGlobalList(pmax uint64) {
 	PrimesMoreU16 = make([]uint16, 0, BVl1/2)
 	PrimesMoreU32 = make([]uint32, 0, BVl1/4)
 	prime = PrimesSmallU8MxVal
+	if pmax <= prime {
+		return
+	}
 	pidx = uint32(PrimesSmallU8MxVal) + 2 - 3 // +2 for the prime _after_ the current prime...
 	bb = (pidx & BVprimeByteBitMask) >> 1
 	pidx >>= BVprimeByteBitShift
@@ -3717,9 +3724,9 @@ Factor N
 // FIXME: Twisted Edwards curve variation is better? https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization#Twisted_Edwards_curves
 */
 
-type Point3DI64 struct {
-	X, Y, Z int64
-}
+// type Point3DI64 struct {
+//	X, Y, Z int64
+//}
 
 func GCDeuc[INT ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](a, b INT) INT {
 	// https://en.wikipedia.org/wiki/Euclidean_algorithm
@@ -3823,8 +3830,8 @@ func FactorLenstraECW(q, maxTestedPrime uint64) uint64 {
 	var N, A, B, X0, Y0, K, Kmx, Kmulmx, gcd, loop uint64
 	var ii, iiMx, iiPow, iiPowMx uint8
 	// iiMx = PrimesSmallU8Mx
-	// Tune
-	iiMx, iiPowMx, _ = 4, 2, Kmulmx
+	// Tune // With a different Rand source these numbers might differ; for a reasonably fast PseudoRNG, even LQ random output, this seemed the fastest over a couple runs.
+	iiMx, iiPowMx, _ = 3, 2, Kmulmx
 	if maxTestedPrime < 3 {
 		// MUST have already tested for /2 and /3 minimum - so take reasonable steps...
 		A = uint64(FactorStep0TD(uint64(q)))
@@ -3878,7 +3885,7 @@ func FactorLenstraECW(q, maxTestedPrime uint64) uint64 {
 		var rx, ry, rz, z uint64
 		rx, ry, rz = 0, 1, 0 // the infinity / O point
 		z = 1                // constant input
-		// Use P for Powers of 2, prepare the next P at the end of each cycle
+		// Use P for doubles, prepare the next P at the end of each cycle
 		// 'repeated doubling and k's binary expression
 		for {
 			// If this power of 2 is part of the result, add it
@@ -3895,7 +3902,7 @@ func FactorLenstraECW(q, maxTestedPrime uint64) uint64 {
 				break
 			}
 
-			// Compute the next power of 2
+			// Compute the next doubling
 			x, y, z = __LenECWaddMod(x, y, z, x, y, z)
 			// every addition should be a valid point, so every GCD return is desired
 			if 1 < z {
@@ -3968,10 +3975,12 @@ FactorLenstraECW_reroll:
 		// 3. + 4. ???
 		// math.SE Step 5 (BLCM == k)
 		//	Choose B -- All Prime Factors must be Less than or Equal to B ;
-		Kmx = N / uint64(maxTestedPrime)
+		//Kmx = N / uint64(maxTestedPrime)
+		_ = Kmx
 		K = 2 // 2 * 3 * 5
 		iiPow, ii = 1, 0
-		for K < Kmx {
+		//for K < Kmx {
+		for {
 			// 5.
 			// https://math.mit.edu/research/highschool/primes/materials/2018/conf/7-2%20Rhee.pdf
 			// I think that's slide 15, with Lenstra's Factorization Method and steps 1 .. 11
@@ -4778,12 +4787,25 @@ func (f *Factorized) EulerTotientPhi() uint64 {
 
 func EulerTotientPhi(q, rmin uint64) uint64 {
 	var ret, qd, qdqd uint64
-	var ii, iiLim int
+	var ii int
+	// var ii, iiLim int
 	qdqd, ret = 1, q
 
 	// https://en.wikipedia.org/wiki/Euler%27s_totient_function#Computing_Euler's_totient_function
 	// Why is this so slow?  Integer version has SO MANY div / multiplies while the fraction version can ignore that and also give an immediate remaining residual
 	// Of course the later wasn't considered as part of a generic interface... so that optimization option is (maybe?) Euler 70 specific
+
+	__ETP_TestQDFactor := func() {
+		if 0 == q%qd {
+			for 0 == q%qd {
+				q /= qd
+			}
+			ret -= ret / qd
+			if qdqd < qd*qd {
+				qdqd = qd * qd
+			}
+		}
+	}
 
 	// 2
 	if 0 == q&1 {
@@ -4794,88 +4816,113 @@ func EulerTotientPhi(q, rmin uint64) uint64 {
 		qdqd = 4
 	}
 
-	// Start at 1 : skip already checked 2
+	// Start at 1 : skip already checked 2 -- PrimesSmallU8Mx // Tested a sample of values, all uint8 primes yielded the fastest result (at the time of the test)
 	for ii = 1; 1 < q && q > qdqd && rmin < ret && ii <= PrimesSmallU8Mx; ii++ {
-		qd := uint64(PrimesSmallU8[ii])
-		if 0 == q%qd {
-			for 0 == q%qd {
-				q /= qd
-			}
-			ret -= ret / qd // *(1 - 1/qd)
+		qd = uint64(PrimesSmallU8[ii])
+		__ETP_TestQDFactor()
+		if 1 == q || rmin >= ret {
+			return ret
 		}
-		qdqd = qd * qd
+		if q <= qdqd {
+			return ret - ret/q
+		}
 	}
-	// fmt.Printf("%d:\tq: %d\trmin: %d\tret: %d\tqtqd: %d\t\n", qcopy, q, rmin, ret, qdqd)
-	if 1 == q || rmin >= ret {
+
+	for 1 < q && qdqd < q && rmin < ret {
+		qd = PrimeProbBailliePSWppo(q)
+		if 0 == qd {
+			break
+		}
+
+		if 1 < qd {
+			if 0 != q%qd {
+				panic(fmt.Sprintf("Bad factor returned, this should not happen: %#x not-factor %#x", q, qd))
+			}
+			__ETP_TestQDFactor()
+			continue
+		}
+
+		qd = Factor1980PollardMonteCarlo(q, 0)
+		if 0 != qd {
+			__ETP_TestQDFactor()
+			continue
+		}
+		qd = FactorLenstraECW(q, uint64(PrimesSmallU8MxVal))
+		if 0 != qd {
+			__ETP_TestQDFactor()
+			continue
+		}
+	}
+
+	if 1 == q {
 		return ret
 	}
-	if q <= qdqd {
-		return ret - ret/q
-	}
 
-	ii, iiLim = 0, len(PrimesMoreU16)
-	for 1 < q && rmin < ret && ii < iiLim {
-		// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
-		if q < qdqd || Primes.ProbPrime(q) {
-			// q must be a single prime number
-			return ret - ret/q
-		}
-
-		// pprof-ed slow, but much slower without *shrug*
-		qd = Factor1980PollardMonteCarlo(q, 0)
-		if 0 != qd && 0 == q%qd {
-			for 0 == q%qd {
-				q /= qd
+	/*
+		ii, iiLim = 0, len(PrimesMoreU16)
+		for 1 < q && rmin < ret && ii < iiLim {
+			// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
+			if q < qdqd || Primes.ProbPrime(q) {
+				// q must be a single prime number
+				return ret - ret/q
 			}
-			ret -= ret / qd // *(1 - 1/qd)
-			continue
-		}
 
-		// fmt.Printf("Debug q16: q: %d\tqdqd: %d\tii: %d\tiiLim %d\n", q, qdqd, ii, iiLim)
-		for q > qdqd && ii < iiLim {
-			qd = uint64(PrimesMoreU16[ii]) // Primes.PrimeAfter(qd)
-			ii++
-			qdqd = qd * qd
-			if 0 == q%qd {
+			// pprof-ed slow, but much slower without *shrug*
+			qd = Factor1980PollardMonteCarlo(q, 0)
+			if 0 != qd && 0 == q%qd {
 				for 0 == q%qd {
 					q /= qd
 				}
 				ret -= ret / qd // *(1 - 1/qd)
-				break           // 1
+				continue
+			}
+
+			// fmt.Printf("Debug q16: q: %d\tqdqd: %d\tii: %d\tiiLim %d\n", q, qdqd, ii, iiLim)
+			for q > qdqd && ii < iiLim {
+				qd = uint64(PrimesMoreU16[ii]) // Primes.PrimeAfter(qd)
+				ii++
+				qdqd = qd * qd
+				if 0 == q%qd {
+					for 0 == q%qd {
+						q /= qd
+					}
+					ret -= ret / qd // *(1 - 1/qd)
+					break           // 1
+				}
 			}
 		}
-	}
-	ii, iiLim = 0, len(PrimesMoreU32)
-	for 1 < q && rmin < ret && ii < iiLim {
-		// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
-		if q < qdqd || Primes.ProbPrime(q) {
-			// q must be a single prime number
-			return ret - ret/q
-		}
-
-		// pprof-ed slow, but much slower without *shrug*
-		qd = Factor1980PollardMonteCarlo(q, 0)
-		if 0 != qd && 0 == q%qd {
-			for 0 == q%qd {
-				q /= qd
+		ii, iiLim = 0, len(PrimesMoreU32)
+		for 1 < q && rmin < ret && ii < iiLim {
+			// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
+			if q < qdqd || Primes.ProbPrime(q) {
+				// q must be a single prime number
+				return ret - ret/q
 			}
-			ret -= ret / qd // *(1 - 1/qd)
-			continue
-		}
 
-		for q > qdqd && ii < iiLim {
-			qd = uint64(PrimesMoreU32[ii]) // Primes.PrimeAfter(qd)
-			ii++
-			qdqd = qd * qd
-			if 0 == q%qd {
+			// pprof-ed slow, but much slower without *shrug*
+			qd = Factor1980PollardMonteCarlo(q, 0)
+			if 0 != qd && 0 == q%qd {
 				for 0 == q%qd {
 					q /= qd
 				}
 				ret -= ret / qd // *(1 - 1/qd)
-				break           // 1
+				continue
+			}
+
+			for q > qdqd && ii < iiLim {
+				qd = uint64(PrimesMoreU32[ii]) // Primes.PrimeAfter(qd)
+				ii++
+				qdqd = qd * qd
+				if 0 == q%qd {
+					for 0 == q%qd {
+						q /= qd
+					}
+					ret -= ret / qd // *(1 - 1/qd)
+					break           // 1
+				}
 			}
 		}
-	}
+	*/
 	// qd := FactorStep1RootsFilter(q, uint64(PrimesSmallU8MxVal))
 	// Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
 	//return uint64(FactorLenstraECW(int64(q), int64(PrimesSmallU8MxVal)))
