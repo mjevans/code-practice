@@ -840,7 +840,7 @@ func TestOverkillVerifyPrimeTestMR_BigOnly(t *testing.T) {
 	}
 }
 
-func TestOverkillVerifyPrimeTestLL_BigOnly(t *testing.T) {
+func TestOverkillVerifyPrimeTestBailliePSW_BigOnly(t *testing.T) {
 	// t.Skipf("Known Broken - current WIP\n")
 	const limit = 750_000
 	euler.Primes.Grow(limit)

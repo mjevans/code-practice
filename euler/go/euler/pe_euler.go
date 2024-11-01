@@ -204,7 +204,7 @@ const (
 	PrimesSmallU8MxVal          = 251
 	PrimesSmallU8MxValCompAfter = 256
 	PrimesSmallU8MxValPow2After = 0x1_0000 // 256 * 256
-	Debug128bitInts             = true
+	Debug128bitInts             = false
 )
 
 var (
@@ -618,10 +618,52 @@ func UU64Mul(a, b uint64) (uint64, uint64) {
 	return Z2, Z0
 }
 
+/*
 func UU64MulUUUU(ah, al, bh, bl uint64) (uint64, uint64, uint64, uint64) {
 	// https://en.wikipedia.org/wiki/Toom%E2%80%93Cook_multiplication (Toom-4)
-
+	// natural math https://gmplib.org/manual/Toom-4_002dWay-Multiplication
+	// X is split across ah,al Y is split across bh,bl
+	//          * I'm worried about three lines, all of which bit-shift terms to the left.  Those could overflow my selected split locations.
+	//		While I could farm those back out to Karatsuba, that sort of defeats the point of trying to support a 128bit * 128bit op; GMP's documentation suggests Toom-6+1/2 is the next worthwhile step higher.
+	// . t=0	x0 * y0 == w[0]
+	// 0 t=1/2  *	(x3 + 2*x2 + 4*x1 + 8*x0) * (y3 + 2*y2 + 4*y1 + 8*y0)
+	// 1 t=-1/2 *	( -x3 + 2*x2 - 4*x1 + 8*x0) * (-y3 + 2*y2 - 4*y1 + 8*y0)
+	// 2 t=1	(x3 + x2 + x1 + x0) * (y3 + y2 + y1 + y0)
+	// 3 t=-1	( -x3 + x2 - x1 + x0) * ( -y3 + y2 - y1 + y0)
+	// 4 t=2    *	(8*x3 + 4*x2 + 2*x1 + x0) * (8*y3 + 4*y2 + 2*y1 + y0)
+	// . t=inf	x3 * y3 == w[inf]
+	x, y := [4]uint64{al&0xFFFF_FFFF, al>>32, ah&0xFFFF_FFFF, ah>>32},[4]uint64{bl&0xFFFF_FFFF, bl>>32, bh&0xFFFF_FFFF, bh>>32}
+	var w [7]uint64
+	var t [5]uint64
+	var ti1minus, ti3minus bool
+	w[0], w[6] = x[0] * y[0], x[3] * y[3]  // t0 & tInf
+	t[4] = (x[3]<<3 + x[2]<<2 + x[1]<<1 + x[0]) * (y[3]<<3 + y[2]<<2 + y[1]<<1 + y[0])
+	// uint math is mod (pow2 - 1) ; -1 wraps to all 1s and adding one overflows back around to 0.  It's safe to just add and subtract as directed then correct the result (0-negativevalue)
+	a, b := x[0] + x[2] - x[1] - x[3], y[0] + y[2] - y[1] - y[3]
+	if 0 < a&(1<<63) {
+		ti3minus = !ti3minus
+		a = 0 - a
+	}
+	if 0 < b&(1<<63) {
+		ti3minus = !ti3minus
+		b = 0 - b
+	}
+	t[3], t[2] = a * b, (x[3] + x[2] + x[1] + x[0]) * (y[3] + y[2] + y[1] + y[0])
+	a, b = x[0]<<3 + x[2]<<1 - x[1]<<2 - x[3], y[0]<<3 + y[2]<<1 - y[1]<<2 - y[3]
+	if 0 < a&(1<<63) {
+		ti1minus = !ti1minus
+		a = 0 - a
+	}
+	if 0 < b&(1<<63) {
+		ti1minus = !ti1minus
+		b = 0 - b
+	}
+	t[1], t[0] = a * b,  x[0]<<3 + x[2]<<1 + x[1]<<2 + x[3], y[0]<<3 + y[2]<<1 + y[1]<<2 + y[3]
+	//
+	// Abandoned - the bitshifted terms would overflow ; What I wanted to use this for also seems unlikely to yield sufficient benefit when it's already this complex.
+	//
 }
+*/
 
 func UU64AddUU64(ah, al, bh, bl uint64) (uint64, uint64, uint64) {
 	var carry uint64
@@ -676,73 +718,15 @@ func UU64Cmp(ah, al, bh, bl uint64) int {
 	https://en.wikipedia.org/wiki/Division_algorithm#SRT_division
 
 	https://stackoverflow.com/a/27808065
+
+	Multiplication to support q[n+1]=q[n]*(2^(k+1)-q[n]*B) >> k looks _way_ more expensive than simple bitshifts and subtractions.  I started to embark on Toom-4 in an attempt to support it but realized the bitshifts meant that terms would overflow, just like they did in the addition section of Karatsuba (that solved by 128bit +/- to support possibly multiple carry events).
 .
 */
-
-func UU64DivQD_SlightlyFaster(h, l, d uint64) (uint64, uint64, uint64) {
-	// https://en.wikipedia.org/wiki/Division_algorithm#Large-integer_methods
-	// ~~ Vaguely inspired by https://en.wikipedia.org/wiki/Division_algorithm#Newton%E2%80%93Raphson_division
-	var X, low, high, qh, ql, sh, sl, r, th, tl uint64
-	// if 0xffffffffffffffc5 == d {
-	//	fmt.Printf("UU64DivQD: Invoked with 0x%x, 0x%x, 0x%x\n", h, l, d)
-	//}
-	if 0 == d {
-		fmt.Printf("UU64DivQD: Division by Zero, no error path, returning zero. %x_%16x / %x", h, l, d)
-		return 0, 0, 0
-	}
-	if 1 == d {
-		return h, l, 0
-	}
-
-	if 0 == h {
-		// hardware word fast path, there's no high part
-		l, r = l/d, l%d
-		return 0, l, r
-	}
-
-	// Measured: No, at least not with BitsPowOfTwo as is... NOT worth trying to detect an exact power of 2 divisor
-
-	// btN is the current MSB (1<<btN) of the Numerator 40e6_278a_a8ed_c6c9
-	// btQ = btN - btD (the current MSB (1<<btD) of the Denominator)
-	btN := 64 - BitsLeadingZeros64(h) + 64
-	btQ := btN - 64 + BitsLeadingZeros64(d)
-	th, tl = h, l
-
-	for 0 <= btQ {
-		if 64 <= btQ {
-			r = d << (btQ - 64)
-		} else {
-			r = d >> (64 - btQ) // d>>(64-btQ) How would that work if btQ > 64?	// 1001 0000 1001 1011
-		}
-		sh, sl = UU64SubUU64(th, tl, r, d<<btQ)
-		// t1, t0, tn := false, false, false
-		// t1, t0, tn = 0 < sl&(1<<(btN+1)), 0 < sl&(1<<(btN)), 0 < sl&(1<<(btN-1))
-		// fmt.Printf("%16x %16x\tbtN: %d\tbtQ: %d\n%16x %16x-\n%16x %16x=\t%t\t%t\t%t\n", th, tl, btN, btQ, r, d<<btQ, sh, sl, t1, t0, tn)
-		if 0 == sh&(1<<63) {
-			if 64 <= btQ {
-				qh |= 1 << (btQ - 64)
-			} else {
-				ql |= 1 << btQ
-			}
-			th, tl = sh, sl
-			//for 64 <= btN && 0 < btQ && 0 == th&(1<<(btN-64)) {
-			//	btN, btQ = btN-1, btQ-1
-			//}
-			//for 64 > btN && 0 < btQ && 0 == sh && 0 == tl&(1<<btN) {
-			//	btN, btQ = btN-1, btQ-1
-			//}
-			// } else {
-		}
-		btN, btQ = btN-1, btQ-1
-	}
-	_, _, _ = X, low, high
-	return qh, ql, tl
-}
 
 func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
 	// https://en.wikipedia.org/wiki/Division_algorithm#Large-integer_methods
 	// ~~ Vaguely inspired by https://en.wikipedia.org/wiki/Division_algorithm#Newton%E2%80%93Raphson_division
-	var X, low, high, qh, ql, sh, sl, r, th, tl uint64
+	var qh, ql, sh, sl, r, th, tl uint64
 	// if 0xffffffffffffffc5 == d {
 	//	fmt.Printf("UU64DivQD: Invoked with 0x%x, 0x%x, 0x%x\n", h, l, d)
 	//}
@@ -769,11 +753,11 @@ func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
 	th, tl = h, l
 
 	// Establish an initial estimate with quick bit muls, at least 7 bits precision will result
-	for est:=0; 0 <= btQ && 8 < est; est++ {
+	for 0 <= btQ {
 		if 64 <= btQ {
 			r = d << (btQ - 64)
 		} else {
-			r = d >> (64 - btQ) // d>>(64-btQ) How would that work if btQ > 64?	// 1001 0000 1001 1011
+			r = d >> (64 - btQ) // d>>(64-btQ) How would that work if btQ > 64?
 		}
 		sh, sl = UU64SubUU64(th, tl, r, d<<btQ)
 		if 0 == sh&(1<<63) {
@@ -786,118 +770,7 @@ func UU64DivQD(h, l, d uint64) (uint64, uint64, uint64) {
 		}
 		btN, btQ = btN-1, btQ-1
 	}
-	_, _, _ = X, low, high
 	return qh, ql, tl
-
-	/*
-		// low, high = 1<<(bitsN-bitsD-1), bitsN-bitsD+1
-		// low must be LESS so assume bitsN and bitsD+1 as the (less than) power of 2 value of the target Q
-		// high must be MORE so assume bitsN+1 and bitsD as the (more than) power of 2 value of the target Q
-		low, high = bitsN-bitsD-1, bitsN-bitsD+1
-		if 64 <= high {
-			// Need more data and though thought to establish a better relation than this...
-			high = ^uint64(0)
-		} else {
-			high = (1 << high) / d
-		}
-		low = (1 << low) / d
-
-		// fmt.Printf("debug trace: bN: %d\tbD: %d\tl: %d\th: %d\n", bitsN, bitsD, low, high)
-
-		low, high = 0, ^uint64(0)
-		// https://en.wikipedia.org/wiki/Binary_search -- sort of
-		for low != high {
-			// X= (low + high) / 2 // without overflow
-			X = (low >> 1) + (high >> 1) + (low&1)&(high&1)
-			th, tl = UU64Mul(X, d)
-			rh, rl = UU64SubUU64(h, l, th, tl)
-			cmp := UU64Cmp(h, l, th, tl)
-			// if 0xffffffffffffffc5 == d && 0xcc5fb7b7273cc415 == h && 0x4bfc032560925a99 == l {
-			// fmt.Printf("debug trace: %x : l %16x h %16x\tX: %16x\tsub %16x %16x\n", d, low, high, X, rh, rl)
-			//}
-			if 0 == rh {
-				// fmt.Printf("Debug return rh 0\n")
-				if 0 == rl {
-					// Winner
-					return 0, X, 0
-				}
-				// Runner Up
-				rh, r = rl/d, rl%d
-				rh += X
-				if rh < X {
-					return 1, rh, r
-				}
-				return 0, rh, r
-			} else if 1 == rh && rl < (d-1) {
-				// fmt.Printf("debug rh1: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, X, h, l, th, tl, rh, rl)
-				// Edge cases like: 0x2 , 0xfffffffffffff8d5 , 0x3fffffffffffff67
-				rl += 1 + ((^uint64(0)) % d)
-				if rl >= d {
-					X++
-					rl %= d
-				}
-				rh = X + ((^uint64(0)) / d) + (((^uint64(0))%d)+1+rl)/d
-				if rh < X {
-					return 1, rh, rl
-				}
-				return 0, rh, rl
-			} else if -1 == cmp {
-				// X*d > h_l
-				high = X - 1
-			} else {
-				// X*d < h_l -- If rh == 1 the remainder may be at this location
-				low = X + 1
-			}
-		}
-		th, tl = UU64Mul(low, d)
-		rh, rl = UU64SubUU64(h, l, th, tl)
-		if 0 == rh && rl < d {
-			return 0, low, rl
-		}
-
-		fmt.Printf("debug: UU64DivQD: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, low, h, l, th, tl, rh, rl)
-		panic("UU64DivQD: 128bit div: This should not be reached.  Expected return path is via binary search resolution.")
-		/*
-			th, tl = UU64Mul(low, d)
-			rh, rl = UU64SubUU64(h, l, th, tl)
-			fmt.Printf("debug outer: %x : l %16x h %16x\tX: %16x\tsub %16x %16x\n", d, low, high, low, rh, rl)
-			if 0 == rh && rl < d {
-				fmt.Printf("Debug return Outer\n")
-				return 0, low, rl
-			}
-			fmt.Printf("debug outer: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\tsub %16x %16x\n", d, low, h, l, th, tl, rh, rl)
-			b1, b0, bd := big.NewInt(1), big.NewInt(0), big.NewInt(0)
-			b0.SetUint64(0xFFFF_FFFF_FFFF_FFFF)
-			b1.Add(b1, b0)
-			b0.SetUint64(h)
-			b0.Mul(b0, b1)
-			bd.SetUint64(l)
-			b0.Add(b0, bd)
-			bd.SetUint64(d)
-			b0.DivMod(b0, bd, b1)
-			fmt.Printf("Big Div: q: 0x%s\tr: 0x%s\n", b0.Text(16), b1.Text(16))
-			// 0xcc5fb7b7273cc444
-			//   cc5fb7b7cc5fb7b6
-			panic("exit")
-			// d is _way_ smaller than h_l
-			// low has become the low of the quotient
-			th, tl, r = UU64DivQD(rh, rl, d)
-			high, th, tl = UU64AddUU64(th, tl, 0, low)
-			// fmt.Printf("debug unstk: %x : l %16x r %16x\th: %16x\tadd %16x %16x\n", d, low, r, high, rh, rl)
-			if 0 != high {
-				fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should not have overflowed, this should be unreachable.\n", h, l, d)
-				panic("too big")
-			} else {
-				fmt.Printf("Debug return Outer 2\n")
-				return th, tl, r
-			}
-			fmt.Printf("debug back failed: %x : x %16x\th: %16x l: %16x\tth %16x\ttl: %16x\n", d, low, h, l, th, tl)
-			panic("what now?")
-
-			fmt.Printf("UU64DivQD: New test case, please add and resolve UU64DivQD(0x%x, 0x%x, 0x%x) -- It should have returned during the binary search rather than exited. This should be unreachable.\n", h, l, d)
-			// panic("UU64DivQD")
-	*/
-	return 0, 0, 0
 }
 
 func UU64DivQD_old(h, l, d uint64) (uint64, uint64, uint64) {
