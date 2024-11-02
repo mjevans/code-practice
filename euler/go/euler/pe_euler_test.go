@@ -1452,6 +1452,28 @@ func TestEulerTotientPhi(t *testing.T) {
 			t.Errorf("Expected results: EulerTotientPhi_exp(%d) => %d got %d\n", ii, testTotientPhi[ii], phi)
 		}
 	}
+	testTotientPhi_matches := euler.EulerTotientBulk(uint64(len(testTotientPhi) - 1))
+	for ii := 1; ii < len(testTotientPhi); ii++ {
+		if testTotientPhi[ii] != testTotientPhi_matches[ii] {
+			t.Errorf("Expected results: EulerTotientBulk[%d] matches known => %d got %d\n", ii, testTotientPhi[ii], testTotientPhi_matches[ii])
+		}
+	}
+
+	//  Number of fractions in Farey series of order n.  https://oeis.org/A005728
+	testFareyLen := []uint64{
+		1, 2, 3, 5, 7, 11, 13, 19, 23, 29,
+		33, 43, 47, 59, 65, 73, 81, 97, 103,
+		121, 129, 141, 151, 173, 181, 201, 213, 231,
+		243, 271, 279, 309, 325, 345, 361, 385, 397,
+		433, 451, 475, 491, 531, 543, 585, 605, 629,
+		651, 697, 713, 755, 775, 807, 831, 883, 901, 941, 965,
+	}
+	for ii := 5; ii < len(testFareyLen); ii++ {
+		val, got := testFareyLen[ii], euler.FareyLengthAlgE(uint64(ii))
+		if val != got {
+			t.Errorf("Expected results: FareyLengthAlgE(%d) matches known => %d got %d\n", ii, val, got)
+		}
+	}
 }
 
 func TestGeneralMaths(t *testing.T) {

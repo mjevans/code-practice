@@ -4970,76 +4970,159 @@ func EulerTotientPhi(q, rmin uint64) uint64 {
 	if 1 == q {
 		return ret
 	}
-
-	/*
-		ii, iiLim = 0, len(PrimesMoreU16)
-		for 1 < q && rmin < ret && ii < iiLim {
-			// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
-			if q < qdqd || Primes.ProbPrime(q) {
-				// q must be a single prime number
-				return ret - ret/q
-			}
-
-			// pprof-ed slow, but much slower without *shrug*
-			qd = Factor1980PollardMonteCarlo(q, 0)
-			if 0 != qd && 0 == q%qd {
-				for 0 == q%qd {
-					q /= qd
-				}
-				ret -= ret / qd // *(1 - 1/qd)
-				continue
-			}
-
-			// fmt.Printf("Debug q16: q: %d\tqdqd: %d\tii: %d\tiiLim %d\n", q, qdqd, ii, iiLim)
-			for q > qdqd && ii < iiLim {
-				qd = uint64(PrimesMoreU16[ii]) // Primes.PrimeAfter(qd)
-				ii++
-				qdqd = qd * qd
-				if 0 == q%qd {
-					for 0 == q%qd {
-						q /= qd
-					}
-					ret -= ret / qd // *(1 - 1/qd)
-					break           // 1
-				}
-			}
-		}
-		ii, iiLim = 0, len(PrimesMoreU32)
-		for 1 < q && rmin < ret && ii < iiLim {
-			// ProbPrime _expensive_ but WORTH it... My own version rather than math.big would be good though...
-			if q < qdqd || Primes.ProbPrime(q) {
-				// q must be a single prime number
-				return ret - ret/q
-			}
-
-			// pprof-ed slow, but much slower without *shrug*
-			qd = Factor1980PollardMonteCarlo(q, 0)
-			if 0 != qd && 0 == q%qd {
-				for 0 == q%qd {
-					q /= qd
-				}
-				ret -= ret / qd // *(1 - 1/qd)
-				continue
-			}
-
-			for q > qdqd && ii < iiLim {
-				qd = uint64(PrimesMoreU32[ii]) // Primes.PrimeAfter(qd)
-				ii++
-				qdqd = qd * qd
-				if 0 == q%qd {
-					for 0 == q%qd {
-						q /= qd
-					}
-					ret -= ret / qd // *(1 - 1/qd)
-					break           // 1
-				}
-			}
-		}
-	*/
-	// qd := FactorStep1RootsFilter(q, uint64(PrimesSmallU8MxVal))
-	// Lenstra Elliptic Curve Factorization (good up to ~10^50 or beyond, and thus well past uint64)
-	//return uint64(FactorLenstraECW(int64(q), int64(PrimesSmallU8MxVal)))
+	// Final Probable Prime
 	return ret - ret/q
+}
+
+func EulerTotientBulk(max uint64) []uint64 {
+	var pp, ii, retLim uint64
+	retLim = max + 1
+	ret := make([]uint64, 0, retLim)
+	// Fill with index = max number
+	for ; ii < retLim; ii++ {
+		ret = append(ret, ii)
+	}
+	for pp = 2; pp <= max; pp = Primes.PrimeAfter(pp) {
+		for ii = pp; ii <= max; ii += pp {
+			ret[ii] -= ret[ii] / pp
+		}
+	}
+	return ret
+}
+
+func FareyLengthAlgE(d uint64) uint64 {
+	// Formulas and algorithms for the length of a Farey Sequence - Scientific Reports - Nature -- https://www.nature.com/articles/s41598-021-99545-w#Sec8
+	__unpack3 := func(t [3]uint64) (uint64, uint64, uint64) {
+		return t[0], t[1], t[2]
+	}
+
+	// Alg 3
+	ProcessSmoothNumbers := func(Plim, a, LB uint64, EachVisit func(uint64, uint64)) {
+		var m, o, j uint64
+		S := make([][3]uint64, 0, 4)
+		S = append(S, [3]uint64{1, 1, 0})
+		for 0 < len(S) {
+			Smx := len(S) - 1
+			// Alg3 uses j as the index into array P - I don't have an array, I have a (global shared) bitvector (wheel factorization) and a Next function
+			// _my_ j is the next prime
+			m, o, j = __unpack3(S[Smx])
+			S = S[0:Smx]
+			// next prime
+			p := Primes.PrimeAfter(j)
+			if p <= Plim {
+				S = append(S, [3]uint64{m, o, p})
+			} else {
+				continue
+			}
+			if 0 == m%p {
+				o *= p
+			} else {
+				o *= p - 1
+			}
+			m *= p
+			if LB < m {
+				S = S[0:(len(S) - 1)]
+			}
+			if a < m && m < LB {
+				EachVisit(m, o)
+			}
+			if m < LB {
+				S = append(S, [3]uint64{m, o, j}) // j doesn't make sense to me here, but maybe there's a reason to re-run a set?
+			}
+		}
+	}
+
+	// Alg 4
+	ProcessNonSmoothNumbers := func(slToti []uint64, a, LB uint64, EachVisit func(uint64, uint64)) {
+		// slToti is a slice of totient values which match integers of index 1..(LB/a)
+
+		// Generator functions won't be available in some target environments
+		// Inline p := SieveOfAtkin(a, LB) ?
+		// Are they asking for primes between a and LB inclusive?
+		var p, m, ii, o uint64
+		fmt.Printf("ProcessNonSmoothNumbers(... %d, %d ...)\n", a, LB)
+		for p = a; a <= LB; p = Primes.PrimeAfter(p) {
+			ii = 1
+			for m = p; m <= LB; m += p {
+				o = slToti[ii] * p
+				if 0 != ii%p {
+					o -= p // o = slToti[ii] * (p - 1)
+				}
+				EachVisit(m, o)
+				ii++
+			}
+		}
+	}
+
+	// Alg 6
+	UpdateLookupTable := func(F []uint64, m uint64) {
+		var r, u, s, k uint64
+		if m <= 1 {
+			panic("FareyLengthAlgE -> UpdateLookupTable must be GE 1")
+		}
+		r = SqrtU64(m)
+		u = m / (r + 1)
+		s = 0
+		for k = 2; k <= u; k++ {
+			// Their assert is built into go, it will panic for an out of bounds index
+			s += F[m/k]
+		}
+		for k = 1; k <= r; k++ {
+			s += F[k] * ((m / k) - (m / (k + 1)))
+		}
+		F[m] = (((m + 3) * m) >> 1) - s
+	}
+
+	// This is loosely translated with the base of Algorithm 8 for correctness and speed
+	var s, m, i uint64
+	n := d
+	r, c := SqrtU64(uint64(n)), RootU64(uint64(n*n), 3)
+	u, v := n/(r+1), n/(c+1)
+	w := u - v - 1
+
+	// AlgE uses a linear sieve to compute primes => totients from 1 to r (sqrt(n)
+	F := make([]uint64, r+1)
+	// F := lut(n, r+1) //FIXME
+	// (P,Lp) Primes to R? -- My general library has this expressed in several ways, not sure if it's worth the cost of building a list rather than using Primes.PrimeAfter()
+	Primes.Grow(r)
+	// slToti := ComputeTotients(r, Lp)
+	slToti := EulerTotientBulk(r)
+
+	s = 1
+	for m = 1; m <= r; m++ {
+		s = s + slToti[m]
+		F[m] = s
+	}
+
+	a := r + 1
+	LB := n / (v + 1)
+	if LB >= a {
+		B := make([]uint64, w+1)
+		EachVisit := func(m, sumphi uint64) {
+			// scope variables B, u, n, i
+			i = u - u/m
+			if i >= uint64(len(B)) {
+				fmt.Printf("Len B: %d < %d (%d - %d/%d)\t%v\n", len(B), i, u, u, m, B)
+				return
+			}
+			B[i] += sumphi
+		}
+		ProcessSmoothNumbers(r, a, LB, EachVisit)         // r-smooth numbers in [a, LB]	//Alg3
+		ProcessNonSmoothNumbers(slToti, a, LB, EachVisit) // not r-smooth numbers in [a, LB]	//Alg4
+
+		// Accum partial sums into F
+		s = F[r]
+		for i = 0; i < w; i++ {
+			s += B[i]
+			F[n/(u-i)] = s
+		}
+	}
+
+	for i = v; 0 < i; i-- {
+		// UpdateLookupTable(F, n/i) // 'See Alg6
+		UpdateLookupTable(F, n/i)
+	}
+	return F[n]
 }
 
 /*
