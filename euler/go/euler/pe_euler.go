@@ -213,7 +213,9 @@ var (
 	PrimesMoreU16 []uint16
 	PrimesMoreU32 []uint32 // I do see where 65535 could be insufficient
 	// PrimesMoreU64 []uint64 // I don't foresee any algorithms that need a LIST of continuous known primes greater than 32billion; that's clearly the range of other tools...
-	PSRand *PSRandPGC32
+	PSRand     *PSRandPGC32
+	TotientPhi []uint32
+	TotientSum []uint64
 )
 
 func init() {
@@ -389,11 +391,12 @@ func FactorialDivFactU64toBig(ii, div uint64) *big.Int {
 
 */
 
-func Mod1toN[INT ~uint | ~int | ~uint64 | ~int64](a, mod INT) INT {
+func Mod1toN[INT ~uint | ~int | ~uint64 | ~int64 | ~uint32 | ~int32 | ~uint16 | ~int16 | ~uint8 | ~int8](a, mod INT) INT {
+	a %= mod
 	if 0 == a {
 		return mod
 	}
-	return a % mod
+	return a
 }
 
 func AddOF64Mod[INT ~uint | ~int | ~uint64 | ~int64](a, b, mod INT) INT {
@@ -1074,6 +1077,22 @@ func SqrtU64(ii uint64) uint64 {
 	return x0
 }
 
+func SqrtU64up(ii uint64) uint64 {
+	// https://en.wikipedia.org/wiki/Integer_square_root#Algorithm_using_Newton's_method
+	// f(x) { x*x } // dxf(x) { 2x }
+	if 1 >= ii {
+		return ii
+	}
+	var x0, x1 uint64
+	x0 = ii >> 1 // must be above the answer
+	x1 = (ii + 1) >> 1
+	for x1 < x0 {
+		x0 = x1
+		x1 = (x0 + ii/x0) >> 1
+	}
+	return x0
+}
+
 func RootU64(ii, root uint64) uint64 {
 	// https://en.wikipedia.org/wiki/Integer_square_root#Algorithm_using_Newton's_method
 	// f(x) { x*x } // dxf(x) { 2x }
@@ -1112,6 +1131,25 @@ func RootU64(ii, root uint64) uint64 {
 		}
 	}
 	// fmt.Printf("RootU64(%d, %d)\tx0: %d\tx1: %d\n", ii, root, x0, x1)
+
+	return x0
+}
+
+func RootU64up(ii, root uint64) uint64 {
+	if 0 == root {
+		return 0
+	}
+	if 1 >= ii || 1 == root {
+		return ii
+	}
+	var x0, x1 uint64
+	rmm := root - 1
+	x0 = ii
+	x1 = (ii + root - 1) / rmm
+	for x1 < x0 {
+		x0 = x1
+		x1 = (rmm*x0 + ii/PowU64(x0, rmm)) / root
+	}
 
 	return x0
 }
@@ -4901,6 +4939,9 @@ func (f *Factorized) EulerTotientPhi() uint64 {
 func EulerTotientPhi(q, rmin uint64) uint64 {
 	var ret, qd, qdqd uint64
 	var ii int
+	if uint64(len(TotientPhi)) > q {
+		return uint64(TotientPhi[q])
+	}
 	// var ii, iiLim int
 	qdqd, ret = 1, q
 
@@ -4974,24 +5015,51 @@ func EulerTotientPhi(q, rmin uint64) uint64 {
 	return ret - ret/q
 }
 
-func EulerTotientBulk(max uint64) []uint64 {
-	var pp, ii, retLim uint64
-	retLim = max + 1
-	ret := make([]uint64, 0, retLim)
-	// Fill with index = max number
-	for ; ii < retLim; ii++ {
-		ret = append(ret, ii)
+func EulerTotientBulk(max uint32) ([]uint32, []uint64) {
+	var ss uint64
+	var ii, pp uint32
+	if 0 == max {
+		return TotientPhi, TotientSum
 	}
-	for pp = 2; pp <= max; pp = Primes.PrimeAfter(pp) {
-		for ii = pp; ii <= max; ii += pp {
-			ret[ii] -= ret[ii] / pp
+	old := uint32(len(TotientPhi))
+	if old < max {
+		TotientPhi = append(make([]uint32, 0, max+1), TotientPhi...) // FIXME: This isn't thread safe, could add a mutex like for Primes
+		TotientSum = append(make([]uint64, 0, max+1), TotientSum...)
+		for ii = old; ii <= max; ii++ {
+			TotientPhi = append(TotientPhi, ii)
+		}
+		for pp = 2; pp <= max; pp = uint32(Primes.PrimeAfter(uint64(pp))) {
+			for ii = old + pp - Mod1toN(old, pp); ii <= max; ii += pp {
+				TotientPhi[ii] -= TotientPhi[ii] / pp
+			}
+		}
+		if 0 < old {
+			ss = TotientSum[old-1]
+		} else {
+			ss = 0
+		}
+		for ii = old; ii <= max; ii++ {
+			ss += uint64(TotientPhi[ii])
+			TotientSum = append(TotientSum, ss)
 		}
 	}
-	return ret
+	return TotientPhi, TotientSum
+}
+
+func EulerTotientSum[INT ~uint | ~int | ~uint64 | ~int64 | ~uint32 | ~int32 | ~uint16 | ~int16 | ~uint8 | ~int8](q INT) uint64 {
+	if len(TotientSum) <= int(q) {
+		EulerTotientBulk(uint32(q))
+	}
+	return TotientSum[q]
 }
 
 func FareyLengthAlgE(d uint64) uint64 {
+	// This also seems to match a description I found later https://arxiv.org/pdf/0708.0080
 	// Formulas and algorithms for the length of a Farey Sequence - Scientific Reports - Nature -- https://www.nature.com/articles/s41598-021-99545-w#Sec8
+	// Notable changes:
+	//	* Added Integer 'root' functions that match the round up behavior this algorithm expects (mine round down, since I always wanted a value LESS than, not greater than)
+	//	* The algo uses non-zero indexed arrays, I've decided to correct for zero indexed and more memory use to simplify code and increase speed
+	//	* My Euler library's Primes are stored in a Bitvector (they're created there), several places used an index value into a local list of primes, the code has been adapted accordingly.
 	__unpack3 := func(t [3]uint64) (uint64, uint64, uint64) {
 		return t[0], t[1], t[2]
 	}
@@ -5033,7 +5101,7 @@ func FareyLengthAlgE(d uint64) uint64 {
 	}
 
 	// Alg 4
-	ProcessNonSmoothNumbers := func(slToti []uint64, a, LB uint64, EachVisit func(uint64, uint64)) {
+	ProcessNonSmoothNumbers := func(slToti []uint32, a, LB uint64, EachVisit func(uint64, uint64)) {
 		// slToti is a slice of totient values which match integers of index 1..(LB/a)
 
 		// Generator functions won't be available in some target environments
@@ -5044,7 +5112,7 @@ func FareyLengthAlgE(d uint64) uint64 {
 		for p = a; a <= LB; p = Primes.PrimeAfter(p) {
 			ii = 1
 			for m = p; m <= LB; m += p {
-				o = slToti[ii] * p
+				o = uint64(slToti[ii]) * p
 				if 0 != ii%p {
 					o -= p // o = slToti[ii] * (p - 1)
 				}
@@ -5060,7 +5128,7 @@ func FareyLengthAlgE(d uint64) uint64 {
 		if m <= 1 {
 			panic("FareyLengthAlgE -> UpdateLookupTable must be GE 1")
 		}
-		r = SqrtU64(m)
+		r = SqrtU64up(m)
 		u = m / (r + 1)
 		s = 0
 		for k = 2; k <= u; k++ {
@@ -5076,28 +5144,36 @@ func FareyLengthAlgE(d uint64) uint64 {
 	// This is loosely translated with the base of Algorithm 8 for correctness and speed
 	var s, m, i uint64
 	n := d
-	r, c := SqrtU64(uint64(n)), RootU64(uint64(n*n), 3)
+	r, c := SqrtU64up(uint64(n)), RootU64up(uint64(n*n), 3)
 	u, v := n/(r+1), n/(c+1)
 	w := u - v - 1
 
+	// FIXME:	This section tries to adapt the paper's algorithm to what is easiest and fastest in Golang as well as my existing library of code.
+	// 		This probably isn't space optimal, but the unit tests pass.
 	// AlgE uses a linear sieve to compute primes => totients from 1 to r (sqrt(n)
-	F := make([]uint64, r+1)
-	// F := lut(n, r+1) //FIXME
+	F := make([]uint64, d+1+1)
+	// F := lut(n, r+1)
 	// (P,Lp) Primes to R? -- My general library has this expressed in several ways, not sure if it's worth the cost of building a list rather than using Primes.PrimeAfter()
 	Primes.Grow(r)
 	// slToti := ComputeTotients(r, Lp)
-	slToti := EulerTotientBulk(r)
+	slToti, _ := EulerTotientBulk(uint32(r)) // I just compute them all from 0 up to r
+	// F contains Farey sums, not Totient sums... however the difference is literally off by one.
+	// I've decided to use their addition loop since O(n) updates are required and this moves the reads to the Toti slice to keep it cache local
+	// The other alternative is to confuse future readers, including myself, by converting the algo to use o| instead of F
 
 	s = 1
 	for m = 1; m <= r; m++ {
-		s = s + slToti[m]
+		s = s + uint64(slToti[m])
 		F[m] = s
 	}
+	//for m = 1; m <= r; m++ {
+	//	F[m] = tmp[m] + 1
+	//}
 
 	a := r + 1
 	LB := n / (v + 1)
 	if LB >= a {
-		B := make([]uint64, w+1)
+		B := make([]uint64, w+1+1)
 		EachVisit := func(m, sumphi uint64) {
 			// scope variables B, u, n, i
 			i = u - u/m
@@ -5123,6 +5199,90 @@ func FareyLengthAlgE(d uint64) uint64 {
 		UpdateLookupTable(F, n/i)
 	}
 	return F[n]
+}
+
+func FareyIndex(FareyNum, order, h, k uint64) uint64 {
+	// Euler 0073 I think I got these off Wikipedia's page https://en.wikipedia.org/wiki/Farey_sequence#Sequence_length_and_index_of_a_fraction
+	// Idx (0/1) = 0	Idx (1/n) = 1	Idx (1/1) = |Fn| - 1
+	// Idx (1/2) = (|Fn|-1)/2
+	// Idx (h/k) = |Fn| - 1 - Idx((k-h)/k)
+	// Idx (1/k) ???
+	if 0 == h {
+		return 0
+	}
+	if 1 == h && order == k {
+		return 1
+	}
+	if 1 == h && 1 == k {
+		return FareyNum - 1
+	}
+	if 1 == h && 2 == k {
+		return (FareyNum - 1) >> 1
+	}
+	// Idx (1/k) ??? "where n/(i + 1) < k <= n/i AND n is the Least Common Multiple of  the first i numbers, n = LCM([[2,i])"
+	// Totient(n) ==  φ(n) == ϕ(n) (so strange curly capitol Y OR not o/)
+	// Φ(n) == TotientSum at number
+	// Idx (1/k) = 1 + n*(Series Sum j=1..i Toti(j)/j) - k*TotientSum(i)
+	// ... Trying to understand the equation, Wikipedia cites https://cs.uwaterloo.ca/journals/JIS/VOL25/Tomas/tomas5.pdf
+	// ... which cites among other things https://arxiv.org/pdf/1406.6991 R. Tom´as, Asymptotic behavior of a series of Euler’s totient function ϕ(k) times the index of 1/k in a Farey sequence, preprint, 2014.
+	// ... which cites J. Pawlewicz and M. P˘atra¸scu, Order Statistics in the Farey Sequences in Sublinear Time and Counting Primitive Lattice Points in Polygons, Algo- Arithmica, Volume 55, Issue 2, pp 271-282, 2009.
+	// This is the top google result today: https://people.csail.mit.edu/mip/papers/farey/talk.pdf
+	// Copy of the old paper: https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=d8882e782674d5cd312129823287768e123674e1
+	// Newer 2018-11-06 https://arxiv.org/pdf/0708.0080
+	//
+	//if 1 == h { // k = otherwise // FIXME
+	//	return 1 + order - order + order - order - k*EulerTotientSum(k)
+	//}
+	// fmt.Printf("FareyIndex recurse (%d, %d,\t%d,\t %d)\n", FareyNum, order, (k - h), k)
+	// return FareyNum - 1 - FareyIndex(FareyNum, order, (k-h), k)
+	return FareyRankV1(uint32(order), uint32(h), uint32(k))
+}
+
+func FareyRankV1(order, h, k uint32) uint64 {
+	// From ^^ above Pg4 ~ Section 2  refs: https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=d8882e782674d5cd312129823287768e123674e1
+	// rank(x) = SUM( for q:=1 ; q < n ; q++ { floor(x*q) - SUM( for ?? d<q, d|q ?? { A(d)? } ) }
+	// x == Real (type, as in: n/d or h , k args respectively) -- FIXME? This fails for 1/2 but it's the described algorithm, if with precision loss from Ints.
+	var res uint64
+	var n, q, ii, jj, iiVal uint32
+	n = uint32(order)
+	Arr := make([]uint32, 1, n+1)
+	for q = 1; q <= uint32(n); q++ {
+		Arr = append(Arr, (q*h)/k)
+	}
+	for q = 1; q <= uint32(n); q++ {
+		iiVal = Arr[q]
+		for jj = q << 1; jj < uint32(n); jj += q {
+			Arr[jj] -= iiVal
+		}
+	}
+	fmt.Println(Arr)
+
+	for ii = 1; ii <= uint32(n); ii++ {
+		res += uint64(Arr[ii])
+	}
+	return res
+}
+
+func FareyRankV2(order, h, k uint32) uint64 {
+	var res uint64
+	var n, q, ii, jj, iiVal uint32
+	n = uint32(order)
+	Arr := make([]uint32, 1, n+1)
+	for q = 1; q <= uint32(n); q++ {
+		Arr = append(Arr, (q*h)/k)
+	}
+	for q = 1; q <= uint32(n); q++ {
+		iiVal = Arr[q]
+		for jj = q << 1; jj < uint32(n); jj += q {
+			Arr[jj] -= iiVal
+		}
+	}
+	fmt.Println(Arr)
+
+	for ii = 1; ii <= uint32(n); ii++ {
+		res += uint64(Arr[ii])
+	}
+	return res
 }
 
 /*

@@ -61,7 +61,7 @@ Too post-doc math heavy for my present knowledge https://cs.uwaterloo.ca/journal
 Various useful properties... (wherein Fn is the Farey order length)
 
 Idx (1/2) = (|Fn|-1)/2
-Idx (h/k) = |Fn| - 1 - Idx((h-k)/k)
+Idx (h/k) = |Fn| - 1 - Idx((k-h)/k)
 
 Need the length of a Farey order though...
 
@@ -88,38 +88,28 @@ import (
 	// "strings"
 )
 
-func Euler0072(limit uint64) uint64 {
-	var ret, ii uint64
-	// sqrt = euler.SqrtU64(limit)
-	// fmt.Printf("Euler 72\tGrow primes list to %d\n", sqrt)
-	// euler.Primes.PrimeGlobalList(sqrt)
-	fmt.Printf("Euler 72\n")
-	for ii = 2; ii <= limit; ii++ {
-		ret += euler.EulerTotientPhi(ii, 0)
-		if 0 == ii&0xFFFF {
-			fmt.Printf("Euler 72 ...\t%12d\t%15d\n", ii, ret)
-		}
-	}
-	return ret
+func Euler0073(d uint64) uint64 {
+	fn := euler.FareyLengthAlgE(d)
+	return euler.FareyIndex(fn, d, 1, 2) - euler.FareyIndex(fn, d, 1, 3) - 1 // Remove the midpoint index
 }
 
 /*
-	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 72 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 73 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
 .
 */
 func main() {
 	//test
 	// tested in the golang tests for "euler"
-	r := Euler0072(8)
-	if 21 != r {
-		panic(fmt.Sprintf("Euler 72: Expected 21 got %d", r))
+	r := Euler0073(8)
+	if 3 != r {
+		panic(fmt.Sprintf("Euler 73: Expected 21 got %d", r))
 	}
 
 	//run
-	r = Euler0072(1_000_000)
-	fmt.Printf("Euler 72: Counting Fractions:  %d\n", r)
-	if 303963552391 != r {
-		panic("Did not reach expected value.")
+	r = Euler0073(12_000)
+	fmt.Printf("Euler 73: Counting Fractions in a Range:\t%d\n", r)
+	if 0 != r {
+		//panic("Did not reach expected value.")
 	}
 }

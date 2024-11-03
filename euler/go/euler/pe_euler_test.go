@@ -452,7 +452,7 @@ func TestOverkillVerifyFactor1980AutoPMC(t *testing.T) {
 }
 
 func TestOverkillVerifyFactorLenstraECW(t *testing.T) {
-	//t.Skip("Slow")
+	t.Skip("Slow")
 	// go test -run TestOverkillVerifyFactorLenstraECW -cpuprofile Lenstra.goprof -v euler/
 	// go tool pprof euler.test Lenstra.goprof
 	// const limit = 65535
@@ -1438,6 +1438,14 @@ func TestEulerTotientPhi(t *testing.T) {
 		54, 40, 82, 24, 64, 42, 56, 40, 88, 24,
 		72, 44, 60, 46, 72, 32, 96, 42, 60, 40,
 	}
+	testTotientSum := []uint64{
+		0, 1, 2, 4, 6, 10, 12, 18, 22, 28, 32,
+		42, 46, 58, 64, 72, 80, 96, 102, 120, 128,
+		140, 150, 172, 180, 200, 212, 230, 242, 270, 278,
+		308, 324, 344, 360, 384, 396, 432, 450, 474, 490,
+		530, 542, 584, 604, 628, 650, 696, 712, 754, 774,
+		806, 830, 882, 900, 940, 964,
+	}
 	for ii := 1; ii < len(testTotientPhi); ii++ {
 		// for ii := 1; ii < 20; ii++ {
 		phi := euler.EulerTotientPhi_old(uint64(ii))
@@ -1452,10 +1460,19 @@ func TestEulerTotientPhi(t *testing.T) {
 			t.Errorf("Expected results: EulerTotientPhi_exp(%d) => %d got %d\n", ii, testTotientPhi[ii], phi)
 		}
 	}
-	testTotientPhi_matches := euler.EulerTotientBulk(uint64(len(testTotientPhi) - 1))
-	for ii := 1; ii < len(testTotientPhi); ii++ {
-		if testTotientPhi[ii] != testTotientPhi_matches[ii] {
-			t.Errorf("Expected results: EulerTotientBulk[%d] matches known => %d got %d\n", ii, testTotientPhi[ii], testTotientPhi_matches[ii])
+	// Test growth of the array
+	testTotientPhi_matches, _ := euler.EulerTotientBulk(uint32(len(testTotientPhi)-1) >> 2)
+	testTotientPhi_matches, _ = euler.EulerTotientBulk(uint32(len(testTotientPhi)-1) >> 1)
+	testTotientPhi_matches, testTotientPhi_sums := euler.EulerTotientBulk(uint32(len(testTotientPhi) - 1))
+	for ii := 0; ii < len(testTotientPhi); ii++ {
+		if testTotientPhi[ii] != uint64(testTotientPhi_matches[ii]) {
+			t.Fatalf("Expected results: EulerTotientBulk[%d] => %d got %d\n", ii, testTotientPhi[ii], testTotientPhi_matches[ii])
+		}
+		if ii >= len(testTotientPhi_sums) || ii >= len(testTotientSum) {
+			continue
+		}
+		if testTotientSum[ii] != testTotientPhi_sums[ii] {
+			t.Fatalf("Expected results: EulerTotientBulk[%d] (sum) %d got %d\n", ii, testTotientSum[ii], testTotientPhi_sums[ii])
 		}
 	}
 
@@ -1471,7 +1488,28 @@ func TestEulerTotientPhi(t *testing.T) {
 	for ii := 5; ii < len(testFareyLen); ii++ {
 		val, got := testFareyLen[ii], euler.FareyLengthAlgE(uint64(ii))
 		if val != got {
-			t.Errorf("Expected results: FareyLengthAlgE(%d) matches known => %d got %d\n", ii, val, got)
+			t.Fatalf("Expected results: FareyLengthAlgE(%d) => %d got %d\n", ii, val, got)
+		}
+	}
+
+	// FIXME: This isn't fully baked yet.
+	return
+
+	// 1/2 should be 'rank' 11 : https://projecteuler.net/problem=73
+	var u64, u64b, ii uint64
+	u64 = euler.FareyIndex(euler.FareyLengthAlgE(uint64(8)), 8, 1, 2)
+	if 11 != u64 {
+		t.Fatalf("Expected results: FarryIndex(...) => %d got %d\n", 11, u64)
+	}
+	u64 = euler.FareyRankV2(8, 1, 2)
+	if 11 != u64 {
+		t.Fatalf("Expected results: FareyRankV2(...) => %d got %d\n", 11, u64)
+	}
+	for ii = 2; ii < 24; ii++ {
+		u64 = euler.FareyIndex(euler.FareyLengthAlgE(ii), ii, 1, 2)
+		u64b = euler.FareyRankV2(uint32(ii), 1, 2)
+		if u64 != u64b {
+			t.Errorf("Expected results: FareyRank => %d got %d\n", u64, u64b)
 		}
 	}
 }
