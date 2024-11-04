@@ -216,6 +216,7 @@ var (
 	PSRand     *PSRandPGC32
 	TotientPhi []uint32
 	TotientSum []uint64
+	FactCache  []uint32
 )
 
 func init() {
@@ -224,6 +225,11 @@ func init() {
 	PrimesMoreU16 = []uint16{}
 	PrimesMoreU32 = []uint32{}
 	PSRand = NewPSRandPGC32(0x4d595df4d0f33173, 1442695040888963407) // Seed could be _anything_, inc must be any odd constant values from https://en.wikipedia.org/wiki/Permuted_congruential_generator#Example_code
+	// Factorial cache for silly problems
+	FactCache = append(make([]uint32, 0, 17), 1) // 0! is 1
+	for ii := uint32(1); 17 > ii; ii++ {
+		FactCache = append(FactCache, Factorial(ii))
+	}
 }
 
 // Deprecated, DO NOT USE, no replacement planned
@@ -304,10 +310,16 @@ func ListMul(scale []int) int {
 	return ret
 }
 
-// Deprecated, DO NOT USE
-func Factorial(ii int) int {
-	ret := 1
-	for ii > 1 {
+func Factorial[INT ~uint | ~int | ~uint64 | ~int64 | ~uint32 | ~int32](ii INT) INT {
+	var ret INT
+	if 0 <= ii && ii < INT(len(FactCache)) {
+		return INT(FactCache[ii])
+	}
+	ret = 1
+	if 0 > ii {
+		ii = -ii
+	}
+	for 1 < ii {
 		ret *= ii
 		ii--
 	}
@@ -315,10 +327,26 @@ func Factorial(ii int) int {
 }
 
 func FactorialUint64(ii uint64) uint64 {
+	if 0 <= ii && ii < uint64(len(FactCache)) {
+		return uint64(FactCache[ii])
+	}
 	ret := uint64(1)
 	for ii > 1 {
 		ret *= ii
 		ii--
+	}
+	return ret
+}
+
+func DigitFactorialSum[INT ~uint | ~int | ~uint64 | ~int64 | ~uint32 | ~int32](N, base INT) INT {
+	var ret, n, dig INT
+	n = N
+	if 0 > n {
+		n = -n
+	}
+	for 0 < n {
+		n, dig = n/base, n%base
+		ret += Factorial(dig)
 	}
 	return ret
 }
