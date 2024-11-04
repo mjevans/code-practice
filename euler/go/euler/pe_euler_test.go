@@ -1492,26 +1492,42 @@ func TestEulerTotientPhi(t *testing.T) {
 		}
 	}
 
-	// FIXME: This isn't fully baked yet.
-	return
-
 	// 1/2 should be 'rank' 11 : https://projecteuler.net/problem=73
 	var u64, u64b, ii uint64
 	u64 = euler.FareyIndex(euler.FareyLengthAlgE(uint64(8)), 8, 1, 2)
 	if 11 != u64 {
 		t.Fatalf("Expected results: FarryIndex(...) => %d got %d\n", 11, u64)
 	}
-	u64 = euler.FareyRankV2(8, 1, 2)
+	u64 = euler.FareyRankV1(8, 1, 2)
 	if 11 != u64 {
 		t.Fatalf("Expected results: FareyRankV2(...) => %d got %d\n", 11, u64)
 	}
 	for ii = 2; ii < 24; ii++ {
 		u64 = euler.FareyIndex(euler.FareyLengthAlgE(ii), ii, 1, 2)
-		u64b = euler.FareyRankV2(uint32(ii), 1, 2)
+		u64b = euler.FareyRankV1(uint32(ii), 1, 2)
 		if u64 != u64b {
 			t.Errorf("Expected results: FareyRank => %d got %d\n", u64, u64b)
 		}
 	}
+
+	test := euler.FareyRankTest(uint32(len(testTotientPhi))-1, 1, 1)
+	for ii = 0; int(ii) < len(testTotientPhi); ii++ {
+		if testTotientPhi[ii] != uint64(test[ii]) {
+			t.Logf("Compare differs: [%d] = %d vs %d\n", ii, testTotientPhi[ii], test[ii])
+		}
+	}
+
+	/*
+		// Experiment had negative results
+		for ii = 32; 0 < ii; ii-- {
+			for u64b = 1; 8 >= u64b; u64b++ {
+				for u64 = 1; u64 < u64b; u64++ {
+					if euler.FareyRankV1(uint32(ii), uint32(u64), uint32(u64b)) != euler.FareyRankTotiCache(uint32(ii), uint32(u64), uint32(u64b)) {
+						t.Logf("Compare FareyIndex diff (%d, %d, %d) = %d vs %d\n", ii, u64, u64b, euler.FareyRankV1(uint32(ii), uint32(u64), uint32(u64b)), euler.FareyRankTotiCache(uint32(ii), uint32(u64), uint32(u64b)))
+					}
+				}
+			}
+		}*/
 }
 
 func TestGeneralMaths(t *testing.T) {

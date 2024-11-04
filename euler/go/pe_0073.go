@@ -88,14 +88,17 @@ import (
 	// "strings"
 )
 
-func Euler0073(d uint64) uint64 {
-	fn := euler.FareyLengthAlgE(d)
-	return euler.FareyIndex(fn, d, 1, 2) - euler.FareyIndex(fn, d, 1, 3) - 1 // Remove the midpoint index
+func Euler0073(d uint32) uint64 {
+	l := euler.FareyRankV1(d, 1, 2)
+	r := euler.FareyRankV1(d, 1, 3)
+	// fmt.Printf("Euler 73: %d - %d - 1\n", l, r)
+	return l - r - 1
 }
 
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 73 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
+Euler 73: Counting Fractions in a Range:        7295372
 .
 */
 func main() {
@@ -103,13 +106,13 @@ func main() {
 	// tested in the golang tests for "euler"
 	r := Euler0073(8)
 	if 3 != r {
-		panic(fmt.Sprintf("Euler 73: Expected 21 got %d", r))
+		panic(fmt.Sprintf("Euler 73: Expected 3 got %d", r))
 	}
 
 	//run
 	r = Euler0073(12_000)
 	fmt.Printf("Euler 73: Counting Fractions in a Range:\t%d\n", r)
-	if 0 != r {
-		//panic("Did not reach expected value.")
+	if 7295372 != r {
+		panic("Did not reach expected value.")
 	}
 }

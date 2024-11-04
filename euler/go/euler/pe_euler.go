@@ -5238,51 +5238,224 @@ func FareyIndex(FareyNum, order, h, k uint64) uint64 {
 	return FareyRankV1(uint32(order), uint32(h), uint32(k))
 }
 
+// Is the intent a faster way of counting the fractions that exist on each order / rank, when beneath the limit?
 func FareyRankV1(order, h, k uint32) uint64 {
 	// From ^^ above Pg4 ~ Section 2  refs: https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=d8882e782674d5cd312129823287768e123674e1
 	// rank(x) = SUM( for q:=1 ; q < n ; q++ { floor(x*q) - SUM( for ?? d<q, d|q ?? { A(d)? } ) }
-	// x == Real (type, as in: n/d or h , k args respectively) -- FIXME? This fails for 1/2 but it's the described algorithm, if with precision loss from Ints.
+	// x == Real / Rational (type, as in: n/d or h , k args respectively) -- FIXME? This fails for 1/2 but it's the described algorithm, if with precision loss from Ints.
+
+	// Intent: a faster way of counting the fractions that exist on each order / rank, when beneath a limit
+
 	var res uint64
 	var n, q, ii, jj, iiVal uint32
 	n = uint32(order)
+
+	// Consider possible fractions for each rank
 	Arr := make([]uint32, 1, n+1)
 	for q = 1; q <= uint32(n); q++ {
-		Arr = append(Arr, (q*h)/k)
+		Arr = append(Arr, (q*h)/k) // Floor() division, throw away any fractions larger than the limit
 	}
+
+	// Reduce the higher ranks by the lower rank's fractions
 	for q = 1; q <= uint32(n); q++ {
 		iiVal = Arr[q]
-		for jj = q << 1; jj < uint32(n); jj += q {
+		for jj = q << 1; jj <= uint32(n); jj += q {
 			Arr[jj] -= iiVal
 		}
 	}
-	fmt.Println(Arr)
+	// fmt.Println(Arr)
+	// If h/k = 1/1 - is this not a Totient array instead?  -- Tested: NOPE, the loops above fold the fraction into the numbers and thus it differs even from applying h/k during the final phase.
 
+	// Count the remaining fractions
 	for ii = 1; ii <= uint32(n); ii++ {
 		res += uint64(Arr[ii])
 	}
 	return res
 }
 
-func FareyRankV2(order, h, k uint32) uint64 {
-	var res uint64
-	var n, q, ii, jj, iiVal uint32
-	n = uint32(order)
-	Arr := make([]uint32, 1, n+1)
-	for q = 1; q <= uint32(n); q++ {
-		Arr = append(Arr, (q*h)/k)
+func FareyRankExperiment2__IncorrectButHelpsEnlighten(order, h, k uint32) uint64 {
+	var n, q, ii, jj uint32
+	var iiVal, x, res RatU64
+	res = NewRatU64(0, 1, false)
+	x = NewRatU64(uint64(h), uint64(k), false)
+	n = order
+	Arr := make([]RatU64, 1, n+1)
+	for q = 1; q <= n; q++ {
+		Arr = append(Arr, x.MulU64(uint64(q)))
 	}
-	for q = 1; q <= uint32(n); q++ {
+	for q = 1; q <= n; q++ {
 		iiVal = Arr[q]
-		for jj = q << 1; jj < uint32(n); jj += q {
-			Arr[jj] -= iiVal
+		for jj = q << 1; jj <= n; jj += q {
+			Arr[jj] = Arr[jj].AddRat(iiVal, false)
 		}
 	}
 	fmt.Println(Arr)
 
-	for ii = 1; ii <= uint32(n); ii++ {
-		res += uint64(Arr[ii])
+	for ii = 1; ii <= n; ii++ {
+		res = res.AddRat(Arr[ii], true)
 	}
-	return res
+	fmt.Printf("Rational result: %d / %d (minus? %t)\n", res.Num, res.Den, res.Minus)
+	return res.Num / res.Den
+}
+
+/*
+.
+Den
+0	-
+1	1/1
+2	1/2
+3	1/3 2/3
+4	1/4 2/4 3/4 4/4
+5	1/5 2/5 3/5 4/5 5/5
+6	1/6 2/6 3/6 4/6 5/6 6/6
+...
+1	1
+2	1 *
+3	1 2 *
+4	1 *2 3 *
+5	1 2 3 4 *
+6	1 *2 *3 *4 5 *
+...
+1	/	for 1/2
+2	1 /
+3	1 / /
+4	1 *2 / /
+5	1 2 / / /
+6	1 *2 *3 / / /
+7	1 2 3 / / / /
+8	1 *2 3 *4 / / / /
+.
+*/
+
+func FareyRankTotiCache__NopeIdeaDidntWorkOut(order, h, k uint32) uint64 {
+	// From ^^ above Pg4 ~ Section 2  refs: https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=d8882e782674d5cd312129823287768e123674e1
+	// rank(x) = SUM( for q:=1 ; q < n ; q++ { floor(x*q) - SUM( for ?? d<q, d|q ?? { A(d)? } ) }
+	// x == Real / Rational (type, as in: n/d or h , k args respectively) -- FIXME? This fails for 1/2 but it's the described algorithm, if with precision loss from Ints.
+
+	if uint32(len(TotientPhi)) < order+1 {
+		EulerTotientBulk(order)
+	}
+
+	var res uint64
+	var ii uint32
+
+	// Intent: a faster way of counting the fractions that exist on each order / rank, when beneath a limit
+
+	// Consider possible fractions for each rank
+	// Reduce the higher ranks by the lower rank's fractions
+
+	// If h/k = 1/1 - is this not a Totient array instead?  If that's the case, is applying the fraction during the Totient sum count not sufficient?
+	// It is not sufficient, the order of harmonic removal decreases how much duplication removal happens for greater denominators/ranks; so this version under-reports the number.
+
+	// Count the remaining fractions, by filtering each stage during the totient summary
+	for ii = 1; ii <= order; ii++ {
+		res += (uint64(TotientPhi[ii]) * uint64(h)) / uint64(k)
+	}
+	// return res
+	return 0
+}
+
+func FareyRankTest(order, h, k uint32) []uint32 {
+	var n, q, jj, iiVal uint32
+	n = uint32(order)
+
+	// Consider possible fractions for each rank
+	Arr := make([]uint32, 1, n+1)
+	for q = 1; q <= uint32(n); q++ {
+		Arr = append(Arr, (q*h)/k) // Floor() division, throw away any fractions larger than the limit
+	}
+
+	// Reduce the higher ranks by the lower rank's fractions
+	for q = 1; q <= uint32(n); q++ {
+		iiVal = Arr[q]
+		for jj = q << 1; jj <= uint32(n); jj += q {
+			Arr[jj] -= iiVal
+		}
+	}
+	// fmt.Println(Arr)
+	// If h/k = 1/1 - is this not a Totient array instead?  If that's the case, is applying the fraction during the Totient sum count not sufficient?
+
+	// Count the remaining fractions
+	// for ii = 1; ii <= uint32(n); ii++ {
+	// res += uint64(Arr[ii])
+	// }
+	return Arr
+}
+
+type RatU64 struct {
+	Num   uint64
+	Den   uint64
+	Minus bool
+}
+
+func NewRatU64(num, den uint64, minus bool) RatU64 {
+	// if 0x1_0000_0000 < num || 0x1_0000_0000 < den {
+	rGCD := GCDbin(den, num)
+	if 1 < rGCD {
+		num /= rGCD
+		den /= rGCD
+	}
+	// }
+	return RatU64{Num: num, Den: den, Minus: minus}
+}
+
+func ReduceRatU64(in RatU64) RatU64 {
+	num, den, minus := in.Num, in.Den, in.Minus
+	rGCD := GCDbin(den, num)
+	if 1 < rGCD {
+		num /= rGCD
+		den /= rGCD
+	}
+	return RatU64{Num: num, Den: den, Minus: minus}
+}
+
+func (ra RatU64) MulRat(rr RatU64) RatU64 {
+	rNum := ra.Num * rr.Num
+	rDen := ra.Den * rr.Den
+	minus := ra.Minus != rr.Minus
+	return NewRatU64(rNum, rDen, minus)
+}
+
+func (ra RatU64) MulND(n, d uint64) RatU64 {
+	rNum := ra.Num * n
+	rDen := ra.Den * d
+	return NewRatU64(rNum, rDen, ra.Minus)
+}
+
+func (ra RatU64) MulU64(n uint64) RatU64 {
+	return NewRatU64(ra.Num*n, ra.Den, ra.Minus)
+}
+
+func (ra RatU64) DivU64(d uint64) RatU64 {
+	return NewRatU64(ra.Num, ra.Den*d, ra.Minus)
+}
+
+func (ra RatU64) AddRat(rr RatU64, add bool) RatU64 {
+	l, r := ReduceRatU64(ra), ReduceRatU64(rr)
+	if !add {
+		r.Minus = !r.Minus
+	}
+	ln, rn := l.Num*r.Den, r.Num*l.Den
+	var num uint64
+	rDen := ra.Den * rr.Den
+	minus := ra.Minus != rr.Minus
+	//	L	R	Combine
+	//	+	+	+
+	//	-	-	+
+	//	!=	!=	- GT is sign
+	if minus {
+		if ln > rn {
+			num = ln - rn
+			minus = l.Minus
+		} else {
+			num = rn - ln
+			minus = r.Minus
+		}
+	} else {
+		num = ln + rn
+		minus = l.Minus
+	}
+	return NewRatU64(num, rDen, minus)
 }
 
 /*
