@@ -10,6 +10,23 @@ https://creativecommons.org/licenses/by-nc-sa/4.0/
 https://projecteuler.net/problem=74
 https://projecteuler.net/minimal=74
 
+<p>The number $145$ is well known for the property that the sum of the factorial of its digits is equal to $145$:
+$$1! + 4! + 5! = 1 + 24 + 120 = 145.$$</p>
+<p>Perhaps less well known is $169$, in that it produces the longest chain of numbers that link back to $169$; it turns out that there are only three such loops that exist:</p>
+\begin{align}
+&amp;169 \to 363601 \to 1454 \to 169\\
+&amp;871 \to 45361 \to 871\\
+&amp;872 \to 45362 \to 872
+\end{align}
+<p>It is not difficult to prove that EVERY starting number will eventually get stuck in a loop. For example,</p>
+\begin{align}
+&amp;69 \to 363600 \to 1454 \to 169 \to 363601 (\to 1454)\\
+&amp;78 \to 45360 \to 871 \to 45361 (\to 871)\\
+&amp;540 \to 145 (\to 145)
+\end{align}
+<p>Starting with $69$ produces a chain of five non-repeating terms, but the longest non-repeating chain with a starting number below one million is sixty terms.</p>
+<p>How many chains, with a starting number below one million, contain exactly sixty non-repeating terms?</p>
+
 
 */
 /*
@@ -44,7 +61,7 @@ func Euler0074(min, max, base uint32) (uint32, []uint32) {
 			// This cuts the time about in half on my test system, it's still pretty slow thanks to the choice of a hash OR a handful of divisions
 			if next, exists = lut[cur]; !exists {
 				next = euler.DigitFactorialSum(cur, base)
-				lut[cur] = next
+				lut[cur] = next // Re-Tested with a guard for 1 < link here, the Look Up Table can be as small as 4017 in that case, but it didn't speed things up that much and the runtime became more volatile.  It might be worth for a hash table with a controlled hash method.
 			}
 			facts[cur] = next
 			// fmt.Printf("%d: %d -> %d\n", ii, cur, next)
@@ -83,7 +100,7 @@ func main() {
 	// tested in the golang tests for "euler"
 	r, rl := Euler0074(1, 100, 10)
 	if 54 != r {
-		panic(fmt.Sprintf("Euler 74: Expected 5 got %d (%d) %v", r, len(rl), rl))
+		panic(fmt.Sprintf("Euler 74: Expected 54 got %d (%d) %v", r, len(rl), rl))
 	}
 
 	//run
