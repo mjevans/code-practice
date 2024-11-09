@@ -66,7 +66,6 @@ func Euler0077(req uint64) uint64 {
 		return val
 	}
 
-	// Min prime is 2, so the absolute minimum total to search for is req / 2
 	//coincount := int16(len(coins))
 	coincount := int16(20)
 	for total := int16(0); total < (1<<15)-1; total++ {

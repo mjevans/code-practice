@@ -1428,6 +1428,12 @@ func PentagonalNumber(n uint64) uint64 {
 	return (n * (3*n - 1)) >> 1
 }
 
+func PentagonalNumberI64(n int64) int64 {
+	// Euler 44
+	// ( n * ( 3*n - 1 ) ) / 2
+	return (n * (3*n - 1)) >> 1
+}
+
 func PentagonalNumberReverseFloor(n uint64) uint64 {
 	// Euler 44
 	// Quadratic Formula (looked up)
