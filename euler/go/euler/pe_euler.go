@@ -1089,13 +1089,16 @@ func PowIntMod[INT ~uint | ~uint64 | ~int | ~int64](n, pow, mod INT) INT {
 	return INT(np)
 }
 
-func SqrtU64(ii uint64) uint64 {
+func SqrtU64[INT ~uint | ~uint64 | ~int | ~int64 | ~uint32 | ~uint16 | ~uint8 | ~int32 | ~int16 | ~int8](ii INT) INT {
 	// https://en.wikipedia.org/wiki/Integer_square_root#Algorithm_using_Newton's_method
 	// f(x) { x*x } // dxf(x) { 2x }
+	if 0 > ii {
+		ii = -ii
+	}
 	if 1 >= ii {
 		return ii
 	}
-	var x0, x1 uint64
+	var x0, x1 INT
 	x0 = ii >> 1 // must be above the answer
 	x1 = (x0 + ii/x0) >> 1
 	for x1 < x0 {
@@ -1193,7 +1196,7 @@ func RootU64up(ii, root uint64) uint64 {
 	// https://en.wikipedia.org/wiki/Binary_search  Alternative Procedure
 	for left != right {
 		// Alt uses ceil but bitshift math floors so I've reversed the comparison and side motions
-		pos := (left + right) >> 1
+		pos := (left + right + 1) >> 1 // ceil, required for this alternate form
 		if sl[pos] < val {
 			left = pos + 1
 		} else {
@@ -2492,7 +2495,7 @@ func BsearchSlice[S ~[]E, E ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~u
 	// https://en.wikipedia.org/wiki/Binary_search  Alternative Procedure
 	for left != right {
 		// Alt uses ceil but bitshift math floors so I've reversed the comparison and side motions
-		pos := (left + right) >> 1
+		pos := (left + right) >> 1 // Ceil NORMALLY required, but this rounds up rather than down, so FLOOR and L = pos +1
 		if sl[pos] < val {
 			left = pos + 1
 		} else {
