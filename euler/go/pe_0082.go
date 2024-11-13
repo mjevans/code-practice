@@ -7,29 +7,29 @@ package main
 /*
 https://projecteuler.net/copyright
 https://creativecommons.org/licenses/by-nc-sa/4.0/
-https://projecteuler.net/problem=81
-https://projecteuler.net/minimal=81
+https://projecteuler.net/problem=82
+https://projecteuler.net/minimal=82
 
-<p>In the $5$ by $5$ matrix below, the minimal path sum from the top left to the bottom right, by <b>only moving to the right and down</b>, is indicated in bold red and is equal to $2427$.</p>
+<p class="small_notice">NOTE: This problem is a more challenging version of <a href="problem=81">Problem 81</a>.</p>
+<p>The minimal path sum in the $5$ by $5$ matrix below, by starting in any cell in the left column and finishing in any cell in the right column, and only moving up, down, and right, is indicated in red and bold; the sum is equal to $994$.</p>
 <div class="center">
 $$
 \begin{pmatrix}
-\color{red}{131} &amp; 673 &amp; 234 &amp; 103 &amp; 18\\
+131 &amp; 673 &amp; \color{red}{234} &amp; \color{red}{103} &amp; \color{red}{18}\\
 \color{red}{201} &amp; \color{red}{96} &amp; \color{red}{342} &amp; 965 &amp; 150\\
-630 &amp; 803 &amp; \color{red}{746} &amp; \color{red}{422} &amp; 111\\
-537 &amp; 699 &amp; 497 &amp; \color{red}{121} &amp; 956\\
-805 &amp; 732 &amp; 524 &amp; \color{red}{37} &amp; \color{red}{331}
+630 &amp; 803 &amp; 746 &amp; 422 &amp; 111\\
+537 &amp; 699 &amp; 497 &amp; 121 &amp; 956\\
+805 &amp; 732 &amp; 524 &amp; 37 &amp; 331
 \end{pmatrix}
 $$
 </div>
-<p>Find the minimal path sum from the top left to the bottom right by only moving right and down in <a href="resources/documents/0081_matrix.txt">matrix.txt</a> (right click and "Save Link/Target As..."), a 31K text file containing an $80$ by $80$ matrix.</p>
-
+<p>Find the minimal path sum from the left column to the right column in <a href="resources/documents/0082_matrix.txt">matrix.txt</a> (right click and "Save Link/Target As..."), a 31K text file containing an $80$ by $80$ matrix.</p>
 
 /
 */
 /*
 	81, 82, and 83 are all variations of the earlier triangle, but instead of an in place algorithm this seems to lean towards a dynamic programming solution.
-	81, dynamic programming was sufficient
+	81 and 82 dynamic programming was sufficient
 
 	81 is similar enough that folding the minimum path values up to the diagonal and then using minimum path back to the start should work.
 	However 81 and 82 are subsets of the problem from 83, just with less vectors to evaluate.
@@ -61,21 +61,21 @@ import (
 	// "strings"
 )
 
-func Euler0081(fn string) int32 {
+func Euler0082(fn string) int32 {
 	// func LoadMatrix[SL ~[][]INT, INT ~int | ~uint | ~uint32 | ~int32 | ~uint16 | ~int16](fn, split string, limit, base INT) (SL, INT, INT) {
 	// func TraverseEntireMatrix[SL ~[][]INT, INT ~int | ~int64 | ~int32 | ~int16](m SL, stR, stC, edR, edC INT, moveRC []INT) INT {
-	m, y, x := euler.LoadMatrix(fn, ",", int32(10))
-	return euler.TraverseEntireMatrix(m, 0, 0, y-1, x-1, []int32{1, 0, 0, 1})
+	m, _, x := euler.LoadMatrix(fn, ",", int32(10))
+	return euler.TraverseEntireMatrix(m, 0, 0, -1, x-1, []int32{1, 0, 0, 1, -1, 0})
 }
 
 /*
-	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 81 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
+	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 82 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-Euler 81: Path Sum: Two Ways: 427337
+Euler 82: Path Sum: Three Ways: 260324
 
-real    0m0.192s
-user    0m0.221s
-sys     0m0.091s
+real    0m0.337s
+user    0m0.384s
+sys     0m0.056s
 .
 */
 func main() {
@@ -89,16 +89,16 @@ func main() {
 		[]int16{537, 699, 497, 121, 956},
 		[]int16{805, 732, 524, 37, 331},
 	}
-	r = int32(euler.TraverseEntireMatrix(test81, 0, 0, 4, 4, []int16{1, 0, 0, 1}))
+	r = int32(euler.TraverseEntireMatrix(test81, 0, 0, -1, 4, []int16{1, 0, 0, 1, -1, 0}))
 
-	if 2427 != r {
+	if 994 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
 
 	//run
-	r = Euler0081("0081_matrix.txt")
-	fmt.Printf("Euler 81: Path Sum: Two Ways: %d\n", r)
-	if 427337 != r {
+	r = Euler0082("0082_matrix.txt")
+	fmt.Printf("Euler 82: Path Sum: Three Ways: %d\n", r)
+	if 260324 != r {
 		panic("Did not reach expected value.")
 	}
 }

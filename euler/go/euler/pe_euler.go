@@ -2206,10 +2206,40 @@ func TraverseEntireMatrix[SL ~[][]INT, INT ~int | ~int64 | ~int32 | ~int16](m SL
 		}
 	}
 
-	visit(stR, stC)
+	if -1 == edR {
+		// populate the starting line
+		for ii = 0; ii < limR; ii++ {
+			dist[ii][0] = m[ii][0]
+		}
+		// Run the lanes
+		for ii = 0; ii < limR; ii++ {
+			visit(ii, 1)
+		}
+	} else {
+		visit(stR, stC)
+	}
 	// fmt.Println(dist)
 
-	return dist[edR][edC]
+	var ret INT
+	if -1 == edR {
+		ret = dist[0][edC]
+		for ii = 0; ii < limR; ii++ {
+			if ret > dist[ii][edC] {
+				ret = dist[ii][edC]
+			}
+		}
+	} else if -1 == edC {
+		ret = dist[edR][0]
+		for ii = 0; ii < limC; ii++ {
+			if ret > dist[edR][ii] {
+				ret = dist[edR][ii]
+			}
+		}
+	} else {
+		ret = dist[edR][edC]
+	}
+
+	return ret
 }
 
 /*
