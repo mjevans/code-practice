@@ -74,13 +74,14 @@ import (
 	"bufio"
 	"fmt"
 	// "slices" // Doh not in 1.19
+	"container/heap"
 	"math"
 	"math/big"
+	"os" // os.Stdout
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
-	// "os" // os.Stdout
-	"container/heap"
 )
 
 // 1.18+ has generics and a lot of places aren't at 1.21 yet
@@ -2118,6 +2119,97 @@ func ScannerSplitNLDQ(data []byte, atEOF bool) (advance int, token []byte, err e
 		// fmt.Println("NQDL no token, request more data than ", ii, " >", string(data), "<")
 		return 0, nil, nil
 	}
+}
+
+func LoadMatrix[INT ~int | ~uint | ~uint32 | ~int32 | ~uint16 | ~int16](fn, split string, base INT) ([][]INT, INT, INT) {
+	fh, err := os.Open(fn)
+	if nil != err {
+		panic("Unable to open: " + fn)
+	}
+	defer fh.Close()
+	var line, mn, mx, ii INT
+	var ret [][]INT
+	mn = (1 << 15) - 1
+	scanner := bufio.NewScanner(fh)
+	// split lines is default
+	for scanner.Scan() {
+		line++
+		tx := scanner.Text()
+		snum := strings.SplitN(tx, split, -1)
+		slen := INT(len(snum))
+		pline := make([]INT, 0, slen)
+		if mn > slen {
+			mn = slen
+		}
+		if mx < slen {
+			mx = slen
+		}
+		for ii = 0; ii < slen; ii++ {
+			tmp, err := strconv.ParseInt(snum[ii], int(base), 0)
+			if nil != err {
+				fmt.Printf("Line %d : %d:\t%v\n", line, ii, err)
+			}
+			pline = append(pline, INT(tmp))
+		}
+		ret = append(ret, pline)
+	}
+	return ret, mn, mx
+}
+
+func TraverseEntireMatrix[SL ~[][]INT, INT ~int | ~int64 | ~int32 | ~int16](m SL, stR, stC, edR, edC INT, moveRC []INT) INT {
+	mv := len(moveRC)
+	if 0 == mv || 1 == mv&1 {
+		panic("moveRC must have at least one Row,Col movement PAIR, and thus a length that is even and greater than zero.")
+	}
+
+	// Find the matrix limits, the matrix is assumed to be a rectangle (uniform length of rows)
+	var ii, moveLim, limR, limC INT
+	limR, moveLim = INT(len(m)), INT(len(moveRC))
+	for ii = 0; ii < limR; ii++ {
+		tmp := INT(len(m[ii]))
+		if limC < tmp {
+			limC = tmp
+		}
+	}
+
+	// Create a result matrix: Tracks visited locations and allows backtrack updates for paths
+	var dist [][]INT
+	dist = make([][]INT, 0, limR)
+	for ii = 0; ii < limR; ii++ {
+		dist = append(dist, make([]INT, limC))
+	}
+
+	var visit func(r, c INT)
+	visit = func(r, c INT) {
+		var from, x, y INT
+		for ii := INT(0); ii < moveLim; ii += 2 {
+			// - to reverse and figure out where they were from
+			y, x = r-moveRC[ii], c-moveRC[ii+1]
+			if 0 > y || 0 > x || y >= limR || x >= limC {
+				continue
+			}
+			if 0 == from || (0 != dist[y][x] && dist[y][x] < from) {
+				from = dist[y][x]
+			}
+		}
+
+		from += m[r][c]
+		if 0 == dist[r][c] || from < dist[r][c] { // If update, check areas this cell can path to
+			dist[r][c] = from
+			for ii := INT(0); ii < moveLim; ii += 2 {
+				y, x = r+moveRC[ii], c+moveRC[ii+1]
+				if 0 > y || 0 > x || y >= limR || x >= limC {
+					continue
+				}
+				visit(y, x)
+			}
+		}
+	}
+
+	visit(stR, stC)
+	// fmt.Println(dist)
+
+	return dist[edR][edC]
 }
 
 /*
