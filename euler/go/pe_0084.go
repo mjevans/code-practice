@@ -70,13 +70,15 @@ Test case data:
 Real data: Figure out the most popular 3 squares if rolling with 2d4 instead of 2d6
 
 
-Based on the wording, they don't care that advance by 1 isn't possible, nor are they thinking about epicycles caused by the folds backwards / forwards on Go2J...
+--- NOPE test disproved this --- Based on the wording, they don't care that advance by 1 isn't possible, nor are they thinking about epicycles caused by the folds backwards / forwards on Go2J...
 
-2d4	1	2	3	4
-1	2*	3	4	5
-2	3	4*	5	6
-3	4	5	6*	7
-4	5	6	7	8*
+2dx	1	2	3	4	5	6
+1	2*	3	4	5	6	7
+2	3	4*	5	6	7	8
+3	4	5	6*	7	8	9
+4	5	6	7	8*	9	10
+5	6	7	8	9	10*	11
+6	7	8	9	10	11	12*
 
 Doubles: N / (N*N) or 1/N chance per roll, so 1/(N*N*N) for three rolls in a row.
 
@@ -85,6 +87,9 @@ Doubles: N / (N*N) or 1/N chance per roll, so 1/(N*N*N) for three rolls in a row
 	3 cells are CC and re-distribute 1/16th of their value to GO and 1/16th to JAIL
 	3 cells are CH and follow the table above...
 
+The question in my mind is now, how to deal with the epicycles?
+	* Do they make the total across the board greater than 100% (1.0)?  I think I'm going to tentatively say yes, since the literal magnitude doesn't matter THOUGH, I should decrease later cell values by the leaked epicycles, even as the epicycles are added back to the board.
+	* Maybe a recursion limit counter?
 
 /
 */
@@ -101,78 +106,89 @@ import (
 	// "strings"
 )
 
-func Euler0084(sides int) int {
+func Euler0084(sides, rlimit int) int {
 	// Oversimplified 'Monopoly' board, but with each side as a line: (40 total spots)
 	boardNames := []string{
-	"GO",	"A1",	"CC1",	"A2",	"T1",	"R1",	"B1",	"CH1",	"B2",	"B3",
-	"JAIL",	"C1",	"U1",	"C2",	"C3",	"R2",	"D1",	"CC2",	"D2",	"D3",
-	"FP",	"E1",	"CH2",	"E2",	"E3",	"R3",	"F1",	"F2",	"U2",	"F3",
-	"Go2J",	"G1",	"G2",	"CC3",	"G3",	"R4",	"CH3",	"H1",	"T2",	"H2",
+		"GO", "A1", "CC1", "A2", "T1", "R1", "B1", "CH1", "B2", "B3",
+		"JAIL", "C1", "U1", "C2", "C3", "R2", "D1", "CC2", "D2", "D3",
+		"FP", "E1", "CH2", "E2", "E3", "R3", "F1", "F2", "U2", "F3",
+		"Go2J", "G1", "G2", "CC3", "G3", "R4", "CH3", "H1", "T2", "H2",
 	}
 	_ = boardNames
 	boardF := make([]float64, 40)
 
 	// Doubles: N / (N*N) or 1/N chance per roll, so 1/(N*N*N) for three rolls in a row.
-	r := float64(1.0) / float64(sides * sides * sides)
-	boardF[10], r = r, (1.0 - r)/40.0
+	chance := float64(1.0) / float64(sides*sides*sides)
+	boardF[10], chance = chance, (1.0-chance)/40.0
 
-	// Add base chance to every square...
-	for ii:=0 ; ii < 40 ; ii++ {
-		boardF[ii] += r
+	var visit func(start, rlimit int, r float64)
+	visit = func(start, rlimit int, r float64) {
+		rlimit--
+		if 0 > rlimit {
+			return
+		}
+		ii := start
+		for {
+			switch ii {
+			case 2, 17, 33:
+				// Community Chest, redirect% to Go and Jail - 		CC (Community Chest) : 1/16th Go to GO, 1/16th Go to Jail
+				rcc := r / 16.0
+				visit(0, rlimit, rcc)
+				visit(10, rlimit, rcc)
+				boardF[ii] += r * 14.0 / 16.0
+				// What's the chance this cell was landed on and thus epicycled?  The average length is N
+				r = r * float64(sides-1) / float64(sides)
+			case 7, 22, 36:
+				// Chance redirect% CH (Chance) 10/16 movement cards
+				rch := r / 16.0
+				visit(0, rlimit, rch)  // Go to GO (#0)
+				visit(5, rlimit, rch)  // Go to R1 (#5) + CH3 RR x2
+				visit(10, rlimit, rch) // Go to Jail (#10)
+				visit(11, rlimit, rch) // Go to C1 (#11)
+				visit(34, rlimit, rch) // Go to E3 (#34)
+				visit(39, rlimit, rch) // Go to H2 (#39)
+				//	Go to 'Next RR' (Multiple ending in 5)
+				// 2x	Go to 'Next RR' (Multiple ending in 5)
+				switch ii {
+				case 7:
+					visit(15, rlimit, rch) // CH1 RR
+					visit(12, rlimit, rch) // CH1 U
+				case 22:
+					visit(25, rlimit, rch) // CH2 RR
+					visit(28, rlimit, rch) // CH2 U
+				case 36:
+					visit(5, rlimit, rch)  // CH3 RR
+					visit(12, rlimit, rch) // CH3 U
+				}
+				visit(ii-3, rlimit, rch) // Go 'back 3 squares'
+				//
+				boardF[ii] += r * 6.0 / 16.0
+				// What's the chance this cell was landed on and thus epicycled?  The average length is N
+				r = r * float64(sides-1) / float64(sides)
+			case 30:
+				// NOTE: Jail == 'Just Visiting' for this problem
+				boardF[10] += r // Go to Jail square - (100% go to jail)
+				// What's the chance this cell was landed on and thus epicycled?  The average length is N
+				r = r * float64(sides-1) / float64(sides)
+			default:
+				boardF[ii] += r
+			}
+			ii++
+			if 40 == ii {
+				ii = 0
+			}
+			if ii == start {
+				break
+			}
+		}
 	}
-
-	// NOTE: Jail == 'Just Visiting' for this problem
-
-	// Go to Jail square - (100% go to jail)
-	boardF[10] += boardF[30]
-	boardF[30] = 0.0
-
-	// Community Chest, redirect% to Go and Jail - 		CC (Community Chest) : 1/16th Go to GO, 1/16th Go to Jail
-	rcc := r / 16.0
-	boardF[0] += rcc + rcc + rcc
-	boardF[10] += rcc + rcc + rcc
-	boardF[2] -= rcc + rcc
-	boardF[17] -= rcc + rcc
-	boardF[33] -= rcc + rcc
-
-	// Chance redirect% CH (Chance) 10/16 movement cards:
-	boardF[7] = r * 6.0 / 16.0 // 6 out of 16 times of landing on the square it's the end square
-	boardF[22] = boardF[7]
-	boardF[36] = boardF[7]
-	// Go to GO (#0)
-	boardF[0] += rcc + rcc + rcc
-	// Go to R1 (#5) + CH3 RR x2
-	boardF[5] += rcc + rcc + rcc + rcc + rcc
-	// Go to Jail (#10)
-	boardF[10] += rcc + rcc + rcc
-	// Go to C1 (#11)
-	boardF[11] += rcc + rcc + rcc
-	// Go to E3 (#34)
-	boardF[34] += rcc + rcc + rcc
-	// Go to H2 (#39)
-	boardF[39] += rcc + rcc + rcc
-	//	Go to 'Next RR' (Multiple ending in 5)
-	// 2x	Go to 'Next RR' (Multiple ending in 5)
-	// CH3 R1 applied above
-	boardF[15] += rcc + rcc
-	boardF[25] += rcc + rcc
-	// Go to Next U (utility, 2 spots #12, #28)
-	boardF[12] += rcc + rcc
-	boardF[28] += rcc
-	// Go 'back 3 squares'
-	boardF[4] += rcc
-	boardF[29] += rcc
-	boardF[33] += rcc * 14.0 / 16.0 // Wait, this is Community Chest!
-	rcc /= 16.0
-	boardF[0] += rcc // rollback go to go
-	boardF[10] += rcc // rollback go to jail
-
+	visit(0, rlimit, chance)
 	// Why is E3 a popular square in their example from the simplified game?  I expect Jail and Go to be the two most popular.  Are they not ignoring the epicycles after all?
 
 	var ii0, ii1, ii2 int
 	var ff0, ff1, ff2 float64
 
-	for ii := 0 ; ii < 40 ; ii++ {
+	for ii := 0; ii < 40; ii++ {
 		if ff2 < boardF[ii] {
 			ff2, ii2 = boardF[ii], ii
 			if ff1 < ff2 {
@@ -187,15 +203,15 @@ func Euler0084(sides int) int {
 	// FIXME DANGER : The check informed me that, contrary to the basic implication, someone solving this IS expected to account for the epicycles... "Without any further rules we would expect to visit each square with equal probability: 2.5%. However, landing on G2J (Go To Jail), CC (community chest), and CH (chance) changes this distribution."
 	if 6 == sides {
 		ok := true
-		if ! ( 10 == ii0 && (0.0623 < ff0 && ff0 < 0.0625)) {
+		if !(10 == ii0 && (0.0623 < ff0 && ff0 < 0.0625)) {
 			ok = false
 			fmt.Printf("Expected First Place JAIL with 6.24%%, got %s (%d) with %f\n", boardNames[ii0], ii0, ff0)
 		}
-		if ! ( 24 == ii1 && (0.0317 < ff1 && ff1 < 0.0319)) {
+		if !(24 == ii1 && (0.0317 < ff1 && ff1 < 0.0319)) {
 			ok = false
 			fmt.Printf("Expected Second Place E3 with 3.18%%, got %s (%d) with %f\n", boardNames[ii1], ii1, ff1)
 		}
-		if ! ( 0 == ii2 && (0.0308 < ff2 && ff2 < 0.0310)) {
+		if !(0 == ii2 && (0.0308 < ff2 && ff2 < 0.0310)) {
 			ok = false
 			fmt.Printf("Expected Third Place GO with 3.09%%, got %s (%d) with %f\n", boardNames[ii2], ii2, ff2)
 		}
@@ -216,13 +232,13 @@ func main() {
 	var r int
 
 	//test
-	r = Euler0084(6)
+	r = Euler0084(6, 2)
 	if 102400 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
 
 	//run
-	r = Euler0084(4)
+	r = Euler0084(4, 2)
 	fmt.Printf("Euler 84: Monopoly Odds: %d\n", r)
 	if 427337 != r {
 		panic("Did not reach expected value.")
