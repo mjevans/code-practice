@@ -91,12 +91,24 @@ The question in my mind is now, how to deal with the epicycles?
 	* Do they make the total across the board greater than 100% (1.0)?  I think I'm going to tentatively say yes, since the literal magnitude doesn't matter THOUGH, I should decrease later cell values by the leaked epicycles, even as the epicycles are added back to the board.
 	* Maybe a recursion limit counter?
 
+	Need to step outside of the code for a moment and workshop the logic 'aloud'...
+	This was based on a static probability where everything happened at once and thus I didn't need to consider if E.G. landing on a given square happened.  Every square just started with an equal slice of the pie.
+	Now I'm trying to use ONE loop around the board, mod board, to apply that same probability but recurse loop starting on the epicycle when an event sends the cursor to a new location.
+	However that doesn't happen _every_ trip around the board, it only happens IF that cell is the one that's landed upon.
+	How often is a cell landed on?
+	With infinite loops, 1/n grows to an even share of the pie, without any detours considered...
+	So when it's passed the probability of that detour needs to be calculated.
+	1/n times that it's passed, it will be landed on, and then the probability will strike.
+
+	The check values indicate I'm possibly further from the answer trying to figure out probability with just one circle around the board and epicycles.  There's probably some higher math way of calculating the probability of dice rolls and factoring in how short rolls involve more rolls to progress around the board.  There's also short rolls is more likely to jump to jail.
+
+	I think I might need to go for drastic measures and do this one the full brute force way.  Just play it and record visit counts before calculating.
 /
 */
 
 import (
 	// "bufio"
-	// "euler"
+	"euler"
 	"fmt"
 	// "math"
 	// "math/big"
@@ -131,18 +143,17 @@ func Euler0084(sides, rlimit int) int {
 		for {
 			switch ii {
 			case 2, 17, 33:
-				// Community Chest, redirect% to Go and Jail - 		CC (Community Chest) : 1/16th Go to GO, 1/16th Go to Jail
+				// Community Chest, redirect% to Go and Jail - CC (Community Chest) : 1/16th Go to GO, 1/16th Go to Jail
 				rcc := r / 16.0
 				visit(0, rlimit, rcc)
 				visit(10, rlimit, rcc)
-				boardF[ii] += r * 14.0 / 16.0
-				// What's the chance this cell was landed on and thus epicycled?  The average length is N
-				r = r * float64(sides-1) / float64(sides)
+				boardF[ii] += r - rcc*2.0
+				// r -= rcc * 2.0 / float64(sides) // 2 escapes, 14 stay and continues, out of 1/N cycles
 			case 7, 22, 36:
 				// Chance redirect% CH (Chance) 10/16 movement cards
 				rch := r / 16.0
 				visit(0, rlimit, rch)  // Go to GO (#0)
-				visit(5, rlimit, rch)  // Go to R1 (#5) + CH3 RR x2
+				visit(5, rlimit, rch)  // Go to R1 (#5)
 				visit(10, rlimit, rch) // Go to Jail (#10)
 				visit(11, rlimit, rch) // Go to C1 (#11)
 				visit(34, rlimit, rch) // Go to E3 (#34)
@@ -151,25 +162,24 @@ func Euler0084(sides, rlimit int) int {
 				// 2x	Go to 'Next RR' (Multiple ending in 5)
 				switch ii {
 				case 7:
-					visit(15, rlimit, rch) // CH1 RR
-					visit(12, rlimit, rch) // CH1 U
+					visit(15, rlimit, rch*2.0) // CH1 RR
+					visit(12, rlimit, rch)     // CH1 U
 				case 22:
-					visit(25, rlimit, rch) // CH2 RR
-					visit(28, rlimit, rch) // CH2 U
+					visit(25, rlimit, rch*2.0) // CH2 RR
+					visit(28, rlimit, rch)     // CH2 U
 				case 36:
-					visit(5, rlimit, rch)  // CH3 RR
-					visit(12, rlimit, rch) // CH3 U
+					visit(5, rlimit, rch*2.0) // CH3 RR
+					visit(12, rlimit, rch)    // CH3 U
 				}
 				visit(ii-3, rlimit, rch) // Go 'back 3 squares'
 				//
-				boardF[ii] += r * 6.0 / 16.0
-				// What's the chance this cell was landed on and thus epicycled?  The average length is N
-				r = r * float64(sides-1) / float64(sides)
+				boardF[ii] += r - rch*10.0
+				// r -= rch * 10.0 / float64(sides) // 10 escapes, 6 stay and continues, out of 1/N cycles
 			case 30:
+				visit(10, rlimit, r) // Go to Jail square - (100% go to jail)
 				// NOTE: Jail == 'Just Visiting' for this problem
-				boardF[10] += r // Go to Jail square - (100% go to jail)
 				// What's the chance this cell was landed on and thus epicycled?  The average length is N
-				r = r * float64(sides-1) / float64(sides)
+				// r -= r / float64(sides)
 			default:
 				boardF[ii] += r
 			}
@@ -182,7 +192,7 @@ func Euler0084(sides, rlimit int) int {
 			}
 		}
 	}
-	visit(0, rlimit, chance)
+	visit(2, rlimit, chance)
 	// Why is E3 a popular square in their example from the simplified game?  I expect Jail and Go to be the two most popular.  Are they not ignoring the epicycles after all?
 
 	var ii0, ii1, ii2 int
@@ -232,13 +242,13 @@ func main() {
 	var r int
 
 	//test
-	r = Euler0084(6, 2)
+	r = Euler0084(6, 4)
 	if 102400 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
 
 	//run
-	r = Euler0084(4, 2)
+	r = Euler0084(4, 4)
 	fmt.Printf("Euler 84: Monopoly Odds: %d\n", r)
 	if 427337 != r {
 		panic("Did not reach expected value.")
