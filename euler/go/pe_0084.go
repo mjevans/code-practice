@@ -120,7 +120,7 @@ The question in my mind is now, how to deal with the epicycles?
 
 	The algorithm I'm using seems to need 3-4 loops to sufficiently stabilize.  I'd though the even/odd settling would likely happen after 2 loops, but it makes sense that each additional power of 2 loops would increase precision.
 
-	My value for JAIL is a tiny bit sweet compared to Euler 84's reference.  I attribute this to calculating dice roll go to jail first and reducing the overall outcome after that.
+	My value for JAIL is a tiny off compared to Euler 84's reference.  I figured out that they've accounted for the times going to JAIL reset the dice combo.  FIXME: the adjustment might not be 100% correct, but I'd need a better clarification on when exactly to reset it or a different method and this is more than close enough for Euler 84.
 	After 4 rounds the total probability across the board has decayed to 0.9999999999999966 (for 2d6) which isn't sufficient to explain the discrepancy otherwise.
 /
 */
@@ -241,8 +241,21 @@ func Euler0084(sides, rlimit int) int {
 		rlimit = 1
 	}
 	rlimit *= 20 // smallest possible steps always (2) ignoring jail (no doubles) and redirects, fully around the board once to fully spread the probability
+
 	// Doubles: N / (N*N) or 1/N chance per roll, so 1/(N*N*N) for three rolls in a row.
 	chance := float64(1.0) / float64(sides*sides*sides)
+	// I thought about this further and DID think of an idea why JAIL is higher.  After someone goes to jail (for 3 doubles in a row) that counter is reset, and they cannot go to jail again until a fresh 1/(n^3) chance... How to reflect that in the math?
+	// One / Nth of the time, the roll after does NOT send someone to jail, because the counter reset.
+	// One / N*Nth of the time, the second roll after does NOT send someone to jail, because the counter was still reset.
+	// Approximate an integral of the chance of continuously rolling doubles going to jail as often as possible but otherwise skipping as it builds back up.
+	conreduct := float64(1.0)
+	for ii := 0; ii < 6; ii++ {
+		chance = chance - chance/conreduct/float64(sides)
+		chance = chance - chance/conreduct/float64(sides*sides)
+		tmp := float64(sides * sides * sides)
+		chance = chance + chance/conreduct/tmp // return the future three in a row that got masked
+		conreduct *= tmp
+	}
 	reduce := 1.0 - chance
 	for ii := 0; ii < rlimit; ii++ {
 		rollvisit(reduce)
