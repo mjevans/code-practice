@@ -91,45 +91,41 @@ import (
 	// "strings"
 )
 
-func Euler0086(maxSide, required uint32) uint32 {
+func Euler0086(maxSide, required uint32) (uint32, uint32) {
 	var a, b, c, n, m, bb, aa, ret uint32
 	_, _, _, _ = a, b, c, ret
 	var key uint64
-	// var countAtSize []uint32
-	// countAtSize = make([]uint32, maxSide + 1)
-	var cfound, tfound map[uint64]uint8
-	cfound = make(map[uint64]uint8)
-	tfound = make(map[uint64]uint8)
-	_, _ = tfound, cfound
+	var countAtSize []uint32
+	countAtSize = make([]uint32, maxSide+1)
+	tfound := make(map[uint64]uint8)
+	_ = tfound
 
-	cfadd := func(a, b, c uint32) {
-		// sort a smallest
-		if c < b {
-			c, b = b, c
-		}
-		if b < a {
-			a, b = b, a
-		}
-		if c < b {
-			c, b = b, c
-		}
-		key := uint64(a)<<42 | uint64(b)<<21 | uint64(c)
-		cfound[key]++
+	if 0 == required {
+		required = ^required
 	}
 
-	cfiteradd := func(aa, jjkk uint32) {
-		if maxSide < aa {
-			return
+	cfiter := func(aa, jjkk uint32) uint32 {
+		// As solutions are binned by the longest side, those will be covered by a combination of B's splits (from b0 to b1+b2 ... both of which must must be shorter than A to bin there) and lower B's of future A sizes.
+		// if jj or kk has to be longer than aa, then this isn't the correct place to count the triangle, filter it out
+		// if aa > max side this isn't a valid cube either -- but must not even be recorded if that's the case.
+		if aa<<1 < jjkk {
+			return 0
 		}
-		if maxSide < jjkk {
-			for ii := jjkk - maxSide; ii <= maxSide; ii++ {
-				cfadd(aa, ii, jjkk-ii)
-			}
-		} else {
-			for ii := jjkk >> 1; 0 < ii; ii-- {
-				cfadd(aa, ii, jjkk-ii)
-			}
+		// The smaller side of the triangle can split into half as many cuboid edges, a value of 1 becomes 0 which is also valid (3,4,5 is the smallest anyway *shrug*)
+		// 2 -> 1,1 ;; 3 -> 1,2 ;; 4 -> 1,3 2,2
+		if aa >= jjkk {
+			return jjkk >> 1
 		}
+		// else aa < jjkk but 2x aa >= jjkk ; or equivocally aa >= jjkk / 2
+		// aa still has to be the longest side
+		// 5,12 gets filtered above, too tall against too short
+		// 6,12 (actual is 5,12,13 but for hypothetical since a needs a nudge and this is so close)
+		// 6 & 6,6 but not -11,1-, -10,2-, -9,3-, -8,4-, -7,5-
+		// 3,4 => 3 1,3 2,2
+		// jjkk must be split, so /2 ( >>1 ) ; however that's not enough, 3,4,5 it works, but plausible 6,12 fails one short at 0
+		// 8,15,17 => 8 8,7 and -9,6- etc again...
+		// flooring division works for both the even split and one shy of that cases
+		return aa - (jjkk-1)>>1
 	}
 
 Euler0086_outer:
@@ -163,68 +159,64 @@ Euler0086_outer:
 			key = uint64(a)<<32 | uint64(b)
 			if _, exists := tfound[key]; exists {
 				tfound[key]++
-				fmt.Printf("%9d\tSKIP triangle: %d ,\t%d ,\t%d\n", ret, a, b, c)
+				fmt.Printf("SKIP triangle: %d ,\t%d ,\t%d\n", a, b, c)
 				continue
 			}
 			tfound[key] = 1
 			bb, aa = b, a
 			for aa <= maxSide && bb <= maxSide<<1 {
-				/*
-					if bb > maxSide {
-						// bb can be split, but no side can be larger than maxSide
-						// 101 = 1,100 2,99 3,98 ... 50,51
-						// 198 = 99,99 100,98
-						// 199 = 99,100
-						// 200 = 100,100
-						ret += 1 + (maxSide-(bb-maxSide))>>1 // the SLACK can split in half, or up to half uniquely
-					} else {
-						// either side can be split, as both are valid single values
-						// however, the cube must be distinct
-						ret += (b - 1) >> 1 // can split in half, or up to half uniquely
-						ret += (a - 1) >> 1
-					}
-				*/
-				cfiteradd(aa, bb)
-				cfiteradd(bb, aa)
+				countAtSize[aa] += cfiter(aa, bb)
+				if bb <= maxSide {
+					countAtSize[bb] += cfiter(bb, aa)
+				}
 				aa, bb = aa+a, bb+b
 			}
-			fmt.Printf("%9d\tafter triangle: %d ,\t%d ,\t%d\n", ret, a, b, c)
 		}
 	}
-	//fmt.Printf("Euler0086(%d), failed, max found: %d @ %d\n", maxSide, mx, mxii)
+
+	for aa = 0; aa <= maxSide && ret < required; aa++ {
+		ret += countAtSize[aa]
+	}
+	aa--	// correct the loop overshoot
+
 	if 6 == maxSide {
-		for key, _ = range cfound {
-			// fmt.Printf("debug\t%2d , %2d , %2d\n", key>>42, (key>>21)&0x1FFF, key&0x1FFF)
-		}
+		// fmt.Println(countAtSize)
 	}
-	return uint32(len(cfound))
+
+	return aa, ret
 }
 
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 86 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
+Euler 86: : 1000457 @ 1818
+
+real    0m0.193s
+user    0m0.220s
+sys     0m0.062s
 .
 */
 func main() {
-	var r uint32
+	var ii, r uint32
 	//test
-	r = Euler0086(6, 0)
-	if 7 != r {
+	_, r = Euler0086(6, 0)
+	if 6 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
-	r = Euler0086(99, 0)
+	_, r = Euler0086(99, 0)
 	if 1975 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
-	r = Euler0086(100, 0)
+	_, r = Euler0086(100, 0)
 	if 2060 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
 
 	//run
-	r = Euler0086(400_000, 2_000_000)
-	fmt.Printf("Euler 86: : %d\n", r)
-	if 2772 != r {
+	// ii, r = Euler0086(400_000, 1_000_000)
+	ii, r = Euler0086(1886, 1_000_000)
+	fmt.Printf("Euler 86: : %d @ %d\n", r, ii)
+	if 1818 != ii {
 		panic("Did not reach expected value.")
 	}
 }
