@@ -12,50 +12,60 @@ import (
 type BitVector struct {
 	Minset uint64
 	Maxset uint64
+	count  uint64
 	vec    []uint64 // 2^6 = 64 numbers per unit, 0x ffff ffff ffff ffff
 }
 
 func NewBitVector(max uint64) *BitVector {
 	vecsz := (max >> 6) + 1
-	return &BitVector{0, 0, make([]uint64, vecsz, vecsz)}
+	return &BitVector{0, 0, 0, make([]uint64, vecsz, vecsz)}
 }
 
 func (bv *BitVector) Set(num uint64) {
-	if bv.Minset > num {
-		bv.Minset = num
-	}
-	if bv.Maxset < num {
-		bv.Maxset = num
-	}
 	shift := num & 0x3f
-	bv.vec[num>>6] |= uint64(1) << shift
+	if 0 == bv.vec[num>>6]&(uint64(1)<<shift) {
+		bv.count++
+		bv.vec[num>>6] |= uint64(1) << shift
+		if bv.Minset > num {
+			bv.Minset = num
+		}
+		if bv.Maxset < num {
+			bv.Maxset = num
+		}
+	}
 }
 
 func (bv *BitVector) Clear(num uint64) {
 	shift := num & 0x3f
-	bv.vec[num>>6] &^= uint64(1) << shift
+	if 0 < bv.vec[num>>6]&(uint64(1)<<shift) {
+		bv.count--
+		bv.vec[num>>6] &^= uint64(1) << shift
+	}
 }
 
 func (bv *BitVector) Test(num uint64) bool {
 	shift := num & 0x3f
-	return 0 < bv.vec[num>>6]&uint64(1)<<shift
+	return 0 < bv.vec[num>>6]&(uint64(1)<<shift)
 }
 
 func (bv *BitVector) TestAndSet(num uint64) bool {
 	shift := num & 0x3f
-	ret := 0 < bv.vec[num>>6]&uint64(1)<<shift
-	if bv.Minset > num {
-		bv.Minset = num
+	if 0 == bv.vec[num>>6]&(uint64(1)<<shift) {
+		bv.count++
+		bv.vec[num>>6] |= uint64(1) << shift
+		if bv.Minset > num {
+			bv.Minset = num
+		}
+		if bv.Maxset < num {
+			bv.Maxset = num
+		}
+		return false
 	}
-	if bv.Maxset < num {
-		bv.Maxset = num
-	}
-	bv.vec[num>>6] |= uint64(1) << shift
-	return ret
+	return true
 }
 
 func (bv *BitVector) GetInts() *[]int {
-	ret := make([]int, 0, 4)
+	ret := make([]int, 0, bv.count)
 	limit := bv.Maxset>>6 + 1
 	for ii := bv.Minset >> 6; ii < limit; ii++ {
 		bb := uint64(1)
@@ -70,7 +80,7 @@ func (bv *BitVector) GetInts() *[]int {
 }
 
 func (bv *BitVector) GetUInt64s() *[]uint64 {
-	ret := make([]uint64, 0, 4)
+	ret := make([]uint64, 0, bv.count)
 	limit := bv.Maxset>>6 + 1
 	for ii := bv.Minset >> 6; ii < limit; ii++ {
 		bb := uint64(1)
@@ -88,54 +98,63 @@ type OffsetBitVector struct {
 	Minset int64
 	Maxset int64
 	Offset int64
+	count  uint64
 	vec    []uint64 // 2^6 = 64 numbers per unit, 0x ffff ffff ffff ffff
 }
 
 func NewOffsetBitVector(min, max int64) *OffsetBitVector {
 	vecsz := ((max - min) >> 6) + 1
-	return &OffsetBitVector{0, 0, min, make([]uint64, vecsz, vecsz)}
+	return &OffsetBitVector{0, 0, min, 0, make([]uint64, vecsz, vecsz)}
 }
 
 func (bv *OffsetBitVector) Set(num int64) {
-	if bv.Minset > num {
-		bv.Minset = num
-	}
-	if bv.Maxset < num {
-		bv.Maxset = num
-	}
 	offnum := uint64(num - bv.Offset)
 	shift := offnum & 0x3f
-	bv.vec[offnum>>6] |= uint64(1) << shift
+	if 0 == bv.vec[offnum>>6]&(uint64(1)<<shift) {
+		bv.vec[offnum>>6] |= uint64(1) << shift
+		bv.count++
+		if bv.Minset > num {
+			bv.Minset = num
+		}
+		if bv.Maxset < num {
+			bv.Maxset = num
+		}
+	}
 }
 
 func (bv *OffsetBitVector) Clear(num int64) {
 	offnum := uint64(num - bv.Offset)
 	shift := offnum & 0x3f
-	bv.vec[offnum>>6] &^= uint64(1) << shift
+	if 0 < bv.vec[offnum>>6]&(uint64(1)<<shift) {
+		bv.vec[offnum>>6] &^= uint64(1) << shift
+		bv.count--
+	}
 }
 
 func (bv *OffsetBitVector) Test(num int64) bool {
 	offnum := uint64(num - bv.Offset)
 	shift := offnum & 0x3f
-	return 0 < bv.vec[offnum>>6]&uint64(1)<<shift
+	return 0 < bv.vec[offnum>>6]&(uint64(1)<<shift)
 }
 
 func (bv *OffsetBitVector) TestAndSet(num int64) bool {
 	offnum := uint64(num - bv.Offset)
 	shift := offnum & 0x3f
-	ret := 0 < bv.vec[offnum>>6]&uint64(1)<<shift
-	if bv.Minset > num {
-		bv.Minset = num
+	if 0 == bv.vec[offnum>>6]&(uint64(1)<<shift) {
+		bv.vec[offnum>>6] |= uint64(1) << shift
+		if bv.Minset > num {
+			bv.Minset = num
+		}
+		if bv.Maxset < num {
+			bv.Maxset = num
+		}
+		return false
 	}
-	if bv.Maxset < num {
-		bv.Maxset = num
-	}
-	bv.vec[offnum>>6] |= uint64(1) << shift
-	return ret
+	return true
 }
 
 func (bv *OffsetBitVector) GetInts() []int {
-	ret := make([]int, 0, 4)
+	ret := make([]int, 0, bv.count)
 	limit := uint64(bv.Maxset-bv.Offset)>>6 + 1
 	for ii := uint64(bv.Minset-bv.Offset) >> 6; ii < limit; ii++ {
 		bb := uint64(1)
@@ -151,7 +170,7 @@ func (bv *OffsetBitVector) GetInts() []int {
 }
 
 func (bv *OffsetBitVector) GetInt64s() []int64 {
-	ret := make([]int64, 0, 4)
+	ret := make([]int64, 0, bv.count)
 	limit := uint64(bv.Maxset-bv.Offset)>>6 + 1
 	for ii := uint64(bv.Minset-bv.Offset) >> 6; ii < limit; ii++ {
 		bb := uint64(1)

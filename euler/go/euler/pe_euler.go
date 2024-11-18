@@ -311,6 +311,24 @@ func ListMul(scale []int) int {
 	return ret
 }
 
+func SlSum[INT ~uint | ~int | ~uint64 | ~int64 | ~uint32 | ~int32 | ~uint16 | ~int16 | ~uint8 | ~int8](sl []INT) INT {
+	ret := INT(0)
+	lim := len(sl)
+	for ii := 0; ii < lim; ii++ {
+		ret += sl[ii]
+	}
+	return ret
+}
+
+func SlMul[INT ~uint | ~int | ~uint64 | ~int64 | ~uint32 | ~int32 | ~uint16 | ~int16 | ~uint8 | ~int8](sl []INT) INT {
+	ret := INT(0)
+	lim := len(sl)
+	for ii := 0; ii < lim; ii++ {
+		ret *= sl[ii]
+	}
+	return ret
+}
+
 func Factorial[INT ~uint | ~int | ~uint64 | ~int64 | ~uint32 | ~int32](ii INT) INT {
 	var ret INT
 	if 0 <= ii && ii < INT(len(FactCache)) {
