@@ -83,12 +83,62 @@ https://projecteuler.net/minimal=88
 	A: If that were going to happen it'd be with the Power of 2 test, but 2^(k) > 2*k (for k > 1) and 2^(k-n) > 2*k+n (for k >= n >= 0)
 
 	However, it strongly looks like the focus should be on the numbers to _factor_ rather than approximating any limits; given they increase.  That would also greatly reduce duplicated work.
+
+	I'm a little unsure where to go from here; the low unit tests pass.  However the check value on Euler says 32679757 is incorrect...
+	Probably need to lookup the number sequence.
+	https://oeis.org/search?q=4+6+8+8+12+12+12+15&go=Search
+	https://oeis.org/A104173 "a(n) is the smallest integer equal to the sum and the product of the same n positive integers: a(n) = i(1) + i(2) + ... + i(n) = i(1)*i(2)*...*i(n)."
+	     4, 6, 8, 8,	 5
+	12, 12, 12, 15, 16,	10
+	16, 16, 18, 20, 24,	15
+	24, 24, 24, 24, 28,	20
+	27, 32, 30, 48, 32,	25
+	32, 32, 36, 36, 36,	30
+	42, 40, 40, 48, 48,	35
+	48, 45, 48, 48, 48,	40
+	48, 48, 54, 60, 54,	45
+	56, 54, 60, 63, 60,	50
+	60, 60, 63, 64, 64,	55
+	64, 64, 64, 70, 72,	60
+	72, 72, 72, 72, 72,	65
+	84, 80, 80, 81, 80, 80
+
+	71 (well 72 with the 1 included) numbers?  A nightmare to total... 1082 = 4+6+8+12+15+16+18+20+24+28+27+32+30+48+36+42+40+48+54+60+63+64+70+72+84+80+81
+
+add:    28 =     40	<< Incorrect, due to missed factorization of 36?
+add:    31 =     42
+add:    32 =     44	<< WRONG should be 40
+add:    37 =     45
+add:    36 =     48	++ Wow lots of factors of 48
+add:    41 =     50	<< WRONG
+add:    38 =     52	<< WRONG
+add:    45 =     54
+add:    43 =     56	<< 54 not 56
+add:    46 =     60	<< 56 not 60
+add:    49 =     63
+add:    50 =     64	<< 60 not 64
+add:    51 =     66	<< 60 not 66
+add:    56 =     72	<< 64 not 72
+add:    65 =     75	<< 72 not 75
+add:    64 =     80	<< 72 not 80
+add:    69 =     81
+add:    67 =     84	<< 80 not 84
+add:    71 =     88	<< 80 not 88
+add:    63 =     96	<< 72 not 96
+add:    60 =    120	<< 72 not 120
+
+40 is the smallest *shrug*
+2,2,2,5 = 11 (~4) 1^17
+36
+2,2,3,3 = 10 + 1^18
+
+
 /
 */
 
 import (
 	// "bufio"
-	"euler"
+	// "euler"
 	"fmt"
 	// "math"
 	// "math/big"
@@ -102,89 +152,105 @@ func Euler0088(min, max uint32) uint64 {
 	// 32 bit int is enough for Euler 88
 	var ret uint64
 	var nextK, P, k, iter uint32
+	_, _, _ = iter, nextK, k
 
-	uniq := make(map[uint32]uint16)
-	check := make(map[uint16]uint32)
+	uniq := make(map[uint32]uint16)  // Required
+	check := make(map[uint16]uint32) // oldN > n guard
 
 	addPSN := func(k, n uint32) {
+		if k > max {
+			return
+		}
 		K := uint16(k)
 		if oldN, exists := check[K]; !exists || oldN > n {
 			// ret += uint64(n)
-			if exists {
-				if oldN > n {
-					fmt.Printf("SET: %5d = %d\n", K, n)
-				} else {
-					return
-				}
-			}
 			check[K] = n
 			if _, exists = uniq[n]; !exists {
+				// fmt.Printf("add: %5d = %6d\n", K, n)
 				ret += uint64(n)
 				uniq[n] = K
 			}
 		}
 	}
 
+	// mxCompat := func[INT ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](a, b INT) INT {
+	// Can't do Generics with functions as variables?
+	mxCompat := func(a, b uint32) uint32 {
+		if a < b {
+			return b
+		}
+		return a
+	}
+
 	// K increases as terms go up, sum and mul decrease as factors are 'used'
-	var MinK func(mul uint32) uint32
-	MinK = func(P uint32) uint32 {
-		var sum, mul, k, idx, ret uint32
-		sum, mul = P, P
-		for mul >= sum && 1 < mul && idx <= euler.PrimesSmallU8Mx && mul >= uint32(euler.PrimesSmallU8[idx])*uint32(euler.PrimesSmallU8[idx]) {
-			if sum == mul && sum == uint32(euler.PrimesSmallU8[idx]) {
+	var minK func(P, sum, mul, k, fact uint32) uint32
+	minK = func(P, sum, mul, k, fact uint32) uint32 {
+		var ret uint32					// I'm not using ret at all, but this code might get reused in a HackerRank test I've not looked at yet, and I might need it then.
+
+		// what-if: some number needs 6,6,... it could be a square root and series of ones
+		if mul > fact*fact {
+			ret = minK(P, sum, mul, k, fact+1) // Try larger factors first E.G. 2,2,3 -> 3,4
+		}
+		for ; mul >= fact*fact; fact++ {
+			if sum == mul && sum == fact {
 				if 0 < k {
-					return 0 // Prime
+					return ret // Prime, but the other side(s) might have found a composite
 				}
+				// fmt.Printf("add A: %5d = %6d\n", k+1, P)
 				addPSN(k+1, P)
-				return k + 1
+				return mxCompat(k+1, ret)
 			}
-			for 1 < mul && sum >= uint32(euler.PrimesSmallU8[idx]) && 0 == mul%uint32(euler.PrimesSmallU8[idx]) {
-				k, mul, sum = k+1, mul/uint32(euler.PrimesSmallU8[idx]), sum-uint32(euler.PrimesSmallU8[idx])
-				if 0 < k && sum >= mul {
-					ret = k + 1 + sum - mul
-					addPSN(ret, P)
-					// return k + 1 + sum - mul  // This can continue and provide 5 too though...
+			if 1 < mul && sum >= fact && 0 == mul%fact {
+				for 1 < mul && sum >= fact && 0 == mul%fact {
+					k, mul, sum = k+1, mul/fact, sum-fact
+					if 0 < k && sum >= mul {
+						rthis := k + 1 + sum - mul
+						ret = mxCompat(ret, rthis)
+						// fmt.Printf("add B: %5d = %6d\n", rthis, P)
+						addPSN(rthis, P)
+					}
+					ret = mxCompat(ret, minK(P, sum, mul, k, fact+1))
 				}
 			}
-			idx++
 		}
-		fmt.Printf("DEBUG: Euler 88: MinK(%d): EXIT: sum: %d\tmul: %d\tf: #%d\n", P, sum, mul, idx)
-		if mul > euler.PrimesSmallU8MxValPow2After {
-			fmt.Printf("DANGER: Numbers above %d are handled as primes when they could have prime factors greater than 256: mul: %d\n", euler.PrimesSmallU8MxValPow2After, mul)
-			panic("Unexpected, extend prime search if use case intended.")
-		}
-		if sum >= mul && 0 < k {
-			ret = k + 1 + sum - mul
-			addPSN(ret, P)
-			return ret // The overrun of sum can be corrected with sum-mul ones.
+		// fmt.Printf("DEBUG: Euler 88: minK(%d): sum: %d\tmul: %d\tk: %d\tf: %d\n", P, sum, mul, k, fact)
+		// Mul must be prime, so if it fits AND isn't the only factor
+		if 0 < k && sum >= mul && mul+1 != fact {
+			rthis := k + 1 + sum - mul
+			// fmt.Printf("add C: %5d = %6d\n", rthis, P)
+			addPSN(rthis, P)
+			ret = mxCompat(ret, rthis) // The overrun of sum can be corrected with sum-mul ones.
 		}
 		return ret
 	}
 
-	for nextK, P = min, min; P < max<<2; P++ {
-		iter++
-		if 0 == iter&0xff {
-			fmt.Printf("Euler 88: iter %d: nextK: %d\tP: %d\n", iter, nextK, P)
-		}
-		k = MinK(P)
-		fmt.Printf("Euler 88: P %d: got: %d\n", P, k)
-		if 1 < k && k >= nextK {
-			if k <= max {
-				// fmt.Printf("DEBUG: Euler 88: add k: %d val: %d\n", nextK, P)
-				addPSN(k, P)
-				nextK = k + 1
-			} else {
-				break
+	MinK := func(P uint32) uint32 { return minK(P, P, P, 0, 2) }
+
+	for nextK, P = min, min; P <= max<<1; P++ {
+		MinK(P)
+	}
+
+	// fmt.Println(check)
+	if 71 == max {
+		test := []uint8{0, 1, 4, 6, 8, 8, 12, 12, 12, 15, 16, 16, 16, 18, 20, 24, 24, 24, 24, 24, 28, 27, 32, 30, 48, 32, 32, 32, 36, 36, 36, 42, 40, 40, 48, 48, 48, 45, 48, 48, 48, 48, 48, 54, 60, 54, 56, 54, 60, 63, 60, 60, 60, 63, 64, 64, 64, 64, 64, 70, 72, 72, 72, 72, 72, 72, 84, 80, 80, 81, 80, 80}
+		for iter = min; iter <= max; iter++ {
+			if uint32(test[iter]) != check[uint16(iter)] {
+				fmt.Printf("Failed oeis.org/A104173 [%d] expected %d got %d\n", iter, test[iter], check[uint16(iter)])
 			}
 		}
 	}
-
 	return ret
 }
 
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 88 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
+Euler 88: Passed pretests
+Euler 88: Product-sum Numbers: 7587457
+
+real    0m1.507s
+user    0m1.527s
+sys     0m0.071s
 .
 */
 func main() {
@@ -198,13 +264,16 @@ func main() {
 	if 61 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
+	r = Euler0088(2, 71)
+	if 1135 != r {
+		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
+	}
 	fmt.Printf("Euler 88: Passed pretests\n")
-	return
 
 	//run
 	r = Euler0088(2, 12000)
 	fmt.Printf("Euler 88: Product-sum Numbers: %d\n", r)
-	if 1097343 != r {
+	if 7587457 != r {
 		panic("Did not reach expected value.")
 	}
 }
