@@ -185,7 +185,7 @@ func Euler0088(min, max uint32) uint64 {
 	// K increases as terms go up, sum and mul decrease as factors are 'used'
 	var minK func(P, sum, mul, k, fact uint32) uint32
 	minK = func(P, sum, mul, k, fact uint32) uint32 {
-		var ret uint32					// I'm not using ret at all, but this code might get reused in a HackerRank test I've not looked at yet, and I might need it then.
+		var ret uint32 // I'm not using ret at all, but this code might get reused in a HackerRank test I've not looked at yet, and I might need it then.
 
 		// what-if: some number needs 6,6,... it could be a square root and series of ones
 		if mul > fact*fact {
@@ -242,9 +242,81 @@ func Euler0088(min, max uint32) uint64 {
 	return ret
 }
 
+func Euler0088PreciseBruteForce(min, max uint16) uint64 {
+	var ret uint64
+	var pMx, ii uint16
+	kVal := make([]uint16, 0, max+1) // if min is large an offset index is better
+	for pMx, ii = ^pMx, 0; ii <= max; ii++ {
+		kVal = append(kVal, pMx) // All 1s
+	}
+	pMx = max << 1                   // 2^(k) > 2*k (for k > 1) and 2^(k-n) > 2*k+n (for k >= n >= 0)
+	pBV := make([]uint8, 1+(pMx>>3)) // BitVector for unique P terms, initial state 0s
+
+	addIfLess := func(k, p uint16) {
+		if k > max || min > k {
+			return // not a solution candidate
+		}
+		old := kVal[k]
+		if p < old {
+			kVal[k] = p
+		}
+	}
+
+	// Dynamic Programming version of Wheels of factors multiplied and summed to reach all possible P ; use the stack instead of a fixed set of arrays, terminate based on pMx
+	var DPWheelsP func(sum, mul, k, f uint16)
+	DPWheelsP = func(sum, mul, k, f uint16) {
+		var p uint32
+		var spf uint16
+		for k++; ; f++ {
+			spf, p = sum+f, uint32(mul)*uint32(f)
+			if uint32(pMx) < p {
+				return // Above maximum possible solution, terminate
+			}
+			addIfLess(k+uint16(p)-spf, uint16(p))
+			DPWheelsP(spf, uint16(p), k, f) // Try one more wheel of factors from here
+		}
+	}
+
+	DPWheelsP(0, 1, 0, 2)
+
+	var val, bb, bi uint16
+	for ii = min ; ii <= max ; ii++ {
+		val = kVal[ii]
+		bb, bi = val&0b111, val>>3 // bit index, byte index
+		if 0 == pBV[bi]&(1<<bb) {
+			pBV[bi] |= (1 << bb)
+			ret += uint64(val)
+			// fmt.Printf("Debug: [%d] = %d\n", K, p)
+		}
+
+	}
+
+	return ret
+}
+
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 88 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
+If compiled, and run from a tmpfs ramdisk, rather than run as a shell test...
+time /tmp/88
+Euler 88: Passed pretests
+Euler 88: Product-sum Numbers: 7587457
+
+real    0m0.005s
+user    0m0.003s
+sys     0m0.003s
+
+
+for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 88 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
+Euler 88: Passed pretests
+Euler 88: Product-sum Numbers: 7587457
+
+real    0m0.101s
+user    0m0.147s
+sys     0m0.055s
+
+
+My version before the Precise-Brute-Force (inspired by Euler thread) re-write
 Euler 88: Passed pretests
 Euler 88: Product-sum Numbers: 7587457
 
@@ -256,22 +328,22 @@ sys     0m0.071s
 func main() {
 	var r uint64
 	//test
-	r = Euler0088(2, 6)
+	r = Euler0088PreciseBruteForce(2, 6)
 	if 30 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
-	r = Euler0088(2, 12)
+	r = Euler0088PreciseBruteForce(2, 12)
 	if 61 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
-	r = Euler0088(2, 71)
+	r = Euler0088PreciseBruteForce(2, 71)
 	if 1135 != r {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
 	fmt.Printf("Euler 88: Passed pretests\n")
 
 	//run
-	r = Euler0088(2, 12000)
+	r = Euler0088PreciseBruteForce(2, 12000)
 	fmt.Printf("Euler 88: Product-sum Numbers: %d\n", r)
 	if 7587457 != r {
 		panic("Did not reach expected value.")
