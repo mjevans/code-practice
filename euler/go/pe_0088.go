@@ -72,12 +72,12 @@ https://projecteuler.net/minimal=88
 	4	8	1,1,2,4
 	5	8*	1,1,2,2,2
 	6	12	1,1,1,1,2,6
-	7	12*	1,1,1,1,1,2,6
-	8	12*	1,1,1,1,1,2,2,3
+	8	12*	1,1,1,1,1,2,2,3	// Generate this one first
+	7	12*	1,1,1,1,1,3,4	// annoying
 	9	15	1,1,1,1,1,1,1,3,5
-	10	-	--5,2,1^8--
-	11	-	--11,1^10--
 	12	16	1,1,1,1,1,1,1,1,2,2,2,2
+
+
 
 	Q: Is it possible to have more factors than K slots?
 	A: If that were going to happen it'd be with the Power of 2 test, but 2^(k) > 2*k (for k > 1) and 2^(k-n) > 2*k+n (for k >= n >= 0)
@@ -98,137 +98,85 @@ import (
 	// "strings"
 )
 
-func Euler0088(min, max uint64) uint64 {
-	// I shouldn't need these, the default base should suffice with Rho and Lenstra guarded by a Probably Prime test pair known to be accurate for all 64 bit numbers.
-	// t := euler.SqrtU64(uint64(max))
-	// fmt.Printf("Euler 88: Primes.Grow(%d + 8)\n", t)
-	// euler.Primes.Grow(t + 8)
+func Euler0088(min, max uint32) uint64 {
+	// 32 bit int is enough for Euler 88
+	var ret uint64
+	var nextK, P, k, iter uint32
 
-	// 16 bit int is enough for Euler 88
-	check := make(map[uint16]uint8)
+	uniq := make(map[uint32]uint16)
+	check := make(map[uint16]uint32)
 
-	var ii, u2p, u3p, l2p, l3p, m2p, m3p, ret, tsum, tmul uint64
-
-	addPSN := func(n uint64) {
-		if _, exists := check[uint16(n)]; !exists {
-			ret += n
-			check[uint16(n)] = 1
-		}
-	}
-
-	// NOTE: ProperDivisors() returns a slice that starts with 1.. so element 0 is useless here
-
-	var SumMul func(k, n, sum, mul, divMx uint64, divs []uint64) bool
-	SumMul = func(k, n, sum, mul, divMx uint64, divs []uint64) bool {
-		// Every time N is divided the sum is reduced, as a+b < a*b
-		if 0 == k {
-			return false
-		}
-		dMx := divMx
-		tmul := mul * divs[dMx]
-		for tmul > n && dMx > 1 {
-			dMx--
-			tmul = mul * divs[dMx]
-		}
-		tsum := sum - 1 + divs[dMx]
-
-		// fmt.Printf("debug SumMul: %t %d == %d (%d, %d, %d, %d * %d)\n", tsum == tmul, tsum, tmul, k, n, sum, mul, divs[dMx])
-		// if the answer was found OR if a sub-iteration finds the answer...
-		if (tsum == n && tmul == n) || SumMul(k-1, n, tsum, tmul, dMx, divs) {
-			return true
-		}
-
-		// Otherwise divMx started too big, reduce by one and try again
-		for 1 < divMx {
-			divMx--
-			if SumMul(k, n, sum, mul, divMx, divs) {
-				return true
+	addPSN := func(k, n uint32) {
+		K := uint16(k)
+		if oldN, exists := check[K]; !exists || oldN > n {
+			// ret += uint64(n)
+			if exists {
+				if oldN > n {
+					fmt.Printf("SET: %5d = %d\n", K, n)
+				} else {
+					return
+				}
+			}
+			check[K] = n
+			if _, exists = uniq[n]; !exists {
+				ret += uint64(n)
+				uniq[n] = K
 			}
 		}
-		return false
 	}
 
-euler0088outer:
-	for ii = min; ii <= max; ii++ {
-		if 0 == ii&0xFF {
-			fmt.Println("Euler 88: running %6d current total %7d\n", ii, ret)
+	// K increases as terms go up, sum and mul decrease as factors are 'used'
+	var MinK func(mul uint32) uint32
+	MinK = func(P uint32) uint32 {
+		var sum, mul, k, idx, ret uint32
+		sum, mul = P, P
+		for mul >= sum && 1 < mul && idx <= euler.PrimesSmallU8Mx && mul >= uint32(euler.PrimesSmallU8[idx])*uint32(euler.PrimesSmallU8[idx]) {
+			if sum == mul && sum == uint32(euler.PrimesSmallU8[idx]) {
+				if 0 < k {
+					return 0 // Prime
+				}
+				addPSN(k+1, P)
+				return k + 1
+			}
+			for 1 < mul && sum >= uint32(euler.PrimesSmallU8[idx]) && 0 == mul%uint32(euler.PrimesSmallU8[idx]) {
+				k, mul, sum = k+1, mul/uint32(euler.PrimesSmallU8[idx]), sum-uint32(euler.PrimesSmallU8[idx])
+				if 0 < k && sum >= mul {
+					ret = k + 1 + sum - mul
+					addPSN(ret, P)
+					// return k + 1 + sum - mul  // This can continue and provide 5 too though...
+				}
+			}
+			idx++
 		}
-		// Find the initial upper and lower bound
-		for u2p = 0; ii+u2p > 1<<u2p; u2p++ {
+		fmt.Printf("DEBUG: Euler 88: MinK(%d): EXIT: sum: %d\tmul: %d\tf: #%d\n", P, sum, mul, idx)
+		if mul > euler.PrimesSmallU8MxValPow2After {
+			fmt.Printf("DANGER: Numbers above %d are handled as primes when they could have prime factors greater than 256: mul: %d\n", euler.PrimesSmallU8MxValPow2After, mul)
+			panic("Unexpected, extend prime search if use case intended.")
 		}
-		// bp is currently the bit shift of the upper bound
-		l2p, l3p, u3p = u2p-1, 0, 0
+		if sum >= mul && 0 < k {
+			ret = k + 1 + sum - mul
+			addPSN(ret, P)
+			return ret // The overrun of sum can be corrected with sum-mul ones.
+		}
+		return ret
+	}
 
-		// Test and add possible answers: for sum power of two doubles the number and power of 3 triples.  For mul, ii isn't even a factor
-		tsum = ii + u2p                   // + u3p + u3p
-		if tsum == euler.PowInt(2, u2p) { // * euler.PowInt(3, u3p) {
-			// fmt.Printf("debug: %d add high %d\n", ii, tsum)
-			addPSN(tsum)
-			continue
+	for nextK, P = min, min; P < max<<2; P++ {
+		iter++
+		if 0 == iter&0xff {
+			fmt.Printf("Euler 88: iter %d: nextK: %d\tP: %d\n", iter, nextK, P)
 		}
-		tsum = ii + l2p                   // + l3p + l3p
-		if tsum == euler.PowInt(2, l2p) { // * euler.PowInt(3, l3p) {
-			// fmt.Printf("debug: %d add low  %d\n", ii, tsum)
-			addPSN(tsum)
-			continue
-		}
-
-		// m2p, m3p = ii+l2p+l3p+l3p, ii+u2p+u3p+u3p
-		// fmt.Printf("Euler 88 : %d\t range: %d (%d - %d) [%d > %d]\n", ii, m3p-m2p, m3p, m2p, euler.PowInt(2, u2p)*euler.PowInt(3, u3p), euler.PowInt(2, l2p)*euler.PowInt(3, l3p))
-
-		// Use that 75% of the product trick to shrink the range as much as possible...
-		for u2p >= 2 {
-			m2p, m3p = u2p-2, u3p+1
-			tsum, tmul = ii+m2p+m3p+m3p, euler.PowInt(2, m2p)*euler.PowInt(3, m3p)
-			if tsum == tmul {
-				// fmt.Printf("debug: %d add mid  %d\n", ii, tsum)
-				addPSN(tsum)
-				continue euler0088outer
-			} else if tsum > tmul {
-				l2p, l3p = m2p, m3p
-				break
+		k = MinK(P)
+		fmt.Printf("Euler 88: P %d: got: %d\n", P, k)
+		if 1 < k && k >= nextK {
+			if k <= max {
+				// fmt.Printf("DEBUG: Euler 88: add k: %d val: %d\n", nextK, P)
+				addPSN(k, P)
+				nextK = k + 1
 			} else {
-				// fmt.Printf("Old %d (%d, %d)\n", ii+u2p+u3p+u3p, u2p, u3p)
-				u2p, u3p = m2p, m3p
+				break
 			}
 		}
-
-		// The ranges need to use the multiplied values
-		m3p, m2p = euler.PowInt(2, u2p)*euler.PowInt(3, u3p), euler.PowInt(2, l2p)*euler.PowInt(3, l3p)
-		// if m2p < ii {
-		//	m2p = ii
-		// }
-		fmt.Printf("Euler 88 : %5d\t range: %3d [%5d .. %5d]\n", ii, m3p-m2p, m2p, m3p)
-
-		for m2p = m2p; m2p <= m3p; m2p++ {
-			fact := euler.Primes.Factorize(m2p)
-			if fact.Lenbase == 1 && fact.Fact[0].Base == uint32(m2p) {
-				continue // number was prime
-			}
-
-			// this is where it's sort of like the coin purse sort of puzzles, except combining two coins yields a different value which wrecks dynamic programming recursion.
-			// It's different enough that making change doesn't quite seem worth it
-			divs := *(fact.ProperDivisors())
-
-			tsum = m2p - ii // target sum, less the not used slots; logically the largest sum cannot be greater than this.  No, it's not off by one, at LEAST one prime factor will split out.
-			// fmt.Println(divs)
-			// fmt.Println(tsum)
-			for tmul = uint64(len(divs)) - 1; tsum < divs[tmul] && 0 < tmul; tmul-- {
-				// fmt.Printf("%d tsum %d < %d\n", m2p, tsum, divs[tmul])
-			}
-
-			// Only the factors that could _possibly_ fit
-			divs = divs[:tmul+1]
-
-			//    func(k, n, sum, mul, divMx uint64, divs []uint64) bool
-			if SumMul(ii, m2p, ii, 1, tmul, divs) { // returns true / false for if it solves the puzzle
-				// fmt.Printf("debug: %d add sm   %d\n", ii, tsum)
-				addPSN(m2p)
-				continue euler0088outer
-			}
-			// loop
-		}
-		//
 	}
 
 	return ret
@@ -251,6 +199,7 @@ func main() {
 		panic(fmt.Sprintf("Did not reach expected test value. Got: %d", r))
 	}
 	fmt.Printf("Euler 88: Passed pretests\n")
+	return
 
 	//run
 	r = Euler0088(2, 12000)
