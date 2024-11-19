@@ -41,7 +41,7 @@ https://projecteuler.net/minimal=88
 	5	1*1*1*2*2 = 4 vs 7, 1*1*2*2*2 = 8 sum 8 -- done
 	6	1*1*1*2*2*2 = 8 (9),1*1*2*2*2*2 = 16 (10) too high
 	7	12 = 1^5*3*4 ~~ 1*1*1*1*2*2*2 = 8 (10) low, 1*1*1*2*2*2*2 = 16 (11) high, 11 prime, 13 prime, 12 is 2*2*3 (11) or 4*3 () or 2*6
-	8	12 is is 2*2*3*1^5 (12)		1^5*2^3 = 8 (11), 1^4*2^4 = 16 (12), 9 is 3*3 * 1^6 (12), 10 is 2*5 * 1^6 (13), 11 is prime, 12 is is 2*2*3*1^5 (12)
+	8	12 is 2*2*3*1^5 (12)		1^5*2^3 = 8 (11), 1^4*2^4 = 16 (12), 9 is 3*3 * 1^6 (12), 10 is 2*5 * 1^6 (13), 11 is prime, 12 is is 2*2*3*1^5 (12)
 	9?  15?	3*5*1^7		1^5*2^4 = 8 (13) lower, 1^4*2^5 = 16 (14) higher scan between too low and too high
 	12? 16?	16 = 1*1*1 * 1*1*1 * 1*1*2 * 2*2*2 = 16
 	So I think 10 and 11 aren't answers
@@ -61,7 +61,28 @@ https://projecteuler.net/minimal=88
 
 	The initial approach solved the trivial test cases quickly, and I was hopeful to estimate a narrow solution range.  About 10% of the way to the answer and 15 min into running it's clear that there's a LOT of wasted factorization effort, the same numbers tried with slightly different K term numbers.  Plus the estimate is at best 10-20% of the input number, rather than something better like always less than 20.
 
-	I need to take an entirely different approach, but it's 2:30 am and well past time to stop.
+	I need to take an entirely different approach, but it's 2:30 am.
+
+	I'm waffling on if I was on the wrong track or not, this might be one where I am better off allowing a brute force to run and looking over the discussion to see where my existing knowledge was lacking.
+
+	A quick review of the known set to see if any patterns pop out that I missed:
+	K	Answer
+	2	4	2,2
+	3	6	1,2,3
+	4	8	1,1,2,4
+	5	8*	1,1,2,2,2
+	6	12	1,1,1,1,2,6
+	7	12*	1,1,1,1,1,2,6
+	8	12*	1,1,1,1,1,2,2,3
+	9	15	1,1,1,1,1,1,1,3,5
+	10	-	--5,2,1^8--
+	11	-	--11,1^10--
+	12	16	1,1,1,1,1,1,1,1,2,2,2,2
+
+	Q: Is it possible to have more factors than K slots?
+	A: If that were going to happen it'd be with the Power of 2 test, but 2^(k) > 2*k (for k > 1) and 2^(k-n) > 2*k+n (for k >= n >= 0)
+
+	However, it strongly looks like the focus should be on the numbers to _factor_ rather than approximating any limits; given they increase.  That would also greatly reduce duplicated work.
 /
 */
 
@@ -174,9 +195,9 @@ euler0088outer:
 
 		// The ranges need to use the multiplied values
 		m3p, m2p = euler.PowInt(2, u2p)*euler.PowInt(3, u3p), euler.PowInt(2, l2p)*euler.PowInt(3, l3p)
-		if m2p < ii {
-			m2p = ii
-		}
+		// if m2p < ii {
+		//	m2p = ii
+		// }
 		fmt.Printf("Euler 88 : %5d\t range: %3d [%5d .. %5d]\n", ii, m3p-m2p, m2p, m3p)
 
 		for m2p = m2p; m2p <= m3p; m2p++ {
