@@ -984,10 +984,15 @@ func TestFactorizeProperDivisors(t *testing.T) {
 		if len(test.ans) != len(propdiv) {
 			t.Errorf("Lengths do not match:\n%v\n%v\n", test.ans, propdiv)
 		}
+		checksum := uint64(0)
 		for ii := 0; ii < len(propdiv); ii++ {
+			checksum += test.ans[ii]
 			if test.ans[ii] != propdiv[ii] {
 				t.Errorf("Factor mismatch: [%d] expected %d got %d\n%v\n%v\n", ii, test.ans[ii], propdiv[ii], test.ans, propdiv)
 			}
+		}
+		if checksum != euler.Primes.Factorize(uint64(test.test)).ProperDivisorsSum() {
+			t.Errorf("Factor checksum mismatch for ProperDivisorsSum: %d => expected %d got %d %v\n", test.test, checksum, euler.Primes.Factorize(uint64(test.test)).ProperDivisorsSum(), euler.Primes.Factorize(uint64(test.test)))
 		}
 	}
 }

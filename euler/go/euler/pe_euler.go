@@ -3903,7 +3903,7 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 		power += uint32(fp.Power)
 		fact = append(fact, fp)
 	}
-	return &Factorized{Lenbase: base, Lenpow: power, Fact: fact}
+	return &Factorized{Lenbase: base, Lenpow: power, Fact: fact, Value: qin}
 }
 
 func ProbablyPrimeI64(num, kStrBases int64) bool {
@@ -4853,6 +4853,7 @@ type Factorized struct {
 	// I'd like to make a version something like lenbase uint8 ; lenpow uint24 but the latter doesn't exist and the []uint16 (still worth it for data size in cache lines) is about to utilize abus-width int and pointer anyway...
 	Lenbase uint32
 	Lenpow  uint32
+	Value   uint64 // Value, if constructed from a uint64 number's factors
 	Fact    []Factorpair
 }
 
@@ -4911,7 +4912,7 @@ func (facts *Factorized) Mul(fin *Factorized) *Factorized {
 		power = 1
 		leak = append(make([]Factorpair, 0, 1), Factorpair{Base: 0, Power: 1})
 	}
-	facts.Lenbase, facts.Lenpow, facts.Fact = uint32(len(leak)), power, leak
+	facts.Lenbase, facts.Lenpow, facts.Fact, facts.Value = uint32(len(leak)), power, leak, 0
 	return facts
 }
 
@@ -4930,6 +4931,15 @@ func (fl Factorized) Eq(fr *Factorized) bool {
 
 func (fl Factorized) Compare(fr *Factorized) int {
 	// (unverified) Creating and comparing two BigInts is _PROBABLY_ expensive...
+	if 0 != fl.Value && 0 != fr.Value {
+		if fl.Value < fr.Value {
+			return -1
+		}
+		if fl.Value > fr.Value {
+			return 1
+		}
+		return 0
+	}
 	if fl.Eq(fr) {
 		return 0
 	}
@@ -4951,18 +4961,22 @@ func (fl Factorized) BigInt() *big.Int {
 }
 
 func (fact *Factorized) Uint64() uint64 {
+	if 0 != fact.Value {
+		return fact.Value
+	}
 	ret := uint64(1)
 	for ii := uint32(0); ii < fact.Lenbase; ii++ {
 		for ee := uint32(0); ee < fact.Fact[ii].Power; ee++ {
 			ret *= uint64(fact.Fact[ii].Base)
 		}
 	}
+	fact.Value = ret
 	return ret
 }
 
 func (fact *Factorized) Copy() *Factorized {
 	// len(Fact) SHOULD == Lenbase ... but this copies even not-normalized versions (without validating)
-	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow, Fact: make([]Factorpair, len(fact.Fact))}
+	ret := &Factorized{Lenbase: fact.Lenbase, Lenpow: fact.Lenpow, Fact: make([]Factorpair, len(fact.Fact)), Value: fact.Value}
 	copy(ret.Fact, fact.Fact)
 	return ret
 }
@@ -5089,6 +5103,69 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	res := bitVec.GetUInt64s()
 	// fmt.Printf("ProperDivisors() %d : 1 .. %d ??\t%v\n", f.Lenpow, almost, res)
 	return res
+}
+
+func (f *Factorized) ProperDivisorsSum() uint64 {
+	flen := len(f.Fact)
+	if 0 == flen {
+		return 1
+	}
+	if flen > 64 {
+		panic("Factorized.ProperDivisors() does not support more than 64 factors")
+	}
+	if uint32(flen) != f.Lenbase {
+		fmt.Printf("ERROR ProperDivisors(): Lenbase != len(Fact): %v\n", f)
+	}
+	var ret, almost uint64
+
+	// Source Factors
+	sf := make([]uint32, 0, f.Lenpow)
+	for ii := uint32(0); ii < f.Lenbase; ii++ {
+		for pp := uint32(0); pp < f.Fact[ii].Power; pp++ {
+			sf = append(sf, uint32(f.Fact[ii].Base))
+		}
+	}
+
+	// Iteration Limit
+	var limit uint64
+	if 64 == f.Lenpow {
+		limit ^= 1
+	} else {
+		limit = (uint64(1) << f.Lenpow) - 1
+	}
+
+	// What's faster, several multiplies or one divide?  Very roughly, vaguely CPUs +/- 4, * 4, / 8-16 https://stackoverflow.com/questions/46505827/what-are-the-relative-cycle-times-for-the-6-basic-arithmetic-operations
+	// Past very small numbers, the single division would be faster, IF the value exists.
+	if 0 != f.Value {
+		almost = f.Value / uint64(sf[0])
+	} else {
+		almost := uint64(1)
+		for ff := uint32(1); ff < f.Lenpow; ff++ {
+			almost *= uint64(sf[ff])
+		}
+	}
+	if 1 == almost {
+		return 1
+	}
+	bv := make([]uint8, 1+(almost>>3))
+	bv[0] |= 1 << 1
+	bv[almost>>3] |= 1 << (almost & 0b111)
+	ret = 1 + almost
+
+	for ii := uint64(1); ii < limit; ii++ {
+		bit := uint64(1)
+		ar := uint64(1)
+		for ff := uint32(0); ff < f.Lenpow; ff++ {
+			if 0 < ii&bit {
+				ar *= uint64(sf[ff])
+			}
+			bit <<= 1
+		}
+		if 0 == bv[ar>>3]&(1<<(ar&0b111)) {
+			ret, bv[ar>>3] = ret+ar, bv[ar>>3]|(1<<(ar&0b111))
+		}
+	}
+	return ret
 }
 
 func EulerTotientPhi_old(n uint64) uint64 {
