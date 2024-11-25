@@ -5635,6 +5635,75 @@ func (ra RatU64) AddRat(rr RatU64, add bool) RatU64 {
 	return NewRatU64(num, rDen, minus)
 }
 
+type Rat2 struct {
+	Num int64
+	Den int64 //	Should always be positive
+}
+
+func NewRat2(num, den int64) Rat2 {
+	// Sqrt(0x7fffffffffffffff) ~= 0xB504F333
+	if 0xB504F333 < num || 0xB504F333 < den {
+		rGCD := GCDbin(den, num)
+		if 1 < rGCD {
+			num /= rGCD
+			den /= rGCD
+		}
+	}
+	if 0 > den {
+		num, den = -num, -den
+	}
+	return Rat2{Num: num, Den: den}
+}
+
+func ReduceRat2(in Rat2) Rat2 {
+	num, den := in.Num, in.Den
+	rGCD := GCDbin(den, num)
+	if 1 < rGCD {
+		num /= rGCD
+		den /= rGCD
+	}
+	if 0 > den {
+		num, den = -num, -den
+	}
+	return Rat2{Num: num, Den: den}
+}
+
+func (ra Rat2) MulRat(rr Rat2) Rat2 {
+	return NewRat2(ra.Num*rr.Num, ra.Den*rr.Den)
+}
+
+func (ra Rat2) MulND(n, d int64) Rat2 {
+	return NewRat2(ra.Num*n, ra.Den*d)
+}
+
+func (ra Rat2) MulI64(n int64) Rat2 {
+	return NewRat2(ra.Num*n, ra.Den)
+}
+
+func (ra Rat2) DivI64(d int64) Rat2 {
+	return NewRat2(ra.Num, ra.Den*d)
+}
+
+func (ra Rat2) DivRat(rr Rat2) Rat2 {
+	// (An/Ad) / (Rn/Rd)  =>  ((An/Ad) * (Rd/Rn)) / ((Rn/Rd)*(Rd/Rn)) => (An/Ad) * (Rd/Rn)
+	return ra.MulND(rr.Den, rr.Num)
+}
+
+func (ra Rat2) AddRat(rr Rat2) Rat2 {
+	return ra.addRat(rr, true)
+}
+
+func (ra Rat2) SubRat(rr Rat2) Rat2 {
+	return ra.addRat(rr, false)
+}
+
+func (ra Rat2) addRat(rr Rat2, add bool) Rat2 {
+	if !add {
+		return NewRat2(ra.Num*rr.Den-rr.Num*ra.Den, ra.Den*rr.Den)
+	}
+	return NewRat2(ra.Num*rr.Den+rr.Num*ra.Den, ra.Den*rr.Den)
+}
+
 /*
 
 func FactorsToProperDivisors(factors *[]int) *[]int {
