@@ -5452,27 +5452,28 @@ func FareyRankV1(order, h, k uint32) uint64 {
 
 func FareyRankExperiment2__IncorrectButHelpsEnlighten(order, h, k uint32) uint64 {
 	var n, q, ii, jj uint32
-	var iiVal, x, res RatU64
-	res = NewRatU64(0, 1, false)
-	x = NewRatU64(uint64(h), uint64(k), false)
+	var iiVal, x, res Rat2
+	res = NewRat2(0, 1)
+	x = NewRat2(int64(h), int64(k))
 	n = order
-	Arr := make([]RatU64, 1, n+1)
+	Arr := make([]Rat2, 1, n+1) // Previously, this was RatU64
 	for q = 1; q <= n; q++ {
-		Arr = append(Arr, x.MulU64(uint64(q)))
+		Arr = append(Arr, x.MulI64(int64(q)))
 	}
 	for q = 1; q <= n; q++ {
 		iiVal = Arr[q]
 		for jj = q << 1; jj <= n; jj += q {
-			Arr[jj] = Arr[jj].AddRat(iiVal, false)
+			Arr[jj] = Arr[jj].SubRat(iiVal)
 		}
 	}
 	fmt.Println(Arr)
 
 	for ii = 1; ii <= n; ii++ {
-		res = res.AddRat(Arr[ii], true)
+		res = res.AddRat(Arr[ii])
 	}
-	fmt.Printf("Rational result: %d / %d (minus? %t)\n", res.Num, res.Den, res.Minus)
-	return res.Num / res.Den
+	res = ReduceRat2(res)
+	fmt.Printf("Rational result: %d / %d\n", res.Num, res.Den)
+	return uint64(res.Num / res.Den)
 }
 
 /*
@@ -5559,6 +5560,7 @@ func FareyRankTest(order, h, k uint32) []uint32 {
 	return Arr
 }
 
+// deprecated: use Rat2 instead (if it doesn't fit in Rat2 and math/big isn't an option, write a BIGger version)
 type RatU64 struct {
 	Num   uint64
 	Den   uint64
@@ -5573,17 +5575,19 @@ func NewRatU64(num, den uint64, minus bool) RatU64 {
 		den /= rGCD
 	}
 	// }
-	return RatU64{Num: num, Den: den, Minus: minus}
+	panic("deprecated")
+	// return RatU64{Num: num, Den: den, Minus: minus}
 }
 
 func ReduceRatU64(in RatU64) RatU64 {
-	num, den, minus := in.Num, in.Den, in.Minus
-	rGCD := GCDbin(den, num)
-	if 1 < rGCD {
-		num /= rGCD
-		den /= rGCD
-	}
-	return RatU64{Num: num, Den: den, Minus: minus}
+	// num, den, minus := in.Num, in.Den, in.Minus
+	// rGCD := GCDbin(den, num)
+	// if 1 < rGCD {
+	// num /= rGCD
+	// den /= rGCD
+	// }
+	panic("deprecated")
+	// return RatU64{Num: num, Den: den, Minus: minus}
 }
 
 func (ra RatU64) MulRat(rr RatU64) RatU64 {
