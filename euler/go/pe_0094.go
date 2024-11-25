@@ -85,6 +85,21 @@ Provided these are correct and complete, I don't see any obvious pattern...
 
 Given what I know now, that A is always odd and B is always even; a faster program with Pythagorean Triples (like one of the earlier programs and mentioned on the Euler forum thread) would be way faster than the blind brute force approach.
 
+Reflecting on this further after sleeping on it:
+
+I didn't recall the Area identity of Right_triangles offhand:
+https://en.wikipedia.org/wiki/Right_triangle#Characterizations
+Area = a*b / 2 (Right Triangle)
+Ra, Rb, Rc == ITh, ITb / 2, ITa
+
+The Area as an Integer value combined with ITb ~ 2*Rb as an integer value restricts Ra~ITh to either an integer or half an integer value.
+Then the difference of at most 1 for a and b (I'm unsure exactly how, but logically it's the only likely fence) constrains the values to integer solutions only for everything.
+
+With that set of constraints in place it's logical to expect a very narrow range of Pythagorean Triples as the only possible answers.
+
+I didn't exhaustively examine the super fast C/C++ code on Euler's forum; I wonder if it's small stack happens to implement the above algorithm in a more optimal way?
+
+
 
 /
 */
