@@ -50,7 +50,7 @@ import (
 	// "strings"
 )
 
-func Euler0092TestCombo(dig []uint8) (int32, int32, int32) {
+func Euler0093TestCombo(dig []uint8) (int32, int32, int32) {
 	var mn, mx, tmp int32
 	var r1, r2 euler.Rat2
 	var x, y, z uint8
@@ -213,7 +213,7 @@ func Euler0093(min, max uint8) ([]uint8, int32, int32, int32) {
 		for dig[1] = dig[0] + 1; dig[1] <= max-2; dig[1]++ {
 			for dig[2] = dig[1] + 1; dig[2] <= max-1; dig[2]++ {
 				for dig[3] = dig[2] + 1; dig[3] <= max-0; dig[3]++ {
-					maxRun, minVal, maxVal := Euler0092TestCombo(dig)
+					maxRun, minVal, maxVal := Euler0093TestCombo(dig)
 					if maxRun > mr {
 						mr, mn, mx = maxRun, minVal, maxVal
 						copy(mxDig, dig)
