@@ -5248,46 +5248,27 @@ func (f *Factorized) ProperDivisors() *[]uint64 {
 	if 0 == flen {
 		return &[]uint64{1}
 	}
-	//if 1 == flen {
-	//	return append(make([]uint, 0, 1), uint(f.Fact[0]))
-	//}
-	if flen > 64 {
-		panic("Factorized.ProperDivisors() does not support more than 64 factors")
-	}
 	if uint32(flen) != f.Lenbase {
 		fmt.Printf("ERROR ProperDivisors(): Lenbase != len(Fact): %v\n", f)
 	}
-	sf := make([]uint32, 0, f.Lenpow)
-	for ii := uint32(0); ii < f.Lenbase; ii++ {
-		for pp := uint32(0); pp < f.Fact[ii].Power; pp++ {
-			sf = append(sf, uint32(f.Fact[ii].Base))
-		}
-	}
-	var limit uint64
-	if 64 == f.Lenpow {
-		limit ^= 1
-	} else {
-		limit = (uint64(1) << f.Lenpow) - 1
-	}
+	bitVec := bitvector.NewBitVector(f.Uint64() / uint64(f.Fact[0].Base))
 
-	almost := uint64(1)
-	for ff := uint32(1); ff < f.Lenpow; ff++ {
-		almost *= uint64(sf[ff])
-	}
-	bitVec := bitvector.NewBitVector(almost)
-	bitVec.Set(1)      // All 0s
-	bitVec.Set(almost) // ^1 // ~1
-	for ii := uint64(1); ii < limit; ii++ {
-		bit := uint64(1)
-		ar := uint64(1)
-		for ff := uint32(0); ff < f.Lenpow; ff++ {
-			if 0 < ii&bit {
-				ar *= uint64(sf[ff])
+	var explodePowers func(m uint64, idx int)
+	explodePowers = func(m uint64, idx int) {
+		var ii uint32
+		for ; ii <= f.Fact[idx].Power; ii++ {
+			if idx+1 >= flen {
+				if m != f.Uint64() {
+					bitVec.Set(m)
+				}
+			} else {
+				explodePowers(m, idx+1)
 			}
-			bit <<= 1
+			m *= uint64(f.Fact[idx].Base)
 		}
-		bitVec.Set(ar)
 	}
+	explodePowers(1, 0)
+
 	res := bitVec.GetUInt64s()
 	// fmt.Printf("ProperDivisors() %d : 1 .. %d ??\t%v\n", f.Lenpow, almost, res)
 	return res
@@ -5298,61 +5279,27 @@ func (f *Factorized) ProperDivisorsSum() uint64 {
 	if 0 == flen {
 		return 1
 	}
-	if flen > 64 {
-		panic("Factorized.ProperDivisors() does not support more than 64 factors")
-	}
 	if uint32(flen) != f.Lenbase {
 		fmt.Printf("ERROR ProperDivisors(): Lenbase != len(Fact): %v\n", f)
 	}
-	var ret, almost uint64
+	var ret uint64
 
-	// Source Factors
-	sf := make([]uint32, 0, f.Lenpow)
-	for ii := uint32(0); ii < f.Lenbase; ii++ {
-		for pp := uint32(0); pp < f.Fact[ii].Power; pp++ {
-			sf = append(sf, uint32(f.Fact[ii].Base))
-		}
-	}
-
-	// Iteration Limit
-	var limit uint64
-	if 64 == f.Lenpow {
-		limit ^= 1
-	} else {
-		limit = (uint64(1) << f.Lenpow) - 1
-	}
-
-	// What's faster, several multiplies or one divide?  Very roughly, vaguely CPUs +/- 4, * 4, / 8-16 https://stackoverflow.com/questions/46505827/what-are-the-relative-cycle-times-for-the-6-basic-arithmetic-operations
-	// Past very small numbers, the single division would be faster, IF the value exists.
-	if 0 != f.Value {
-		almost = f.Value / uint64(sf[0])
-	} else {
-		almost := uint64(1)
-		for ff := uint32(1); ff < f.Lenpow; ff++ {
-			almost *= uint64(sf[ff])
-		}
-	}
-	if 1 == almost {
-		return 1
-	}
-	bv := make([]uint8, 1+(almost>>3))
-	bv[0] |= 1 << 1
-	bv[almost>>3] |= 1 << (almost & 0b111)
-	ret = 1 + almost
-
-	for ii := uint64(1); ii < limit; ii++ {
-		bit := uint64(1)
-		ar := uint64(1)
-		for ff := uint32(0); ff < f.Lenpow; ff++ {
-			if 0 < ii&bit {
-				ar *= uint64(sf[ff])
+	var explodePowers func(m uint64, idx int)
+	explodePowers = func(m uint64, idx int) {
+		var ii uint32
+		for ; ii <= f.Fact[idx].Power; ii++ {
+			if idx+1 >= flen {
+				if m != f.Uint64() {
+					ret += m
+				}
+			} else {
+				explodePowers(m, idx+1)
 			}
-			bit <<= 1
-		}
-		if 0 == bv[ar>>3]&(1<<(ar&0b111)) {
-			ret, bv[ar>>3] = ret+ar, bv[ar>>3]|(1<<(ar&0b111))
+			m *= uint64(f.Fact[idx].Base)
 		}
 	}
+	explodePowers(1, 0)
+
 	return ret
 }
 
