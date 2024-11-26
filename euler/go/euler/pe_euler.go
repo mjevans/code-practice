@@ -2878,6 +2878,7 @@ type BVPrimes struct {
 	Mu   sync.Mutex
 	PV   []*BVpage // starting from bit 0 (set) == 3 (prime), record all odd primes with SET bits
 	// MAYBE primes are any unset bits > Last, unset bits < Last == composite
+	FactCache []uint32 // It's unrealistic that I'd process consecutive numbers greater than 4 billion and in that case I'm already using way more memory for the problem than I'd prefer for this cache.  At that point a solution specific to the needs should be explored.
 }
 
 func NewBVPrimes() *BVPrimes {
@@ -3764,60 +3765,9 @@ func Factor1980AutoPMC_Pass2(q uint64, singlePrimeOnly bool) uint64 {
 	return q
 }
 
-func (p *BVPrimes) Factorize(q uint64) *Factorized {
-	qin := q
-	_ = qin
-	// Low hanging fruit first
-	if 2 > q {
-		if 0 == q {
-			return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 0, Power: 1}}}
-		}
-		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 1, Power: 1}}}
-	}
-
+func (p *BVPrimes) factorizeTryHard(q uint64) *Factorized {
 	facts := &FactorpairQueue{}
 	heap.Init(facts)
-
-	// Special test & extract: base2, /2
-	k := 0
-	for 0 == q&1 {
-		q >>= 1
-		k++
-	}
-	if 0 < k {
-		heap.Push(facts, Factorpair{Base: 2, Power: uint32(k)})
-	}
-
-	// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
-	// smallPrimes := []uint32{3, 5, 7, 11}
-	// for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
-	var base, power uint32
-	// Start at 1 : skip already checked 2
-	for ii := 1; 1 < q && ii <= PrimesSmallU8Mx; ii++ {
-		qd := uint64(PrimesSmallU8[ii])
-		if q < qd*qd {
-			// q must be prime
-			heap.Push(facts, Factorpair{Base: uint32(q), Power: uint32(1)})
-			q = 1
-			break
-		}
-		for 0 == q%qd {
-			q /= qd
-			power++
-		}
-		if 0 < power {
-			heap.Push(facts, Factorpair{Base: uint32(qd), Power: uint32(power)})
-			power = 0
-		}
-	}
-	if 1 < q && q < PrimesSmallU8MxValPow2After {
-		// q must be prime
-		heap.Push(facts, Factorpair{Base: uint32(q), Power: uint32(1)})
-		q = 1
-	}
-
-	// zz := 1000
-	// for 1 < q && zz > 0 {
 	for 1 < q {
 		var unk uint64
 
@@ -3827,8 +3777,6 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 			break
 		}
 
-		// FIXME: Factorization
-
 		// try just one iteration, returns 0 on 'no factors found' (but search not exhausted)
 		// KEEP one pass (this is faster when it works!)
 		if q < 500_000_000 {
@@ -3837,27 +3785,8 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 			unk = 0
 		}
 
-		// Aiming to replace this with code that extracts factors rather than just testing for factors...
-		/*
-			roottest = SqrtU64(q)
-			if q == roottest*roottest {
-				return roottest
-			}
-
-			// Test higher roots until beneath the highest division tested prime, 41^4 ~= 2.8M ; 41^5 ~= 115.8M
-			for ii := uint64(3); roottest > PrimesSmallU8[PrimesSmallU8Mx] ; ii++ {
-				roottest = RootU64(q, ii)
-				if q == PowU64(roottest, ii) {
-					return roottest
-				}
-			}
-
-			See beneath for the better tests...
-		*/
-
 		// aggressive search
 		if 0 == unk {
-			//if big.NewInt(int64(q)).ProbablyPrime(int(0)) {
 			unk = PrimeProbBailliePSWppo(q)
 			if 0 == unk {
 				unk = q
@@ -3866,8 +3795,6 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 				if unk == q {
 					unk = uint64(FactorLenstraECW(uint64(q), uint64(PrimesSmallU8MxVal)))
 				}
-				// Replace this with LECF
-				// unk = Factor1980AutoPMC_Pass2(q, false)
 			}
 		}
 
@@ -3878,7 +3805,7 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 		}
 
 		q /= unk
-		sf := p.Factorize(unk)
+		sf := p.factorizeTryHard(unk) // Recurse until a known OR Probably Prime are reached
 		for ii := uint32(0); ii < sf.Lenbase; ii++ {
 			b := uint64(sf.Fact[ii].Base)
 			pow := uint32(0)
@@ -3891,8 +3818,269 @@ func (p *BVPrimes) Factorize(q uint64) *Factorized {
 			}
 			heap.Push(facts, sf.Fact[ii])
 		}
-		// fmt.Printf("Factorize: %d @ %d\n", qin, q)
-		// zz--
+	}
+
+	var base, power uint32
+	fact := make([]Factorpair, 0, facts.Len())
+	for 0 < facts.Len() {
+		fp := heap.Pop(facts).(Factorpair)
+		base++
+		power += uint32(fp.Power)
+		fact = append(fact, fp)
+	}
+	return &Factorized{Lenbase: base, Lenpow: power, Fact: fact}
+}
+
+func (p *BVPrimes) FactSetCache(mx int) {
+	if 0 == mx {
+		p.FactCache = nil
+		return
+	}
+	if cap(p.FactCache) < mx+1 {
+		p.FactCache = append(make([]uint32, 0, mx+1), p.FactCache...)
+	}
+}
+
+func (p *BVPrimes) Factorize(q uint64) *Factorized {
+	qin := q
+	_ = qin
+
+	// Low hanging fruit first
+	if 2 > q {
+		if 0 == q {
+			return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 0, Power: 1}}}
+		}
+		return &Factorized{Lenbase: 1, Lenpow: 1, Fact: []Factorpair{Factorpair{Base: 1, Power: 1}}}
+	}
+
+	facts := &FactorpairQueue{}
+	heap.Init(facts)
+	var base, power uint32
+
+	appendFact := func(f uint32) {
+		fLn := len(*facts)
+		if 0 < fLn {
+			fLn--
+			if (*facts)[fLn].Base == f {
+				(*facts)[fLn].Power++
+				return
+			}
+			// DEBUG test
+			for ; 0 < fLn; fLn-- {
+				if (*facts)[fLn].Base == f {
+					fmt.Printf("Debug: Factorize (cached path): expected %d at the end, not at %d:\n%v\n", f, fLn, (*facts))
+				}
+			}
+		}
+		heap.Push(facts, Factorpair{Base: uint32(f), Power: uint32(1)})
+	}
+
+	// The normal way, without the cache
+	cacheLn := len(p.FactCache)
+	if 0 == cacheLn {
+		// Special test & extract: base2, /2
+		k := 0
+		for 0 == q&1 {
+			q >>= 1
+			k++
+		}
+		if 0 < k {
+			heap.Push(facts, Factorpair{Base: 2, Power: uint32(k)})
+		}
+
+		// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
+		// smallPrimes := []uint32{3, 5, 7, 11}
+		// for cur := 0; 1 < q && cur < len(smallPrimes); cur++ {
+		// Start at 1 : skip already checked 2
+		for ii := 1; 1 < q && ii <= PrimesSmallU8Mx; ii++ {
+			qd := uint64(PrimesSmallU8[ii])
+			if q < qd*qd {
+				// q must be prime
+				heap.Push(facts, Factorpair{Base: uint32(q), Power: uint32(1)})
+				q = 1
+				break
+			}
+			for 0 == q%qd {
+				q /= qd
+				power++
+			}
+			if 0 < power {
+				heap.Push(facts, Factorpair{Base: uint32(qd), Power: uint32(power)})
+				power = 0
+			}
+		}
+		if 1 < q && q < PrimesSmallU8MxValPow2After {
+			// q must be prime
+			heap.Push(facts, Factorpair{Base: uint32(q), Power: uint32(1)})
+			q = 1
+		}
+
+		for 1 < q {
+			var unk uint64
+
+			// is the number already known to be a prime?
+			if p.KnownPrime(q) {
+				heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
+				break
+			}
+
+			// try just one iteration, returns 0 on 'no factors found' (but search not exhausted)
+			// KEEP one pass (this is faster when it works!)
+			if q < 500_000_000 {
+				unk = Factor1980PollardMonteCarlo(q, 0)
+			} else {
+				unk = 0
+			}
+
+			// aggressive search
+			if 0 == unk {
+				unk = PrimeProbBailliePSWppo(q)
+				if 0 == unk {
+					unk = q
+				} else {
+					unk = FactorStep1RootsFilter(q, PrimesSmallU8MxVal)
+					if unk == q {
+						unk = uint64(FactorLenstraECW(uint64(q), uint64(PrimesSmallU8MxVal)))
+					}
+				}
+			}
+
+			// Probably Prime
+			if unk == q {
+				heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
+				break
+			}
+
+			q /= unk
+			sf := p.factorizeTryHard(unk)
+			for ii := uint32(0); ii < sf.Lenbase; ii++ {
+				b := uint64(sf.Fact[ii].Base)
+				pow := uint32(0)
+				for 0 == q%b {
+					q /= b
+					pow++
+				}
+				if 0 < pow {
+					sf.Fact[ii].Power += pow
+				}
+				heap.Push(facts, sf.Fact[ii])
+			}
+		}
+	} else {
+		// Maybe faster (for concurrent bulk like in Euler problems) way, WITH the cache
+		// Quickly test some small primes; 2, 3 (~66%), 5 (~73%), 7 (<77%) -- https://en.wikipedia.org/wiki/Wheel_factorization#Description
+		// smallPrimes := []uint32{3, 5, 7, 11}
+
+		// WARNING: If lesser numbers haven't been visited first, this will fail to completely factor
+
+		// I considered caching the results of division too, but that would double the 'index' and is far more likely to overflow CPU cache, which isn't worth the ~14 cycles of savings
+
+		// Start at 0 : to simplify the code path
+		for ii := 0; 1 < q && ii <= PrimesSmallU8Mx; ii++ {
+			if uint64(cacheLn) > q && 0 != p.FactCache[q] {
+				qd := p.FactCache[q]
+				appendFact(qd)
+				q /= uint64(qd)
+				continue
+			}
+			qd := uint64(PrimesSmallU8[ii])
+			if q < qd*qd {
+				// q must be prime
+				heap.Push(facts, Factorpair{Base: uint32(q), Power: uint32(1)})
+				if uint64(cacheLn) > q {
+					p.FactCache[q] = uint32(q)
+				}
+				q = 1
+				break
+			}
+			if 0 == q%qd {
+				if uint64(cacheLn) > q {
+					p.FactCache[q] = uint32(q)
+				}
+				q /= qd
+				appendFact(uint32(qd))
+				continue
+			}
+		}
+		if 1 < q && q < PrimesSmallU8MxValPow2After {
+			// q must be prime
+			heap.Push(facts, Factorpair{Base: uint32(q), Power: uint32(1)})
+			if uint64(cacheLn) > q {
+				p.FactCache[q] = uint32(q)
+			}
+			q = 1
+		}
+
+		for 1 < q {
+			if uint64(cacheLn) > q && 0 != p.FactCache[q] {
+				qd := p.FactCache[q]
+				appendFact(qd)
+				q /= uint64(qd)
+				continue
+			}
+
+			// is the number already known to be a prime?
+			if p.KnownPrime(q) {
+				if uint64(cacheLn) > q {
+					p.FactCache[q] = uint32(q)
+				}
+				heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
+				break
+			}
+
+			var unk uint64
+
+			// try just one iteration, returns 0 on 'no factors found' (but search not exhausted)
+			// KEEP one pass (this is faster when it works!)
+			if q < 500_000_000 {
+				unk = Factor1980PollardMonteCarlo(q, 0)
+			} else {
+				unk = 0
+			}
+
+			// aggressive search
+			if 0 == unk {
+				unk = PrimeProbBailliePSWppo(q)
+				if 0 == unk {
+					unk = q
+				} else {
+					unk = FactorStep1RootsFilter(q, PrimesSmallU8MxVal)
+					if unk == q {
+						unk = uint64(FactorLenstraECW(uint64(q), uint64(PrimesSmallU8MxVal)))
+					}
+				}
+			}
+
+			// Probably Prime
+			if unk == q {
+				if uint64(cacheLn) > q {
+					p.FactCache[q] = uint32(q)
+				}
+				heap.Push(facts, Factorpair{Base: uint32(q), Power: 1})
+				break
+			}
+
+			q /= unk
+			if uint64(cacheLn) > q {
+				p.FactCache[q] = uint32(unk)
+			}
+			sf := p.factorizeTryHard(unk)
+			for ii := uint32(0); ii < sf.Lenbase; ii++ {
+				b := uint64(sf.Fact[ii].Base)
+				if 0 == ii && uint64(cacheLn) > q {
+					p.FactCache[q] = uint32(b) // If this deep, just take in the rest of the factors
+				}
+				pow := uint32(0)
+				for 0 == q%b {
+					q /= b
+					pow++
+				}
+				if 0 < pow {
+					sf.Fact[ii].Power += pow
+				}
+				heap.Push(facts, sf.Fact[ii])
+			}
+		}
 	}
 
 	base, power = 0, 0
@@ -4335,7 +4523,7 @@ FactorLenstraECW_reroll:
 		}
 	}
 	// unreached
-	return N
+	// return N
 }
 
 // More refs...

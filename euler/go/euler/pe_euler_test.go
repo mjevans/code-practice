@@ -91,6 +91,19 @@ func TestDeprPrimesFactor(t *testing.T) {
 	}
 }
 
+func TestPrimesFactorCacheEnabled(t *testing.T) {
+	t.Skip("Passed in dev, ~3.8 second test on my test system.")
+	var ii uint64
+	euler.Primes.FactSetCache(500_000)
+	for ii = 2; ii < 500_000; ii++ {
+		f := euler.Primes.Factorize(ii)
+		f.Value = 0 // _force_ re-calculation of value (will be cached)
+		if ii != f.Uint64() {
+			t.Errorf("Expected %d got %d\n", ii, f.Uint64())
+		}
+	}
+}
+
 func TestBVPrimesPrimeAfter(t *testing.T) {
 	//p := euler.NewBVPrimes()
 	testsPrimeAfter := []struct{ q, r uint64 }{
