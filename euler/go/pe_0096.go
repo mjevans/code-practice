@@ -40,7 +40,11 @@ Grid 01
 	It might improve the solver(s) / efficiency if I have some dirty flag bitmaps; probably just one per row, column and 3x3 cell (every logic domain).
 	Need to solve generally before turning that on though.
 
-	FIXME: Add 'spot for an N' to the scan pass, if there's only one spot for an N, update accordingly
+	In addition to reduction that identifies 'only X can go here' by eliminating any options that would conflict...
+	Out of the open cells in this set, 'An N can only go in (one) Cell' test is required (for many but not all puzzles).
+
+	I considered that 7 bits * 9 numbers is 63 bits; it could just _barely_ be compressed into a 64 bit number.
+	However that would add code complexity for a premature 'optimization', and only saves 5 bytes of storage.
 
 		 0  1  2   3  4  5   6  7  8
 		 9 10 11  12 13 14  15 16 17
@@ -53,6 +57,34 @@ Grid 01
 		54 55 56  57 58 59  60 61 62
 		63 64 65  66 67 68  69 70 71
 		72 73 74  75 76 77  78 79 80
+
+	The second puzzle appears to require a guess to solve.
+	In golang that pushes me to pass a copy of the puzzle by value (full copy) instead of pointer reference.
+	The guess can be made in the cell that has the lowest popcount (including the unsure 0 bitflag), and among values in an increasing order...
+	FIXME: Refactor as above, include a 'no solution' return path too.
+Iter     0      51 remain
+found co [22] = 6
+Iter     4      50 remain
+            .   1010110011   1010100001   1000010001            .   1000010011            .     10100011     11100011
+   1000100011            .   1000100001   1000001101            .   1000001111       100011            .            .
+    100000011            .    110000001            .            .        10011            .     10000011            .
+   1001000001   1010000001   1011001001            .   1000001101            .            .   1010001101            .
+   1101100011   1110100011   1111101001   1100011101   1000001101   1100011101   1011100011   1010101111     11100111
+            .   1100100011            .            .   1000001001            .   1000100011   1000101011       100011
+            .   1100100001            .   1101000101   1000100101            .   1100100001            .       100101
+            .            .   1100100001   1100001001            .   1100001001   1100100011            .       100011
+   1101100001   1100100001            .   1101000101            .   1100000101   1110100001   1010100101            .
+ 2 . . . 8 . 3 . .
+ . 6 . . 7 . . 8 4
+ . 3 . 5 6 . 2 . 9
+ . . . 1 . 5 4 . 8
+ . . . . . . . . .
+ 4 . 2 7 . 6 . . .
+ 3 . 1 . . 7 . 4 .
+ 7 2 . . 4 . . 6 .
+ . . 4 . 1 . . . 3
+panic: could not solve
+
 /
 */
 
@@ -67,6 +99,8 @@ import (
 	// "strconv"
 	// "strings"
 )
+
+var bitLUT [32]uint8 // init() to lookup of bit popcount for 5 bits
 
 func SuDoKuSolver(num *[81]uint8) {
 	//Golang... I want to hard-ref this array NOT copy it inside the funcion! num := *ptrg //[81]uint8)
@@ -89,25 +123,43 @@ func SuDoKuSolver(num *[81]uint8) {
 	drow1, dcol1, dbox1 = 0x1FF, 0x1FF, 0x1FF // All dirty
 
 	iter := 0
-	// fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
+	fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
 	// Scan, Mask, Solve
 	var bigrow, bigcol, brb, bcb, row, rb, col, cell uint8
+	var only [9]uint8
 	for 0 < rem {
 		iter++
-		if 0 == iter&0xFFFF {
+		if 0 == iter&0xFFFF || (0 == drow1 && 0 == dcol1 && 0 == dbox1) {
 			fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
 			for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 				for col = 0; col < 9; col++ {
 					cell = rb + col
-					fmt.Printf("   %10b", note[cell])
+					if 1 == bitLUT[note[cell]>>5]+bitLUT[note[cell]&0x1F] {
+						fmt.Print("            .")
+					} else {
+						fmt.Printf("   %10b", note[cell])
+					}
+				}
+				fmt.Println()
+			}
+			for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
+				for col = 0; col < 9; col++ {
+					cell = rb + col
+					if 0 == (*num)[cell] {
+						fmt.Print(" .")
+					} else {
+						fmt.Printf(" %d", (*num)[cell])
+					}
 				}
 				fmt.Println()
 			}
 			panic("could not solve")
 			// return
 		}
+
 		// rows
 		drow0, drow1 = drow1, 0
+		only = [9]uint8{}
 		for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 			// if 0 == drow0&(1<<row) {
 			// continue
@@ -119,6 +171,7 @@ func SuDoKuSolver(num *[81]uint8) {
 				cell = rb + col
 				if 0 == note[cell]&1 {
 					seen |= note[cell]
+					only[(*num)[cell]-1] = 0xFF
 				}
 			}
 			seen = ^seen // Any number that was NOT seen is allowed...
@@ -127,34 +180,58 @@ func SuDoKuSolver(num *[81]uint8) {
 			for col = 0; col < 9; col++ {
 				cell = rb + col
 				if 1 == note[cell]&1 {
-					temp := note[cell] & seen
-					if temp != note[cell] {
+					possible := note[cell] & seen
+					if possible != note[cell] {
 						// Test if ONLY one possible number remains
-						t2, tc := temp>>1, uint8(1) // shift out the zero flag
-						if 0 == t2 {
-							fmt.Printf("Error: Cell %d has no solution: %b\n", cell, temp)
+						pscan, testnum := possible>>1, uint8(1) // shift out the zero flag
+						if 0 == pscan {
+							fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
 							return
 						}
-						for ; 0 == t2&1; t2, tc = t2>>1, tc+1 {
+						justone := uint8(0)
+						// scan for if this is the only N, or contested
+						for ; 0 < pscan; pscan, testnum = pscan>>1, testnum+1 {
+							if 0 != pscan&1 {
+								if 0 == justone {
+									justone = testnum
+								} else {
+									justone = 0xFF
+								}
+								if 0 == only[testnum-1] {
+									only[testnum-1] = cell
+								} else {
+									only[testnum-1] = 0xFF // mark contested
+								}
+							}
 						}
-						// Number discovered?
-						if 1 == t2 {
-							temp &^= 1        // clear zero flag
+						if 0 < justone && justone < 0xFF {
+							fmt.Printf("found ro [%d] = %d\n", cell, justone)
+							only[justone-1] = 0
+							possible &^= 1    // clear zero flag
 							drow1 |= 1 << row // Re-dirty this row
-							(*num)[cell], rem = tc, rem-1
-							// fmt.Printf("found a %d\t", tc)
+							(*num)[cell], only[justone-1], rem = justone, 0xFF, rem-1
 						}
-						// fmt.Printf("update (row) [%2d] = %10b\t%d\n", cell, temp, iter)
-						note[cell] = temp
+						// fmt.Printf("update (row) [%2d] = %10b\t%d\n", cell, possible, iter)
+						note[cell] = possible
 						dcol1 |= 1 << col // Dirty flags
 						dbox1 |= 1 << (((row / 3) * 3) + (col / 3))
 					}
 				}
 			}
 		}
+		// Number discovered?
+		for rb = 0; rb < 9; rb++ {
+			if 0 < only[rb] && only[rb] < 0xFF {
+				cell, bcb = only[rb], rb+1
+				fmt.Printf("found rd [%d] = %d\n", cell, bcb)
+				(*num)[cell], note[cell], rem = bcb, 1<<bcb, rem-1
+				drow1 |= 1 << (cell / 9) // recover row from cell co-ord
+			}
+		}
 
 		// cols
 		dcol0, dcol1 = dcol1, 0
+		only = [9]uint8{}
 		for col = 0; col < 9; col++ {
 			// if 0 == dcol0&(1<<row) {
 			// continue
@@ -166,6 +243,7 @@ func SuDoKuSolver(num *[81]uint8) {
 				cell = rb + col
 				if 0 == note[cell]&1 {
 					seen |= note[cell]
+					only[(*num)[cell]-1] = 0xFF
 				}
 			}
 			seen = ^seen // Any number that was NOT seen is allowed...
@@ -174,34 +252,58 @@ func SuDoKuSolver(num *[81]uint8) {
 			for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 				cell = rb + col
 				if 1 == note[cell]&1 {
-					temp := note[cell] & seen
-					if temp != note[cell] {
+					possible := note[cell] & seen
+					if possible != note[cell] {
 						// Test if ONLY one possible number remains
-						t2, tc := temp>>1, uint8(1) // shift out the zero flag
-						if 0 == t2 {
-							fmt.Printf("Error: Cell %d has no solution: %b\n", cell, temp)
+						pscan, testnum := possible>>1, uint8(1) // shift out the zero flag
+						if 0 == pscan {
+							fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
 							return
 						}
-						for ; 0 == t2&1; t2, tc = t2>>1, tc+1 {
+						justone := uint8(0)
+						// scan for if this is the only N, or contested
+						for ; 0 < pscan; pscan, testnum = pscan>>1, testnum+1 {
+							if 0 != pscan&1 {
+								if 0 == justone {
+									justone = testnum
+								} else {
+									justone = 0xFF
+								}
+								if 0 == only[testnum-1] {
+									only[testnum-1] = cell
+								} else {
+									only[testnum-1] = 0xFF // mark contested
+								}
+							}
 						}
-						// Number discovered?
-						if 1 == t2 {
-							temp &^= 1        // clear zero flag
-							dcol1 |= 1 << col // re-dirty col
-							(*num)[cell], rem = tc, rem-1
-							// fmt.Printf("found a %d\t", tc)
+						if 0 < justone && justone < 0xFF {
+							fmt.Printf("found co [%d] = %d\n", cell, justone)
+							only[justone-1] = 0
+							possible &^= 1    // clear zero flag
+							dcol1 |= 1 << col // Re-dirty this col
+							(*num)[cell], only[justone-1], rem = justone, 0xFF, rem-1
 						}
-						// fmt.Printf("update (col) [%2d] = %10b\t%d\n", cell, temp, iter)
-						note[cell] = temp
+						// fmt.Printf("update (row) [%2d] = %10b\t%d\n", cell, possible, iter)
+						note[cell] = possible
 						drow1 |= 1 << row // Dirty flags
 						dbox1 |= 1 << (((row / 3) * 3) + (col / 3))
 					}
 				}
 			}
 		}
+		// Number discovered?
+		for rb = 0; rb < 9; rb++ {
+			if 0 < only[rb] && only[rb] < 0xFF {
+				cell, bcb = only[rb], rb+1
+				fmt.Printf("found cd [%d] = %d\n", cell, bcb)
+				(*num)[cell], note[cell], rem = bcb, 1<<bcb, rem-1
+				dcol1 |= 1 << (only[rb] % 9) // recover col from cell co-ord
+			}
+		}
 
 		// 'boxes' additive wheels
 		dbox0, dbox1 = dbox1, 0
+		only = [9]uint8{}
 		for bigrow, brb = 0, 0; bigrow < 3; bigrow, brb = bigrow+1, brb+27 {
 			for bigcol, bcb = 0, 0; bigcol < 3; bigcol, bcb = bigcol+1, bcb+3 {
 				// if 0 == dbox0&(1<<(row*3+col)) {
@@ -215,6 +317,7 @@ func SuDoKuSolver(num *[81]uint8) {
 						cell = brb + bcb + rb + col
 						if 0 == note[cell]&1 {
 							seen |= note[cell]
+							only[(*num)[cell]-1] = 0xFF
 						}
 					}
 				}
@@ -225,25 +328,40 @@ func SuDoKuSolver(num *[81]uint8) {
 					for col = 0; col < 3; col++ {
 						cell = brb + bcb + rb + col
 						if 1 == note[cell]&1 {
-							temp := note[cell] & seen
-							if temp != note[cell] {
+							possible := note[cell] & seen
+							if possible != note[cell] {
 								// Test if ONLY one possible number remains
-								t2, tc := temp>>1, uint8(1) // shift out the zero flag
-								if 0 == t2 {
-									fmt.Printf("Error: Cell %d has no solution: %b\n", cell, temp)
+								pscan, testnum := possible>>1, uint8(1) // shift out the zero flag
+								if 0 == pscan {
+									fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
 									return
 								}
-								for ; 0 == t2&1; t2, tc = t2>>1, tc+1 {
+								justone := uint8(0)
+								// scan for if this is the only N, or contested
+								for ; 0 < pscan; pscan, testnum = pscan>>1, testnum+1 {
+									if 0 != pscan&1 {
+										if 0 == justone {
+											justone = testnum
+										} else {
+											justone = 0xFF
+										}
+										if 0 == only[testnum-1] {
+											only[testnum-1] = cell
+										} else {
+											only[testnum-1] = 0xFF // mark contested
+										}
+									}
 								}
-								// Number discovered?
-								if 1 == t2 {
-									temp &^= 1 // clear zero flag
+								if 0 < justone && justone < 0xFF {
+									fmt.Printf("found bo [%d] = %d\n", cell, justone)
+									only[justone-1] = 0
+									possible &^= 1 // clear zero flag
 									dbox1 |= 1 << (bigrow*3 + bigcol)
-									(*num)[cell], rem = tc, rem-1
-									// fmt.Printf("found a %d\t", tc)
+									(*num)[cell], only[justone-1], rem = justone, 0xFF, rem-1
+
 								}
-								// fmt.Printf("update (box) [%2d] = %10b\t%d\n", cell, temp, iter)
-								note[cell] = temp
+								// fmt.Printf("update (row) [%2d] = %10b\t%d\n", cell, possible, iter)
+								note[cell] = possible
 								drow1 |= 1 << (bigrow + row)
 								dcol1 |= 1 << (bigcol + col) // Dirty flags
 							}
@@ -252,6 +370,16 @@ func SuDoKuSolver(num *[81]uint8) {
 				}
 			}
 		}
+		// Number discovered?
+		for rb = 0; rb < 9; rb++ {
+			if 0 < only[rb] && only[rb] < 0xFF {
+				cell, bcb = only[rb], rb+1
+				fmt.Printf("found bd [%d] = %d\n", cell, bcb)
+				(*num)[cell], note[cell], rem = bcb, 1<<bcb, rem-1
+				drow1 |= 1 << ((only[rb]/27)*3 + ((only[rb] % 9) / 3)) // recover box from cell co-ord
+			}
+		}
+
 	}
 	fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
 
@@ -299,6 +427,13 @@ func Euler0096(fn string) uint16 {
 .
 */
 func main() {
+	bitLUT = [32]uint8{}
+	for ii := 0; ii < 32; ii++ {
+		for t := ii; 0 < t; t >>= 1 {
+			bitLUT[ii] += uint8(t & 1)
+		}
+	}
+
 	var sum uint16
 	//test
 	tgrid := [81]uint8{
