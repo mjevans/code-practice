@@ -61,7 +61,8 @@ Grid 01
 	The second puzzle appears to require a guess to solve.
 	In golang that pushes me to pass a copy of the puzzle by value (full copy) instead of pointer reference.
 	The guess can be made in the cell that has the lowest popcount (including the unsure 0 bitflag), and among values in an increasing order...
-	FIXME: Refactor as above, include a 'no solution' return path too.
+	Or should it be made in a cell with the most remaining entropy?  That could be valid too, but I think the least entropy cell is the most likely to return a conflict sooner.
+
 Iter     0      51 remain
 found co [22] = 6
 Iter     4      50 remain
@@ -85,6 +86,9 @@ Iter     4      50 remain
  . . 4 . 1 . . . 3
 panic: could not solve
 
+	Guessing isn't quite working and has ballooned an initially barely simple enough core to something that should be broken up.
+	Maybe a SuDoKu object that has methods so the shared state can more easily be shared among functions?
+
 /
 */
 
@@ -98,21 +102,50 @@ import (
 	"os" // os.Stdout
 	// "strconv"
 	// "strings"
+	"container/heap"
 )
 
 var bitLUT [32]uint8 // init() to lookup of bit popcount for 5 bits
 
-func SuDoKuSolver(num *[81]uint8) {
-	//Golang... I want to hard-ref this array NOT copy it inside the funcion! num := *ptrg //[81]uint8)
-	// var num [81]uint8
-	// *num := ptrg //[81]uint8)
+// https://pkg.go.dev/container/heap@go1.22.6#Pop
+// required widths: 4 for cell value, 7 for cell address, worst case is 9 bits are set, so again 4... a uint16 could hold the value
+// Pack := popcount << 12 | val << 8 | celladdr << 0
+type Uint16Queue []uint16
+
+func (uq Uint16Queue) Raw() []uint16 {
+	conv := ([]uint16)(uq)
+	return conv
+}
+
+func (uq Uint16Queue) Len() int { return len(uq) }
+
+func (uq Uint16Queue) Less(queA, queB int) bool {
+	// "less" holds items closer to the base of the array
+	return uq[queA] < uq[queB]
+}
+
+func (uq Uint16Queue) Swap(queA, queB int) {
+	uq[queA], uq[queB] = uq[queB], uq[queA]
+	// 'Item' lacks priority and lacks index
+}
+
+func (uq *Uint16Queue) Push(fp any) {
+	*uq = append(*uq, fp.(uint16))
+}
+
+func (uq *Uint16Queue) Pop() any {
+	n := len(*uq) - 1
+	fp := (*uq)[n]
+	*uq = (*uq)[0:n]
+	return fp
+}
+
+// returned numGrid and unsolved
+func SuDoKuSolver(num [81]uint8) ([81]uint8, uint8) {
 	note := [81]uint16{}
 	nummask := uint16(0b111_111_111_1) // 0 means unsolved
-	var drow0, drow1, dcol0, dcol1, dbox0, dbox1 uint16
-	_, _, _, _, _, _ = drow0, drow1, dcol0, dcol1, dbox0, dbox1
-	rem := uint8(81)
-
 	// Process initial grid state
+	rem := uint8(81)
 	for ii := 0; ii < 81; ii++ {
 		if 0 == num[ii] {
 			note[ii] = nummask
@@ -120,15 +153,99 @@ func SuDoKuSolver(num *[81]uint8) {
 			note[ii], rem = 1<<num[ii], rem-1
 		}
 	}
+	return SuDoKuSolverInner(num, note, rem)
+}
+
+func SuDoKuSolverInner(num [81]uint8, note [81]uint16, rem uint8) ([81]uint8, uint8) {
+	var drow0, drow1, dcol0, dcol1, dbox0, dbox1 uint16
+	_, _, _, _, _, _ = drow0, drow1, dcol0, dcol1, dbox0, dbox1
+
 	drow1, dcol1, dbox1 = 0x1FF, 0x1FF, 0x1FF // All dirty
 
 	iter := 0
-	fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
+	fmt.Printf("Entry\t%d remain\n", rem)
 	// Scan, Mask, Solve
 	var bigrow, bigcol, brb, bcb, row, rb, col, cell uint8
+	var entrow, entrowid, entcol, entcolid, entbox, entboxid, entpopc uint8
 	var only [9]uint8
 	for 0 < rem {
 		iter++
+		// Fully reduced? ... have to make a guess
+		if 0 == drow1 && 0 == dcol1 && 0 == dbox1 {
+			// Which has the lowest entropy?  Try all three paths until exhausted
+			var gl Uint16Queue
+			var bestGnum, bestGcell, bestGscore uint8
+			bestGscore = 0xFF
+			// fmt.Println("Time to guess")
+			for 0xFF != entrow && 0xFF != entcol && 0xFF != entbox {
+				if entrow < entcol && entrow < entbox {
+					gl, rb = make([]uint16, 0, entrow-9), entrowid*9
+					for col = 0; col < 9; col++ {
+						cell = rb + col
+						if 1 == note[cell]&1 {
+							drow0 = uint16(bitLUT[note[cell]>>5]+bitLUT[note[cell]&0x1F])<<12 | uint16(cell)
+							for dbox0, brb = note[cell]>>1, 1; 0 < dbox0; dbox0, brb = dbox0>>1, brb+1 {
+								if 0 != dbox0&1 {
+									gl = append(gl, drow0|uint16(brb)<<8) // OR in number to try and add to the queue
+								}
+							}
+						}
+					}
+					entrow = 0xFF // queued for processing, mark to ignore
+				} else if entcol < entrow && entcol < entbox {
+					gl, col = make([]uint16, 0, entcol-9), entcolid
+					for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
+						cell = rb + col
+						if 1 == note[cell]&1 {
+							drow0 = uint16(bitLUT[note[cell]>>5]+bitLUT[note[cell]&0x1F])<<12 | uint16(cell)
+							for dbox0, brb = note[cell]>>1, 1; 0 < dbox0; dbox0, brb = dbox0>>1, brb+1 {
+								if 0 != dbox0&1 {
+									gl = append(gl, drow0|uint16(brb)<<8) // OR in number to try and add to the queue
+								}
+							}
+						}
+					}
+					entcol = 0xFF // queued for processing, mark to ignore
+				} else {
+					gl, bcb = make([]uint16, 0, entbox-9), ((entboxid>>2)&0x3)*27+(entboxid&0x3)*3
+					for row, rb = 0, 0; row < 3; row, rb = row+1, rb+9 {
+						for col = 0; col < 3; col++ {
+							cell = bcb + rb + col
+							if 1 == note[cell]&1 {
+								drow0 = uint16(bitLUT[note[cell]>>5]+bitLUT[note[cell]&0x1F])<<12 | uint16(cell)
+								for dbox0, brb = note[cell]>>1, 1; 0 < dbox0; dbox0, brb = dbox0>>1, brb+1 {
+									if 0 != dbox0&1 {
+										gl = append(gl, drow0|uint16(brb)<<8) // OR in number to try and add to the queue
+									}
+								}
+							}
+						}
+					}
+					entbox = 0xFF // queued for processing, mark to ignore
+				}
+				heap.Init(&gl) // sort the list to a heap
+				for 0 < gl.Len() {
+					cpNum, cpNote := num, note
+					dbox0 = heap.Pop(&gl).(uint16)
+					rb, cell = uint8(dbox0>>8)&0xF, uint8(dbox0)
+					cpNum[cell], cpNote[cell] = rb, 1<<rb
+					fmt.Printf("Trying guess: [%d] = %d\n", cell, rb)
+					cpNum, brb = SuDoKuSolverInner(cpNum, cpNote, rem-1)
+					if 0 == brb {
+						return cpNum, 0
+					} else if 0xFF == brb { // Successfully proved that number CANNOT go in that cell
+						note[cell] &^= 1 << rb // At the guess stage, just make updates then full-process the board if required later
+						fmt.Printf("Learned [%d] != %d\n", cell, rb)
+					} else if bestGscore > brb {
+						bestGnum, bestGcell, bestGscore = rb, cell, brb
+						fmt.Printf("Best Guess [%d] != %d (%d)\n", cell, rb, brb)
+					}
+				}
+			}
+			num[bestGcell], note[bestGcell] = bestGnum, 1<<bestGnum // If it wasn't solved, apply the best guess and try again
+			drow1, dcol1, dbox1 = 0x1FF, 0x1FF, 0x1FF               // All dirty -- New information has been provided, refresh everything
+			iter = 0xFFFF
+		}
 		if 0 == iter&0xFFFF || (0 == drow1 && 0 == dcol1 && 0 == dbox1) {
 			fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
 			for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
@@ -145,10 +262,10 @@ func SuDoKuSolver(num *[81]uint8) {
 			for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 				for col = 0; col < 9; col++ {
 					cell = rb + col
-					if 0 == (*num)[cell] {
+					if 0 == num[cell] {
 						fmt.Print(" .")
 					} else {
-						fmt.Printf(" %d", (*num)[cell])
+						fmt.Printf(" %d", num[cell])
 					}
 				}
 				fmt.Println()
@@ -158,7 +275,7 @@ func SuDoKuSolver(num *[81]uint8) {
 		}
 
 		// rows
-		drow0, drow1 = drow1, 0
+		entrow, drow0, drow1 = 0xFF, drow1, 0
 		only = [9]uint8{}
 		for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 			// if 0 == drow0&(1<<row) {
@@ -171,22 +288,24 @@ func SuDoKuSolver(num *[81]uint8) {
 				cell = rb + col
 				if 0 == note[cell]&1 {
 					seen |= note[cell]
-					only[(*num)[cell]-1] = 0xFF
+					only[num[cell]-1] = 0xFF
 				}
 			}
 			seen = ^seen // Any number that was NOT seen is allowed...
 
 			// MASK known numbers out of unknown numbers
+			entpopc = 0
 			for col = 0; col < 9; col++ {
 				cell = rb + col
+				entpopc += bitLUT[note[cell]>>5] + bitLUT[note[cell]&0x1F]
 				if 1 == note[cell]&1 {
 					possible := note[cell] & seen
 					if possible != note[cell] {
 						// Test if ONLY one possible number remains
 						pscan, testnum := possible>>1, uint8(1) // shift out the zero flag
 						if 0 == pscan {
-							fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
-							return
+							// fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
+							return num, 0xFF
 						}
 						justone := uint8(0)
 						// scan for if this is the only N, or contested
@@ -205,11 +324,11 @@ func SuDoKuSolver(num *[81]uint8) {
 							}
 						}
 						if 0 < justone && justone < 0xFF {
-							fmt.Printf("found ro [%d] = %d\n", cell, justone)
+							// fmt.Printf("found ro [%d] = %d\n", cell, justone)
 							only[justone-1] = 0
 							possible &^= 1    // clear zero flag
 							drow1 |= 1 << row // Re-dirty this row
-							(*num)[cell], only[justone-1], rem = justone, 0xFF, rem-1
+							num[cell], only[justone-1], rem = justone, 0xFF, rem-1
 						}
 						// fmt.Printf("update (row) [%2d] = %10b\t%d\n", cell, possible, iter)
 						note[cell] = possible
@@ -218,19 +337,22 @@ func SuDoKuSolver(num *[81]uint8) {
 					}
 				}
 			}
+			if entrow > entpopc && entpopc > 10 {
+				entrow, entrowid = entpopc, row
+			}
 		}
 		// Number discovered?
 		for rb = 0; rb < 9; rb++ {
 			if 0 < only[rb] && only[rb] < 0xFF {
 				cell, bcb = only[rb], rb+1
-				fmt.Printf("found rd [%d] = %d\n", cell, bcb)
-				(*num)[cell], note[cell], rem = bcb, 1<<bcb, rem-1
+				// fmt.Printf("found rd [%d] = %d\n", cell, bcb)
+				num[cell], note[cell], rem = bcb, 1<<bcb, rem-1
 				drow1 |= 1 << (cell / 9) // recover row from cell co-ord
 			}
 		}
 
 		// cols
-		dcol0, dcol1 = dcol1, 0
+		entcol, dcol0, dcol1 = 0xFF, dcol1, 0
 		only = [9]uint8{}
 		for col = 0; col < 9; col++ {
 			// if 0 == dcol0&(1<<row) {
@@ -243,22 +365,24 @@ func SuDoKuSolver(num *[81]uint8) {
 				cell = rb + col
 				if 0 == note[cell]&1 {
 					seen |= note[cell]
-					only[(*num)[cell]-1] = 0xFF
+					only[num[cell]-1] = 0xFF
 				}
 			}
 			seen = ^seen // Any number that was NOT seen is allowed...
 
 			// MASK known numbers out of unknown numbers
+			entpopc = 0
 			for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 				cell = rb + col
+				entpopc += bitLUT[note[cell]>>5] + bitLUT[note[cell]&0x1F]
 				if 1 == note[cell]&1 {
 					possible := note[cell] & seen
 					if possible != note[cell] {
 						// Test if ONLY one possible number remains
 						pscan, testnum := possible>>1, uint8(1) // shift out the zero flag
 						if 0 == pscan {
-							fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
-							return
+							// fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
+							return num, 0xFF
 						}
 						justone := uint8(0)
 						// scan for if this is the only N, or contested
@@ -277,11 +401,11 @@ func SuDoKuSolver(num *[81]uint8) {
 							}
 						}
 						if 0 < justone && justone < 0xFF {
-							fmt.Printf("found co [%d] = %d\n", cell, justone)
+							// fmt.Printf("found co [%d] = %d\n", cell, justone)
 							only[justone-1] = 0
 							possible &^= 1    // clear zero flag
 							dcol1 |= 1 << col // Re-dirty this col
-							(*num)[cell], only[justone-1], rem = justone, 0xFF, rem-1
+							num[cell], only[justone-1], rem = justone, 0xFF, rem-1
 						}
 						// fmt.Printf("update (row) [%2d] = %10b\t%d\n", cell, possible, iter)
 						note[cell] = possible
@@ -290,13 +414,16 @@ func SuDoKuSolver(num *[81]uint8) {
 					}
 				}
 			}
+			if entcol > entpopc && entpopc > 10 {
+				entcol, entcolid = entpopc, col
+			}
 		}
 		// Number discovered?
 		for rb = 0; rb < 9; rb++ {
 			if 0 < only[rb] && only[rb] < 0xFF {
 				cell, bcb = only[rb], rb+1
-				fmt.Printf("found cd [%d] = %d\n", cell, bcb)
-				(*num)[cell], note[cell], rem = bcb, 1<<bcb, rem-1
+				// fmt.Printf("found cd [%d] = %d\n", cell, bcb)
+				num[cell], note[cell], rem = bcb, 1<<bcb, rem-1
 				dcol1 |= 1 << (only[rb] % 9) // recover col from cell co-ord
 			}
 		}
@@ -317,24 +444,26 @@ func SuDoKuSolver(num *[81]uint8) {
 						cell = brb + bcb + rb + col
 						if 0 == note[cell]&1 {
 							seen |= note[cell]
-							only[(*num)[cell]-1] = 0xFF
+							only[num[cell]-1] = 0xFF
 						}
 					}
 				}
 				seen = ^seen // Any number that was NOT seen is allowed...
 
 				// MASK known numbers out of unknown numbers
+				entpopc = 0
 				for row, rb = 0, 0; row < 3; row, rb = row+1, rb+9 {
 					for col = 0; col < 3; col++ {
 						cell = brb + bcb + rb + col
+						entpopc += bitLUT[note[cell]>>5] + bitLUT[note[cell]&0x1F]
 						if 1 == note[cell]&1 {
 							possible := note[cell] & seen
 							if possible != note[cell] {
 								// Test if ONLY one possible number remains
 								pscan, testnum := possible>>1, uint8(1) // shift out the zero flag
 								if 0 == pscan {
-									fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
-									return
+									// fmt.Printf("Error: Cell %d has no solution: %b\n", cell, possible)
+									return num, 0xFF
 								}
 								justone := uint8(0)
 								// scan for if this is the only N, or contested
@@ -353,11 +482,11 @@ func SuDoKuSolver(num *[81]uint8) {
 									}
 								}
 								if 0 < justone && justone < 0xFF {
-									fmt.Printf("found bo [%d] = %d\n", cell, justone)
+									// fmt.Printf("found bo [%d] = %d\n", cell, justone)
 									only[justone-1] = 0
 									possible &^= 1 // clear zero flag
 									dbox1 |= 1 << (bigrow*3 + bigcol)
-									(*num)[cell], only[justone-1], rem = justone, 0xFF, rem-1
+									num[cell], only[justone-1], rem = justone, 0xFF, rem-1
 
 								}
 								// fmt.Printf("update (row) [%2d] = %10b\t%d\n", cell, possible, iter)
@@ -368,21 +497,24 @@ func SuDoKuSolver(num *[81]uint8) {
 						}
 					}
 				}
+				if entbox > entpopc && entpopc > 10 {
+					entbox, entboxid = entpopc, bigrow<<2|bigcol
+				}
 			}
 		}
 		// Number discovered?
 		for rb = 0; rb < 9; rb++ {
 			if 0 < only[rb] && only[rb] < 0xFF {
 				cell, bcb = only[rb], rb+1
-				fmt.Printf("found bd [%d] = %d\n", cell, bcb)
-				(*num)[cell], note[cell], rem = bcb, 1<<bcb, rem-1
+				// fmt.Printf("found bd [%d] = %d\n", cell, bcb)
+				num[cell], note[cell], rem = bcb, 1<<bcb, rem-1
 				drow1 |= 1 << ((only[rb]/27)*3 + ((only[rb] % 9) / 3)) // recover box from cell co-ord
 			}
 		}
 
 	}
-	fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
-
+	// fmt.Printf("Iter %5d\t%d remain\n", iter, rem)
+	return num, rem
 }
 
 func Euler0096(fn string) uint16 {
@@ -399,6 +531,7 @@ func Euler0096(fn string) uint16 {
 		line := scanner.Bytes()
 		if 'G' == line[0] {
 			pos = 0 // New puzzle
+			fmt.Println(string(line))
 			continue
 		}
 		for ii, iiLm := 0, len(line); ii < iiLm && pos < 81; ii++ {
@@ -409,7 +542,7 @@ func Euler0096(fn string) uint16 {
 		}
 		if 81 == pos {
 			if 0 == grid[0] || 0 == grid[1] || 0 == grid[2] {
-				SuDoKuSolver(&grid) // Solve if the required data wasn't already provided
+				grid, _ = SuDoKuSolver(grid) // Solve if the required data wasn't already provided
 			}
 			ret += uint16(grid[0]) + 10*uint16(grid[1]) + 100*uint16(grid[2])
 		}
@@ -456,7 +589,7 @@ func main() {
 		3, 7, 2, 6, 8, 9, 5, 1, 4,
 		8, 1, 4, 2, 5, 3, 7, 6, 9,
 		6, 9, 5, 4, 1, 7, 3, 8, 2}
-	SuDoKuSolver(&tgrid)
+	tgrid, _ = SuDoKuSolver(tgrid)
 	ok := true
 	for ii := 0; ii < 81; ii++ {
 		if tgrid[ii] != agrid[ii] {
