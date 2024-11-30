@@ -93,6 +93,17 @@ panic: could not solve
 
 	Number three appears to have a structure bare enough to force a full grid entropy consideration, so maybe I _should_ refactor how that's calculated too.
 
+	Refactor effectively complete, though guesses still incorrect.
+
+	The most silly mistake I made, likely due to working on the design over multiple nights, was momentarily forgetting that 0 is a valid cell address, and thus not a good value to use for already seen things.  Got that wrong once on a late bolt-on step; was a nightmare to debug given the rarity of the test case and how easily just one single wrong cell can drive the entire grid off from the value it should have.
+
+	When this started out with just three simple-ish mask and mark sections that was, thanks to three distinct sections, just barely at the level before where a refactor should have happened.
+	If I'd refactored at that point instead of trying to add in multiple other complex functionality additions at the same time it's less likely I'd have made a simple mistake like that.
+
+	Overall, this might be the least fun Euler puzzle I've done so far, though one other was nightmarish unfun too.
+	However this puzzle at least has redeeming general programming education and practice value.
+	It's such a good trap for something that seems deceptively simple, but SHOULD be broken out into easier to digest units of logic sooner.
+	The trap is how interconnected all the logic is, which _really_ encourages a programmer to keep things within one function / object / closure if avoiding global variables.
 
 /
 */
@@ -157,6 +168,10 @@ type SuDoKu struct {
 func (s *SuDoKu) Solve() uint8 {
 	s.ResetAllNotes()
 	s.SolveInner()
+	if 0 != s.Validate(true) {
+		s.Print()
+		panic("Validate isolated issues")
+	}
 	return s.Rem
 }
 
@@ -171,46 +186,125 @@ func (s *SuDoKu) ResetAllNotes() {
 	}
 }
 
+func (s *SuDoKu) Validate(info bool) uint8 {
+	var bigrow, bigcol, brb, bcb, row, rb, col, cell, ret uint8
+
+	for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
+		// Scan known numbers
+		seen := uint16(0)
+		for col = 0; col < 9; col++ {
+			cell = rb + col
+			if 0 != s.Num[cell] {
+				if 0 != seen&(1<<(s.Num[cell])) {
+					if info {
+						fmt.Printf("Duplicate %d found in cell %2d\n", s.Num[cell], cell)
+					}
+					ret = 0xFF
+				} else {
+					seen |= 1 << (s.Num[cell])
+				}
+			}
+		}
+		if info && 0b111_111_111_0 != seen {
+			fmt.Printf("Missing numbers in row %d 0b%10b\n", row, seen)
+		}
+	}
+
+	for col = 0; col < 9; col++ {
+		// Scan known numbers
+		seen := uint16(0)
+		for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
+			cell = rb + col
+			if 0 != s.Num[cell] {
+				if 0 != seen&(1<<(s.Num[cell])) {
+					if info {
+						fmt.Printf("Duplicate %d found in cell %2d\n", s.Num[cell], cell)
+					}
+					ret = 0xFF
+				} else {
+					seen |= 1 << (s.Num[cell])
+				}
+			}
+		}
+		if info && 0b111_111_111_0 != seen {
+			fmt.Printf("Missing numbers in col %d 0b%10b\n", col, seen)
+		}
+	}
+
+	for bigrow, brb = 0, 0; bigrow < 3; bigrow, brb = bigrow+1, brb+27 {
+		for bigcol, bcb = 0, 0; bigcol < 3; bigcol, bcb = bigcol+1, bcb+3 {
+			// Scan known numbers
+			seen := uint16(0)
+			for row, rb = 0, 0; row < 3; row, rb = row+1, rb+9 {
+				for col = 0; col < 3; col++ {
+					cell = brb + bcb + rb + col
+					if 0 != s.Num[cell] {
+						if 0 != seen&(1<<(s.Num[cell])) {
+							if info {
+								fmt.Printf("Duplicate %d found in cell %2d\n", s.Num[cell], cell)
+							}
+							ret = 0xFF
+						} else {
+							seen |= 1 << (s.Num[cell])
+						}
+					}
+				}
+			}
+			if info && 0b111_111_111_0 != seen {
+				fmt.Printf("Missing numbers in box %d 0b%10b_\n", bigrow*3+bigcol, seen)
+			}
+		}
+	}
+	return ret
+}
+
 // Update the cell's mask, if it's still variable.  Return 0 for no updates, 10 for mask only, Number if set to a number, and 0xFF if error/no matches
 func (s *SuDoKu) UpdateCellMask(seen uint16, cell uint8) uint8 {
 	var ret uint8
 	if 1 == s.Note[cell]&1 {
 		possible := s.Note[cell] & seen
 		if 1 == possible {
+			// fmt.Printf("No possible values for [%d]\n", cell)
 			return 0xFF
 		}
-		if possible != s.Note[cell] {
-			// Test if ONLY one possible number remains
-			pscan, justone, testnum := possible>>1, uint8(0), uint8(1) // shift out the zero flag
-			// scan for if this is the only N, or contested
-			for ret = 10; 0 < pscan; pscan, testnum = pscan>>1, testnum+1 {
-				if 0 != pscan&1 {
-					if 0 == justone {
-						justone = testnum
-					} else {
-						justone = 0xFF
-					}
-					if 0 == s.Only[testnum-1] {
-						s.Only[testnum-1] = cell
-					} else {
-						s.Only[testnum-1] = 0xFF // mark contested
-					}
-				}
-			}
-			if 0 < justone && justone < 0xFF {
-				possible, ret, s.Num[cell], s.Only[justone-1], s.Rem = 1<<justone, justone, justone, 0xFF, s.Rem-1
-			}
-			s.Note[cell] = possible
+		if possible != s.Note[cell] { // MUST process to evaluate s.Only numbers
+			ret = 10
 		}
+		pscan, justone, testnum := possible>>1, uint8(0), uint8(1) // shift out the zero flag
+		// scan for if this is the only N, or contested
+		for ; 0 < pscan; pscan, testnum = pscan>>1, testnum+1 {
+			if 0 != pscan&1 {
+				if 0 == justone {
+					justone = testnum
+				} else {
+					justone = 0xFF
+				}
+				if 0xFE == s.Only[testnum-1] {
+					s.Only[testnum-1] = cell
+				} else {
+					s.Only[testnum-1] = 0xFF // mark contested
+				}
+				// if 2 == testnum { // && 8 == cell%9 {
+				// fmt.Printf("[%2d] ~~ %d and Only now [%2d]\n", cell, testnum, s.Only[testnum-1])
+				// }
+			}
+		}
+		if 0 < justone && justone < 0xFF {
+			possible, ret, s.Num[cell], s.Only[justone-1], s.Rem = 1<<justone, justone, justone, 0xFF, s.Rem-1
+			// fmt.Printf("Set JustOne [%2d] = %d\n", cell, justone)
+		}
+		s.Note[cell] = possible
+		// }
 	}
 	return ret
 }
 
 func (s *SuDoKu) numberDiscovered() {
+	// fmt.Printf("%v\n", s.Only)
 	for ii := uint8(0); ii < 9; ii++ {
-		if 0 < s.Only[ii] && s.Only[ii] < 0xFF {
+		if 0 < s.Only[ii] && s.Only[ii] < 0xFE {
 			cell, val := s.Only[ii], ii+1
-			// fmt.Printf("found rd [%d] = %d\n", cell, bcb)
+			// fmt.Printf("found nD [%2d] = %d\n", cell, val)
 			s.Num[cell], s.Note[cell], s.Rem = val, 1<<val, s.Rem-1
 			s.DirtyRow |= 1 << (cell / 9)                       // recover row from cell co-ord
 			s.DirtyCol |= 1 << (cell % 9)                       // recover col from cell co-ord
@@ -223,28 +317,33 @@ func (s *SuDoKu) numberDiscovered() {
 func (s *SuDoKu) ReduceRow() uint8 {
 	// skip := s.DirtyRow
 	s.DirtyRow = 0
-	s.Only = [9]uint8{}
 	var row, rb, col, cell, entpopc uint8
 	for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 		// if 0 == skip&(1<<row) {
 		// continue
 		// }
+		// fmt.Printf("ReduceRow")
 
 		// Scan known numbers
 		seen := uint16(0)
+		s.Only = [9]uint8{0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE}
+
 		for col = 0; col < 9; col++ {
 			cell = rb + col
+			// fmt.Printf("\t%2d", cell)
 			if 0 == s.Note[cell]&1 {
 				seen |= s.Note[cell]
 				s.Only[s.Num[cell]-1] = 0xFF
 			}
 		}
 		seen = (^seen) & 0x3FF // Any number that was NOT seen is allowed...
+		// fmt.Printf("\t  %10b\nReduceRow", seen)
 
 		// MASK known numbers out of unknown numbers
 		entpopc = 0
 		for col = 0; col < 9; col++ {
 			cell = rb + col
+			// fmt.Printf("\t%2d", cell)
 			entpopc += bitLUT[s.Note[cell]>>5] + bitLUT[s.Note[cell]&0x1F]
 			cval := s.UpdateCellMask(seen, cell)
 			if 0xFF == cval {
@@ -252,6 +351,7 @@ func (s *SuDoKu) ReduceRow() uint8 {
 			}
 			if 0 < cval && cval < 10 {
 				s.DirtyRow |= 1 << row
+				seen &^= 1 << cval
 			}
 			if 0 < cval {
 				s.DirtyCol |= 1 << col
@@ -259,36 +359,41 @@ func (s *SuDoKu) ReduceRow() uint8 {
 			}
 		}
 		s.EntRow[row] = entpopc - 9
+		// fmt.Printf("\t%d\n", entpopc-9)
+		s.numberDiscovered()
 	}
-	s.numberDiscovered()
 	return 0
 }
 
 func (s *SuDoKu) ReduceCol() uint8 {
 	// skip := s.DirtyCol
 	s.DirtyCol = 0
-	s.Only = [9]uint8{}
 	var row, rb, col, cell, entpopc uint8
 	for col = 0; col < 9; col++ {
 		// if 0 == skip&(1<<col) {
 		// continue
 		// }
+		// fmt.Printf("ReduceCol")
 
 		// Scan known numbers
 		seen := uint16(0)
+		s.Only = [9]uint8{0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE}
 		for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 			cell = rb + col
+			// fmt.Printf("\t%2d", cell)
 			if 0 == s.Note[cell]&1 {
 				seen |= s.Note[cell]
 				s.Only[s.Num[cell]-1] = 0xFF
 			}
 		}
 		seen = (^seen) & 0x3FF // Any number that was NOT seen is allowed...
+		// fmt.Printf("\t  %10b\nReduceCol", seen)
 
 		// MASK known numbers out of unknown numbers
 		entpopc = 0
 		for row, rb = 0, 0; row < 9; row, rb = row+1, rb+9 {
 			cell = rb + col
+			// fmt.Printf("\t%2d", cell)
 			entpopc += bitLUT[s.Note[cell]>>5] + bitLUT[s.Note[cell]&0x1F]
 			cval := s.UpdateCellMask(seen, cell)
 			if 0xFF == cval {
@@ -296,6 +401,7 @@ func (s *SuDoKu) ReduceCol() uint8 {
 			}
 			if 0 < cval && cval < 10 {
 				s.DirtyCol |= 1 << col
+				seen &^= 1 << cval
 			}
 			if 0 < cval {
 				s.DirtyRow |= 1 << row
@@ -303,27 +409,30 @@ func (s *SuDoKu) ReduceCol() uint8 {
 			}
 		}
 		s.EntCol[col] = entpopc - 9
+		// fmt.Printf("\t%d\n", entpopc-9)
+		s.numberDiscovered()
 	}
-	s.numberDiscovered()
 	return 0
 }
 
 func (s *SuDoKu) ReduceBox() uint8 {
 	// skip := s.DirtyBox
 	s.DirtyBox = 0
-	s.Only = [9]uint8{}
 	var bigrow, bigcol, brb, bcb, row, rb, col, cell, entpopc uint8
 	for bigrow, brb = 0, 0; bigrow < 3; bigrow, brb = bigrow+1, brb+27 {
 		for bigcol, bcb = 0, 0; bigcol < 3; bigcol, bcb = bigcol+1, bcb+3 {
 			// if 0 == skip&(1<<(bigrow*3+bigcol)) {
 			// continue
 			// }
+			// fmt.Printf("ReduceBox")
 
 			// Scan known numbers
 			seen := uint16(0)
+			s.Only = [9]uint8{0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE, 0xFE}
 			for row, rb = 0, 0; row < 3; row, rb = row+1, rb+9 {
 				for col = 0; col < 3; col++ {
 					cell = brb + bcb + rb + col
+					// fmt.Printf("\t%2d", cell)
 					if 0 == s.Note[cell]&1 {
 						seen |= s.Note[cell]
 						s.Only[s.Num[cell]-1] = 0xFF
@@ -331,12 +440,14 @@ func (s *SuDoKu) ReduceBox() uint8 {
 				}
 			}
 			seen = (^seen) & 0x3FF // Any number that was NOT seen is allowed...
+			// fmt.Printf("\t  %10b\nReduceBox", seen)
 
 			// MASK known numbers out of unknown numbers
 			entpopc = 0
 			for row, rb = 0, 0; row < 3; row, rb = row+1, rb+9 {
 				for col = 0; col < 3; col++ {
 					cell = brb + bcb + rb + col
+					// fmt.Printf("\t%2d", cell)
 					entpopc += bitLUT[s.Note[cell]>>5] + bitLUT[s.Note[cell]&0x1F]
 					cval := s.UpdateCellMask(seen, cell)
 					if 0xFF == cval {
@@ -344,6 +455,7 @@ func (s *SuDoKu) ReduceBox() uint8 {
 					}
 					if 0 < cval && cval < 10 {
 						s.DirtyBox |= 1 << (bigrow*3 + bigcol)
+						seen &^= 1 << cval
 					}
 					if 0 < cval {
 						s.DirtyCol |= 1 << (bigcol*3 + col)
@@ -352,9 +464,10 @@ func (s *SuDoKu) ReduceBox() uint8 {
 				}
 			}
 			s.EntCol[col] = entpopc - 9
+			// fmt.Printf("\t%d\n", entpopc-9)
+			s.numberDiscovered()
 		}
 	}
-	s.numberDiscovered()
 	return 0
 }
 
@@ -386,6 +499,8 @@ func (s *SuDoKu) Print() {
 }
 
 func (s *SuDoKu) GuessRequired() uint8 {
+	// fmt.Printf("Guess Required: Remaining: %d\n", s.Rem)
+
 	// Which has the lowest entropy?  Try all three paths until exhausted
 	var gl Uint32Queue
 	guesses := int(0)
@@ -398,11 +513,15 @@ func (s *SuDoKu) GuessRequired() uint8 {
 	var cell, row, col, box, ent, bestGscore, bestGcell, bestGnum uint8
 	bestGscore = 0xFF
 	for cell = 0; cell < 81; cell++ {
-		row, col, box = cell/9, cell%9, (cell/27)*3+((cell%9)/3)                                                  // from cell
-		ent = s.EntRow[row] + s.EntCol[col] + s.EntBox[box] + bitLUT[s.Note[cell]>>5] + bitLUT[s.Note[cell]&0x1F] // Worst Case: 253 = 81 * 3 + 10
-		packed = uint32(ent)<<16 | uint32(cell)
-		for note, val := s.Note[cell]>>1, 1; 0 < note; note, val = note>>1, val+1 {
-			gl = append(gl, packed|uint32(val)<<8)
+		if 0 != s.Note[cell]&1 {
+			row, col, box = cell/9, cell%9, (cell/27)*3+((cell%9)/3)                                                  // from cell
+			ent = s.EntRow[row] + s.EntCol[col] + s.EntBox[box] + bitLUT[s.Note[cell]>>5] + bitLUT[s.Note[cell]&0x1F] // Worst Case: 253 = 81 * 3 + 10
+			packed = uint32(ent)<<16 | uint32(cell)
+			for note, val := s.Note[cell]>>1, 1; 0 < note; note, val = note>>1, val+1 {
+				if 0 != note&1 {
+					gl = append(gl, packed|uint32(val)<<8)
+				}
+			}
 		}
 	}
 	heap.Init(&gl) // sort the list to a heap
@@ -411,25 +530,40 @@ func (s *SuDoKu) GuessRequired() uint8 {
 		cp.DirtyRow, cp.DirtyCol, cp.DirtyBox = 0x1FF, 0x1FF, 0x1FF // All Dirty
 		packed = heap.Pop(&gl).(uint32)
 		ent, cell = uint8(packed>>8)&0xF, uint8(packed&0xFF)
+		if 0 != s.Num[cell] {
+			fmt.Printf("Guess %d: [%d] = %d but was already set to %d\n", s.Rem, cell, ent, s.Num[cell])
+			panic("logic error")
+		}
+		// validate guess correctly decoded // XOR so both the 'zero' and guess bits must be set -- not the problem
+		// if 0 != (s.Note[cell]&(1|(1<<ent)))^(1|(1<<ent)) {
+		// fmt.Printf("Error decoding guess from %#x to [%d] = %d vs %#b\n", packed, cell, ent, s.Note[cell])
+		// panic("logic error")
+		// }
 		// if 0 == ent {
 		//	panic("Somehow, a cell value of 0 made it in.")
 		// }
-		// fmt.Printf("Trying guess: [%d] = %d\n", cell, ent)
+		// fmt.Printf("Trying guess %d: [%d] = %d\n", s.Rem, cell, ent)
 		cp.Num[cell], cp.Note[cell], cp.Rem = ent, 1<<ent, cp.Rem-1
+		// cp.ResetAllNotes() // This shouldn't be required - Each scan and mask type should have an equivalent effect and must happen anyway
 		box = cp.SolveInner()
+		// fmt.Printf("RETURN from %d: [%d] = %d\t= %d\n", s.Rem, cell, ent, box)
 		if 0 == box {
 			*s = cp // Solved, overwrite object and return
-			fmt.Println("Return Answer")
+			// fmt.Println("Return Answer")
 			return 0
 		} else if 0xFF == box { // Successfully proved that number CANNOT go in that cell
 			s.Note[cell] &^= 1 << ent // At the guess stage, just make updates then full-process the board if required later
-			// fmt.Printf("Learned [%d] != %d\n", cell, ent)
+			// s.DirtyRow, s.DirtyCol, s.DirtyBox = 0x1FF, 0x1FF, 0x1FF                    // All Dirty -- Not required, since if there isn't a valid guess panic()
+			// fmt.Printf("Learned (%d) [%d] != %d\n", s.Rem, cell, ent)
 		} else if bestGscore > box {
+			// This isn't reached in the current flow of the solver, since a guess exhausts that search space
+			// This IS here in case a future version terminates early
 			bestGnum, bestGcell, bestGscore = ent, cell, box
 			fmt.Printf("Best Guess [%d] = %d (%d)\n", cell, ent, box)
 		}
 	}
 
+	// This IS here in case a future version terminates early to give guesses weight
 	if 0xFF > bestGscore {
 		fmt.Printf("Applying Best Guess [%d] = %d (score %d)\n", bestGcell, 1<<bestGnum, bestGscore)
 		s.Num[bestGcell], s.Note[bestGcell], s.Rem = bestGnum, 1<<bestGnum, s.Rem-1 // If it wasn't solved, apply the best guess and try again
@@ -443,30 +577,30 @@ func (s *SuDoKu) GuessRequired() uint8 {
 
 func (s *SuDoKu) SolveInner() uint8 {
 	iter := 0
-	fmt.Printf("Entry\t%d remain\n", s.Rem)
+	// fmt.Printf("Entry\t%d remain\n", s.Rem)
 	// Scan, Mask, Solve
 	for 0 < s.Rem {
 		iter++
-		// Fully reduced? ... have to make a guess
-		if 1 == s.Rem {
-			s.Print()
+		// if 1 == s.Rem {
+		// s.Print()
+		// }
+		if 0 != s.ReduceRow() || 0 != s.ReduceCol() || 0 != s.ReduceBox() || 0 != s.Validate(false) {
+			return 0xFF
 		}
-		if 0 == s.DirtyRow && 0 == s.DirtyCol && 0 == s.DirtyBox {
-			s.GuessRequired()
-		}
-		if 0 == iter&0xFFFF || (0 == s.DirtyRow && 0 == s.DirtyCol && 0 == s.DirtyBox) {
+		if 0 == iter&0xFFFF {
 			fmt.Printf("Iter %5d\t%d remain\n", iter, s.Rem)
 			s.Print()
 			panic("could not solve")
 			// return
 		}
-
-		if 0 != s.ReduceRow() || 0 != s.ReduceCol() || 0 != s.ReduceBox() {
-			return 0xFF
+		// Fully reduced? ... have to make a guess
+		if 0 == s.DirtyRow && 0 == s.DirtyCol && 0 == s.DirtyBox && 0xFF == s.GuessRequired() {
+			// s.Print()
+			return 0xFF // This could be a guess within a guess
+			// panic("unsolved and no guess worked")
 		}
-
 	}
-	fmt.Printf("Ret %5d\t%d remain\n", iter, s.Rem)
+	// fmt.Printf("Ret %5d\t%d remain\n", iter, s.Rem)
 	return s.Rem
 }
 
@@ -484,7 +618,7 @@ func Euler0096(fn string) uint16 {
 		line := scanner.Bytes()
 		if 'G' == line[0] {
 			pos = 0 // New puzzle
-			fmt.Printf("\n\n%s\n\n", string(line))
+			// fmt.Printf("\n\n%s\n\n", string(line))
 			continue
 		}
 		for ii, iiLm := 0, len(line); ii < iiLm && pos < 81; ii++ {
@@ -496,10 +630,15 @@ func Euler0096(fn string) uint16 {
 		if 81 == pos {
 			if 0 == sdk.Num[0] || 0 == sdk.Num[1] || 0 == sdk.Num[2] {
 				if 0 != sdk.Solve() {
-					panic("unsolved")
+					fmt.Println("unsolved")
+					sdk.Print()
+					// panic("unsolved")
 				}
 			}
-			ret += uint16(sdk.Num[0]) + 10*uint16(sdk.Num[1]) + 100*uint16(sdk.Num[2])
+			if 0 == sdk.Num[0] || 0 == sdk.Num[1] || 0 == sdk.Num[2] {
+				panic("Should be solved!")
+			}
+			ret += 100*uint16(sdk.Num[0]) + 10*uint16(sdk.Num[1]) + uint16(sdk.Num[2])
 		}
 	}
 	return ret
@@ -508,10 +647,12 @@ func Euler0096(fn string) uint16 {
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 96 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-[0 0 3 0 2 0 6 0 0 9 0 0 3 0 5 0 0 1 0 0 1 8 0 6 4 0 0 0 0 8 1 0 2 9 0 0 7 0 0 0 0 0 0 0 8 0 0 6 7 0 8 2 0 0 0 0 2 6 0 9 5 0 0 8 0 0 2 0 3 0 0 9 0 0 5 0 1 0 3 0 0]
-[0 0 3 0 2 1 6 0 0 9 0 4 3 7 5 8 0 1 0 0 1 8 9 6 4 0 0 0 0 8 1 0 2 9 0 0 7 0 9 5 3 4 1 0 8 0 0 6 7 5 8 2 0 0 0 0 2 6 4 9 5 0 0 8 0 4 2 5 3 7 0 9 0 0 5 0 1 7 3 0 0]
-[4 8 3 9 2 1 6 5 7 9 6 7 3 4 5 8 2 1 2 5 1 8 7 6 4 9 3 5 4 8 1 3 2 9 7 6 7 2 9 5 6 4 1 3 8 1 3 6 7 9 8 2 4 5 3 7 2 6 8 9 5 1 4 8 1 4 2 5 3 7 6 9 6 9 5 4 1 7 3 8 2]
+Euler 96: passed puzzle 1 test
+Euler 96: Su Doku: 24702
 
+real    0m0.138s
+user    0m0.196s
+sys     0m0.067s
 .
 */
 func main() {
@@ -544,6 +685,38 @@ func main() {
 		3, 7, 2, 6, 8, 9, 5, 1, 4,
 		8, 1, 4, 2, 5, 3, 7, 6, 9,
 		6, 9, 5, 4, 1, 7, 3, 8, 2}
+	//	 0  1  2   3  4  5   6  7  8
+	//	 9 10 11  12 13 14  15 16 17
+	//	18 19 20  21 22 23  24 25 26
+
+	//	27 28 29  30 31 32  33 34 35
+	//	36 37 38  39 40 41  42 43 44
+	//	45 46 47  48 49 50  51 52 53
+
+	//	54 55 56  57 58 59  60 61 62
+	//	63 64 65  66 67 68  69 70 71
+	//	72 73 74  75 76 77  78 79 80
+	// Grid 29
+	ans29 := [81]uint8{
+		2, 3, 5, 7, 6, 1, 4, 8, 9,
+		4, 1, 9, 3, 2, 8, 5, 7, 6,
+		8, 6, 7, 5, 4, 9, 2, 1, 3,
+		7, 4, 6, 1, 3, 5, 9, 2, 8,
+		5, 2, 1, 8, 9, 6, 7, 3, 4,
+		9, 8, 3, 4, 7, 2, 6, 5, 1,
+		3, 9, 4, 2, 8, 7, 1, 6, 5,
+		6, 5, 2, 9, 1, 3, 8, 4, 7,
+		1, 7, 8, 6, 5, 4, 3, 9, 2}
+	grid29 := [81]uint8{
+		0, 3, 0, 0, 0, 0, 0, 8, 0,
+		0, 0, 9, 0, 0, 0, 5, 0, 0,
+		0, 0, 7, 5, 0, 9, 2, 0, 0,
+		7, 0, 0, 1, 0, 5, 0, 0, 8,
+		0, 2, 0, 0, 9, 0, 0, 3, 0,
+		9, 0, 0, 4, 0, 2, 0, 0, 1,
+		0, 0, 4, 2, 0, 7, 1, 0, 0,
+		0, 0, 2, 0, 0, 0, 8, 0, 0,
+		0, 7, 0, 0, 0, 0, 0, 9, 0}
 	test := SuDoKu{Num: tgrid}
 	test.Solve()
 	tgrid = test.Num
@@ -560,10 +733,50 @@ func main() {
 	}
 	fmt.Println("Euler 96: passed puzzle 1 test")
 
+	test = SuDoKu{Num: grid29}
+	test.ResetAllNotes()
+
+	check29 := func() {
+		for ii := 0; ii < 81; ii++ {
+			if 0 != test.Num[ii] && ans29[ii] != test.Num[ii] {
+				fmt.Printf("Value check 29 failed: [%2d] %d != %d\n", ii, test.Num[ii], ans29[ii])
+				panic("Checksum Failed")
+			}
+		}
+	}
+
+	for 0 != test.DirtyRow || 0 != test.DirtyCol || 0 != test.DirtyBox {
+		if 0 != test.ReduceRow() || 0 != test.Validate(false) {
+			test.Print()
+			panic("Failed Row Validation")
+		}
+		check29()
+		if 0 != test.ReduceCol() || 0 != test.Validate(false) {
+			test.Print()
+			panic("Failed Col Validation")
+		}
+		check29()
+		if 0 != test.ReduceBox() {
+			test.Print()
+			panic("Failed Box")
+		}
+		check29()
+		if 0 != test.Validate(false) {
+			test.Print()
+			panic("Failed Box Validation")
+		}
+	}
+	if 0 != test.ReduceRow() || 0 != test.ReduceCol() || 0 != test.ReduceBox() || 0 != test.Validate(true) {
+		test.Print()
+		panic("Failed Validation")
+	}
+	// test.Print()
+	// return
+
 	//run
 	sum = Euler0096("p096_sudoku.txt")
 	fmt.Printf("Euler 96: Su Doku: %d\n", sum)
-	if 10935 != sum {
+	if 24702 != sum {
 		panic("Did not reach expected value.")
 	}
 }
