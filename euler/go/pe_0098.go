@@ -71,6 +71,24 @@ https://projecteuler.net/minimal=98
 	The 'anagram' part is comparatively MUCH faster, and currently yields zero results due to a lack of pattern matches that are also anagrams.
 	Some choice I made must be incorrect.  I should try again after sleep refreshes the slate.
 
+	+++
+
+	In retrospect 'seen' and 'found' are easily confused... bug fixed.  seen renamed to charOccur
+	Found is reused for histogram occurrence later... but naming it occurrence would return the confusion.
+
+Next batch of Anagrams: 90
+[{36344967696 923187456 INTRODUCE} {36344967696 923187456 REDUCTION}]
+Set new best answer: ...        [9]     [876543210] 83
+{36344967696 923187456 REDUCTION}
+{36344967696 923187456 INTRODUCE}
+Euler 98: Anagramic Squares: 923187456
+panic: Did not reach expected value.
+
+	Ha ha, nice hint... it actually is a good hint though.
+
+	What I think is still wrong:
+	The numbers have the same 'shape' pattern, but aren't anagrams!  They wanted anagram numbers too?! Yes, I can see how that's a far inferrable in the description, but it's so obtusely described and the entire concept of 'numeric anagrams' is new to me so it was very easy to overlook.  It changes numbers in to strings of characters that happen to represent a decimal value of an integer.
+
 
 /
 */
@@ -93,22 +111,23 @@ type SqPatStr struct {
 	Str     string
 }
 
-func SquarePatterns() [16]map[uint32]map[uint64]uint64 {
-	ret := [16]map[uint32]map[uint64]uint64{}
-	var qq, sq, place, q, r, pattern uint64 // qq is one ahead in the for loop to make parallel assignment correct
-	var stats, found [10]uint8
+func SquarePatterns(lim uint64) [16]map[uint32]map[uint64][]uint64 {
+	ret := [16]map[uint32]map[uint64][]uint64{} // [len][hash][pattern(exact)][number of that pattern found (tail will be the largest)]
+	var qq, sq, place, q, r, pattern uint64     // qq is one ahead in the for loop to make parallel assignment correct
+	var charOccur, found [10]uint8
 	var histg uint32
 	var uniq, uid, uu uint8
 	for uu = 0; uu < 16; uu++ {
-		ret[uu] = make(map[uint32]map[uint64]uint64)
+		ret[uu] = make(map[uint32]map[uint64][]uint64)
 	}
 	// SquarePatternsOuter:
-	for qq, sq = 2, 1; sq < 1_000_000_000_000_000; qq, sq = qq+1, qq*qq {
-		stats, found, uniq, pattern = [10]uint8{}, [10]uint8{}, 0, 0
+	fmt.Printf("SquarePatterns up to %d\n", lim)
+	for qq, sq = 2, 1; sq < lim; qq, sq = qq+1, qq*qq {
+		charOccur, found, uniq, pattern = [10]uint8{}, [10]uint8{}, 0, 0
 		for place, q = 0, sq; 0 < q; place++ {
 			q, r = q/10, q%10
-			stats[r]++
-			if 1 == stats[r] {
+			charOccur[r]++
+			if 1 == charOccur[r] {
 				uniq, uid = uniq+1, uniq
 				found[uid] = uint8(r)
 			} else {
@@ -123,33 +142,40 @@ func SquarePatterns() [16]map[uint32]map[uint64]uint64 {
 		}
 		histg, found = 0, [10]uint8{} // Reuse for histogram collection
 		for uu = 0; uu < 10; uu++ {
-			if 8 <= stats[uu] {
-				histg |= 1 << (stats[uu] + 16) // 24 through 31 - can only happen once, no need to track / add
-			} else {
-				found[stats[uu]]++
+			if 8 <= charOccur[uu] {
+				histg |= 1 << (charOccur[uu] + 16) // 24 through 31 - can only happen once, no need to track / add
+			} else if 0 != charOccur[uu] {
+				found[charOccur[uu]]++
 			}
 		}
 		//	MSB			LSB
 		//	[15-8]	[7-4]	[3,2]	[1,-]
 		// it's easier to just unroll and combine the two loops myself
-		histg |= uint32(stats[7])<<22 | uint32(stats[6])<<20 | uint32(stats[5])<<18 | uint32(stats[4])<<16 | uint32(stats[3])<<12 | uint32(stats[2])<<8 | uint32(stats[1])<<4
+		histg |= (uint32(found[7]) << 22) | (uint32(found[6]) << 20) | (uint32(found[5]) << 18) | (uint32(found[4]) << 16) | (uint32(found[3]) << 12) | (uint32(found[2]) << 8) | (uint32(found[1]) << 4)
 		if _, exists := ret[place][histg]; !exists {
-			ret[place][histg] = make(map[uint64]uint64)
+			ret[place][histg] = make(map[uint64][]uint64)
 		}
-		ret[place][histg][pattern] = sq
+		ret[place][histg][pattern] = append(ret[place][histg][pattern], sq)
 	}
-	// I think this isn't required.  If it is I'd need to also track multiple numbers with the same pattern but different value
-	// for uu = 0; uu < 16; uu++ {
-	//	trim := make([]uint32, 0, 8)
-	//	for histg, _ := range ret[uu] {
-	//		if 2 > len(ret[uu][histg]) {
-	//			trim = append(trim, histg)
-	//		}
-	//	}
-	//	for histg = 0; histg < uint32(len(trim)); histg++ {
-	//		delete(ret[uu], trim[histg])
-	//	}
-	//}
+	// Purge any histograms which have fewer than 2 pattern expressions
+	// This work might strictly be slower, as the time and memory are already spent...  However it will also prevent false word matches later
+	return ret
+	for uu = 0; uu < 16; uu++ {
+		trim := make([]uint32, 0, 8)
+		for histg, _ := range ret[uu] {
+			sublen := 0
+			for p, _ := range ret[uu][histg] {
+				sublen += len(ret[uu][histg][p])
+			}
+			if 2 > sublen {
+				trim = append(trim, histg)
+			}
+		}
+		fmt.Printf("%d: purging %d single patterns\n", uu, len(trim))
+		for histg = 0; histg < uint32(len(trim)); histg++ {
+			delete(ret[uu], trim[histg])
+		}
+	}
 	return ret
 }
 
@@ -161,7 +187,7 @@ func BytesHistPat(bstr []byte) (uint32, uint64) {
 	var pattern uint64
 	var histg uint32
 	var found [10]uint8
-	var stats [26]uint8
+	var charOccur [26]uint8
 	var uniq, uid, uu, pos, char, place uint8
 	for pos = uint8(len(bstr)); 0 < pos; place++ {
 		pos--
@@ -169,8 +195,8 @@ func BytesHistPat(bstr []byte) (uint32, uint64) {
 		if ('A' <= char && char < 'Z') || ('a' <= char && char < 'z') {
 			char |= 'a' - 'A'
 			char -= 'a'
-			stats[char]++
-			if 1 == stats[char] {
+			charOccur[char]++
+			if 1 == charOccur[char] {
 				if 10 <= uniq {
 					fmt.Printf("Too many unique characters, skipping: %s\n", string(bstr))
 					return 0, 0
@@ -188,18 +214,20 @@ func BytesHistPat(bstr []byte) (uint32, uint64) {
 			pattern |= uint64(uid) << (place << 2)
 		}
 	}
+	// fmt.Println(charOccur)
 	histg, found = 0, [10]uint8{} // Reuse for histogram collection
 	for uu = 0; uu < 26; uu++ {
-		if 8 <= stats[uu] {
-			histg |= 1 << (stats[uu] + 16) // 24 through 31 - can only happen once, no need to track / add
-		} else {
-			found[stats[uu]]++
+		if 8 <= charOccur[uu] {
+			histg |= 1 << (charOccur[uu] + 16) // 24 through 31 - can only happen once, no need to track / add
+		} else if 0 != charOccur[uu] {
+			found[charOccur[uu]]++
 		}
 	}
+	// fmt.Printf("%x\n", found[1]<<4)
 	//	MSB			LSB
 	//	[15-8]	[7-4]	[3,2]	[1,-]
 	// it's easier to just unroll and combine the two loops myself
-	histg |= uint32(stats[7])<<22 | uint32(stats[6])<<20 | uint32(stats[5])<<18 | uint32(stats[4])<<16 | uint32(stats[3])<<12 | uint32(stats[2])<<8 | uint32(stats[1])<<4
+	histg |= (uint32(found[7]) << 22) | (uint32(found[6]) << 20) | (uint32(found[5]) << 18) | (uint32(found[4]) << 16) | (uint32(found[3]) << 12) | (uint32(found[2]) << 8) | (uint32(found[1]) << 4)
 	return histg, pattern
 }
 
@@ -216,12 +244,15 @@ func InsertSortString(con string) string {
 	return string(ret)
 }
 
-func Euler0098(fn string) uint64 {
-	patterns := SquarePatterns()
-	// fmt.Println(patterns)
-	words := [16]map[uint32][]SqPatStr{}
-	for uu := 0; uu < 16; uu++ {
-		words[uu] = make(map[uint32][]SqPatStr)
+func E0098HashString(con string) string {
+	return InsertSortString(con)
+}
+
+// Load a list of ", separated words from a file for Euler 98, binned by size with 0 as 'special case' length words
+func E0098LoadWords(fn string) ([16]map[string][]string, int) {
+	ret := [16]map[string][]string{}
+	for ii := 0; ii < 16; ii++ {
+		ret[ii] = make(map[string][]string)
 	}
 
 	// Load the words, if they match a square number pattern
@@ -234,49 +265,71 @@ func Euler0098(fn string) uint64 {
 	// split lines is default, use one that chomps all ", (and whitespace) to output 'words'
 	scanner.Split(euler.ScannerSplitNLDQ)
 	for scanner.Scan() {
-		word := scanner.Bytes()
-		histg, pat := BytesHistPat(word)
-		if _, exists := patterns[len(word)][histg]; exists {
-			if sq, exists := patterns[len(word)][histg][pat]; exists {
-				// fmt.Printf("DEBUG: %2d %16x add %s\n", len(word), pat, word)
-				words[len(word)][histg] = append(words[len(word)][histg], SqPatStr{Pat: pat, Sq: sq, Str: string(word)})
-			} else {
-				// fmt.Printf("DEBUG: %2d %16x SKIP %s\n", len(word), pat, word)
+		word := scanner.Text()
+		wlen, whash := len(word), E0098HashString(word)
+		if 15 < wlen {
+			wlen = 0
+		}
+		ret[wlen][whash] = append(ret[wlen][whash], word)
+	}
+	// Cull any 'word hashes' which lack even a normal anagram partner
+	var longest int
+	for ii := 0; ii < 16; ii++ {
+		dl := make([]string, 0, 16)
+		for k, v := range ret[ii] {
+			if 2 > len(v) {
+				dl = append(dl, k)
 			}
 		}
+		for _, vk := range dl {
+			delete(ret[ii], vk)
+		}
+		if 0 < len(ret[ii]) {
+			longest = ii
+		}
 	}
-	fmt.Println(words)
+	return ret, longest
+}
 
-	// Find the biggest square number that's a match
+func E0098LargestSquareAnagram(patterns [16]map[uint32]map[uint64][]uint64, words [16]map[string][]string) uint64 {
 	var ret uint64
 	for uu := 15; 0 < uu; uu-- {
 		// fmt.Printf("Considering: %d\n%v\n", uu, words[uu])
 		// key = histg ; hmVal == []SqPatStr
 		for _, hmVal := range words[uu] {
-			if 2 > len(hmVal) {
+			var pat uint64
+			var histg uint32 // same for all of the anagrams
+			anagrams, pcount := make([]SqPatStr, 0, 8), make(map[uint64]uint8)
+			for ii, lim := 0, len(hmVal); ii < lim; ii++ {
+				histg, pat = BytesHistPat([]byte(hmVal[ii]))
+				if sl, exists := patterns[uu][histg][pat]; exists {
+					anagrams = append(anagrams, SqPatStr{Pat: pat, Sq: sl[len(sl)-1], Str: hmVal[ii]})
+					pcount[pat]++
+				} else {
+					fmt.Printf("No match for %s : [%d][%8x][%16x]\n", hmVal[ii], uu, histg, pat)
+				}
+			}
+			if 2 > len(anagrams) {
 				continue
 			}
-			anagrams := make(map[string][]SqPatStr)
-			for ii, lim := 0, len(hmVal); ii < lim; ii++ {
-				anagrams[InsertSortString(hmVal[ii].Str)] = append(anagrams[InsertSortString(hmVal[ii].Str)], hmVal[ii])
-			}
-			fmt.Printf("Next batch of Anagrams:\n%v\n", anagrams)
-			for _, ags := range anagrams {
-				if 2 > len(ags) {
-					continue
+			fmt.Printf("Next batch of Anagrams: %x\n%v\n", histg, anagrams)
+			// Assuming the words are unique, this is a list of at least 2 words which all use the same 10 or less letters...
+			possible := anagrams[0]
+			for ii, lim := 1, len(anagrams); ii < lim; ii++ {
+				if ret > possible.Sq && ret > anagrams[ii].Sq {
+					continue // Already have a bigger answer, so other questions are a waste
 				}
-				// Assuming the words are unique, this is a list of at least 2 words which all use the same 10 or less letters...
-				possible := ags[0]
-				for ii, lim := 1, len(ags); ii < lim; ii++ {
-					// Check that assumption
-					if possible.Str != ags[ii].Str {
-						if possible.Sq < ags[ii].Sq {
-							possible = ags[ii]
-							ret = ags[ii].Sq
-						}
+				// Check that assumption of different strings
+				if possible.Str != anagrams[ii].Str && (possible.Pat != anagrams[ii].Pat || 2 <= len(patterns[uu][histg][possible.Pat])) {
+					fmt.Printf("Set new best answer: ...\t[%d] [%x]\t[%x] %d\n%v\n%v\n", uu, histg, possible.Pat, len(patterns[uu][histg][possible.Pat]), anagrams[ii], possible)
+					if possible.Sq < anagrams[ii].Sq {
+						possible = anagrams[ii]
+						ret = anagrams[ii].Sq
 					} else {
-						fmt.Printf("DEBUG: skip %d == %d\n", possible.Str, ags[ii].Str)
+						ret = possible.Sq
 					}
+				} else {
+					// fmt.Printf("DEBUG: skip %d == %d\n", possible.Str, anagrams[ii].Str)
 				}
 			}
 		}
@@ -284,18 +337,24 @@ func Euler0098(fn string) uint64 {
 			break // return ret
 		}
 	}
-
 	return ret
+}
+
+func Euler0098(fn string) uint64 {
+	words, longest := E0098LoadWords(fn)
+	patterns := SquarePatterns(euler.PowInt(10, uint64(longest)))
+	_, _ = words, patterns
+	//	[16]map[uint32]map[uint64][]uint64{}	//	[len] [hash] [pattern(exact)] [number of that pattern found (tail will be the largest)]
+	// fmt.Println(patterns)
+	fmt.Println(words)
+	fmt.Println(patterns[9][0x90][0x876543210])
+
+	return E0098LargestSquareAnagram(patterns, words)
 }
 
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 98 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
-Euler 97: Large Non-Mersenne Prime (2004): 8739992577
-
-real    0m0.099s
-user    0m0.136s
-sys     0m0.059s
 .
 */
 func main() {
@@ -316,6 +375,23 @@ func main() {
 			pass = false
 		}
 	}
+	words := [16]map[string][]string{}
+	for ii := 0; ii < 16; ii++ {
+		words[ii] = make(map[string][]string)
+	}
+	testWords := []string{"CARE", "RACE"}
+	for _, word := range testWords {
+		wlen, whash := len(word), E0098HashString(word)
+		words[wlen][whash] = append(words[wlen][whash], word)
+	}
+	patterns := SquarePatterns(euler.PowInt(10, uint64(4)))
+	fmt.Println(patterns[4][0x40])
+	r = E0098LargestSquareAnagram(patterns, words)
+	if 9801 != r {
+		fmt.Printf("Expected 9216 got %d\n", r)
+		pass = false
+	}
+
 	if !pass {
 		panic("Abort for Debug")
 	}
@@ -323,6 +399,7 @@ func main() {
 	//run
 	r = Euler0098("0098_words.txt")
 	fmt.Printf("Euler 98: Anagramic Squares: %d\n", r)
+	// NOT 47089 so as things exist now something's still different from the question asked.
 	if 0 != r {
 		panic("Did not reach expected value.")
 	}
