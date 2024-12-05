@@ -94,8 +94,9 @@ panic: Did not reach expected value.
 	However the content matters too.  It doesn't matter for adding a word to a list of anagrams, or as I know realize, parallel matched anagrams.
 	Oh the other end I'll have to bin the words that match a pattern and thing against the numeric anagram match too.
 
-
-	More and more maps to more easily sort through patterns.  Future me, please double check the general map logic, and look at the problem statement again.  As it's written now the secondary match check is required to pass the test case, which makes sense as that matches two shuffles within the same pattern.
+	After a full review and no obvious faults in any of the other functions, this evening I was sure it had to be in the match function.
+	Without a vaccine booster shot headache (like I had last night) I was able to properly focus.
+	The mapping process had to be from word, and division result (encode), through another word (decode), as the needle to find if it existed.
 /
 */
 
@@ -111,15 +112,15 @@ import (
 	// "strings"
 )
 
-type SqSortedSq struct{ Sorted, Sq uint64 }
+type SqSortedSq struct{ Sorted, Sq, Nib uint64 }
 type SqPatStr struct {
 	Pat, Sq uint64
 	Str     string
 }
 
 func SquarePatterns(lim uint64) [16]map[uint32]map[uint64][]SqSortedSq {
-	ret := [16]map[uint32]map[uint64][]SqSortedSq{}  // [len] [histogram] [pattern(exact)]  []SqSortedSq{ Sorted, Sq uint64 }
-	var qq, sq, place, q, r, pattern, anagram uint64 // qq is one ahead in the for loop to make parallel assignment correct
+	ret := [16]map[uint32]map[uint64][]SqSortedSq{}       // [len] [histogram] [pattern(exact)]  []SqSortedSq{ Sorted, Sq uint64 }
+	var qq, sq, place, q, r, pattern, anagram, nib uint64 // qq is one ahead in the for loop to make parallel assignment correct
 	var charOccur, found [10]uint8
 	var histg uint32
 	var uniq, uid, uu uint8
@@ -130,7 +131,7 @@ func SquarePatterns(lim uint64) [16]map[uint32]map[uint64][]SqSortedSq {
 	fmt.Printf("SquarePatterns up to %d\n", lim)
 	for qq, sq = 2, 1; sq < lim; qq, sq = qq+1, qq*qq {
 		numsort := make([]byte, 0, 10)
-		charOccur, found, uniq, pattern = [10]uint8{}, [10]uint8{}, 0, 0
+		charOccur, found, uniq, pattern, nib = [10]uint8{}, [10]uint8{}, 0, 0, 0
 		for place, q = 0, sq; 0 < q; place++ {
 			q, r = q/10, q%10
 			charOccur[r]++
@@ -145,6 +146,7 @@ func SquarePatterns(lim uint64) [16]map[uint32]map[uint64][]SqSortedSq {
 					}
 				}
 			}
+			nib |= uint64(r) << (place << 2)
 			pattern |= uint64(uid) << (place << 2)
 			// insert-sort the next found number
 			numsort = append(numsort, byte(r))
@@ -165,12 +167,12 @@ func SquarePatterns(lim uint64) [16]map[uint32]map[uint64][]SqSortedSq {
 		}
 		//	MSB			LSB
 		//	[15-8]	[7-4]	[3,2]	[1,-]
-		// it's easier to just unroll and combine the two loops myself
+		// it's easier to just unroll and combine the loop myself
 		histg |= (uint32(found[7]) << 22) | (uint32(found[6]) << 20) | (uint32(found[5]) << 18) | (uint32(found[4]) << 16) | (uint32(found[3]) << 12) | (uint32(found[2]) << 8) | (uint32(found[1]) << 4)
 		if _, exists := ret[place][histg]; !exists {
 			ret[place][histg] = make(map[uint64][]SqSortedSq)
 		}
-		ret[place][histg][pattern] = append(ret[place][histg][pattern], SqSortedSq{Sorted: anagram, Sq: sq})
+		ret[place][histg][pattern] = append(ret[place][histg][pattern], SqSortedSq{Sorted: anagram, Sq: sq, Nib: nib})
 	}
 	return ret
 }
@@ -227,6 +229,7 @@ func BytesHistPat(bstr []byte) (uint32, uint64) {
 	return histg, pattern
 }
 
+// This could be inserted into the loop above like for the numbers... but might be reusable elsewhere too and it's already a function.
 func InsertSortString(con string) string {
 	// This is probably slow.  I should build a library of sorting algorithms soon for sites that don't have "slices" or other standard sorts included.
 	lim := len(con)
@@ -287,7 +290,27 @@ func E0098LoadWords(fn string) ([16]map[string][]string, int) {
 	return ret, longest
 }
 
-func E0098LargestSquareAnagram(patterns [16]map[uint32]map[uint64][]SqSortedSq, words [16]map[string][]string) uint64 {
+func E0098AnagramTransposition(source, dest string, sourceNibNum uint64) uint64 {
+	// Euler 98 example
+	// CARE =>	RACE
+	// 1296	=>	9216
+	lm := len(source)
+	lutCD := [26]uint8{}
+	// load the lookup table between Char and Decimal
+	for lim := lm; 0 < lim; {
+		lim--
+		lutCD[(source[lim]|('a'-'A'))-'a'] = uint8(sourceNibNum & 0xF)
+		sourceNibNum >>= 4
+	}
+	// construct the output number
+	var ret uint64
+	for ii := 0; ii < lm; ii++ {
+		ret = ret*10 + uint64(lutCD[(dest[ii]|('a'-'A'))-'a'])
+	}
+	return ret
+}
+
+func E0098LargestSquareAnagramTransposition(patterns [16]map[uint32]map[uint64][]SqSortedSq, words [16]map[string][]string) uint64 {
 	var ret uint64
 	for uu := 15; 0 < uu; uu-- {
 		// fmt.Printf("Considering: %d\n%v\n", uu, words[uu])
@@ -296,77 +319,36 @@ func E0098LargestSquareAnagram(patterns [16]map[uint32]map[uint64][]SqSortedSq, 
 			var pat uint64
 			var histg uint32 // same for all of the anagrams
 
-			// Map -- Up to N (2) matches for any given number must be kept, but more don't matter, just the greatest and any other...
-			// [ NUMBER 'hash' / sorted ]	[word(as is)]	[2](matches)
-			anagrams := make(map[uint64]map[string][2]uint64)
-			for ii, lim := 0, len(hmVal); ii < lim; ii++ {
-				histg, pat = BytesHistPat([]byte(hmVal[ii]))
+			// For every word in an anagram set
+			for ss, lim := 0, len(hmVal); ss < lim; ss++ {
+				// calc it's histogram and number pattern
+				histg, pat = BytesHistPat([]byte(hmVal[ss]))
+
+				// Only if there's a number that matches those patterns
 				if sl, exists := patterns[uu][histg][pat]; exists {
-					// [16]map[uint32]map[uint64][]SqSortedSq{} // [len] [histogram] [pattern(exact)]  []SqSortedSq{ Sorted, Sq uint64 }
-					for aa, lim := 0, len(sl); aa < lim; aa++ {
-						m := sl[aa]
-						if _, exists := anagrams[m.Sorted]; !exists {
-							anagrams[m.Sorted] = make(map[string][2]uint64)
-						}
-						t := [2]uint64{}
-						if val, exists := anagrams[m.Sorted][hmVal[ii]]; exists {
-							t = val
-						}
-						if m.Sq > t[0] {
-							t[1], t[0] = t[0], m.Sq
-						}
-						anagrams[m.Sorted][hmVal[ii]] = t
-					}
-				} else {
-					// fmt.Printf("No match for %s : [%d][%8x][%16x]\n", hmVal[ii], uu, histg, pat)
-				}
-			}
+					slLm := len(sl)
 
-			// Reduce (remove impossible to match one-offs)
-			rm := make([]uint64, 0, 8)
-			for ana, val := range anagrams {
-				if 2 > len(val) {
-					rm = append(rm, ana)
-				} else {
-					// fmt.Printf("+ %v\n", val)
-				}
-			}
-			for _, ana := range rm {
-				delete(anagrams, ana)
-			}
-			if 1 > len(anagrams) {
-				continue
-			}
+					// For every word _after_ that word
+					for dd := ss + 1; dd < lim; dd++ {
 
-			// fmt.Printf("Next batch of Anagrams: %x\n%v\n", histg, anagrams)
-			// One or more batches of numeric anagram matches for the word anagram matches...
-			for _, aset := range anagrams {
-				// In each set are at least two words, which have either 1 or 2 matching numbers, 0 as a sentinel value
-				winner, highest := make(map[uint64]string), uint64(0)
-				for word, sq := range aset {
-					if 0 != sq[0] {
-						if _, taken := winner[sq[0]]; !taken {
-							winner[sq[0]] = word
-							if highest < sq[0] {
-								highest = sq[0]
+						// Consider each possible input number
+						// [16]map[uint32]map[uint64][]SqSortedSq{} // [len] [histogram] [pattern(exact)]  []SqSortedSq{ Sorted, Sq uint64 }
+						for aa := 0; aa < slLm; aa++ {
+
+							// Use the word pair and the (cached) division results to calculate the 'needle' to look for.
+							needle := E0098AnagramTransposition(hmVal[ss], hmVal[dd], sl[aa].Nib)
+							if ret > needle {
+								continue
 							}
-						}
-						/*
-							} else if 0 != sq[1] {
-								if _, taken := winner[sq[1]]; !taken {
-									winner[sq[1]] = word
-									if highest < sq[1] {
-										highest = sq[1] // maybe reached?  Two values from distinct patterns but the same numbers?
-									}
+							// Needle must be greater than return, otherwise there's no point, it must also come after this number, since the mappings work from both ways with the start word.
+							for bb := aa + 1; bb < slLm; bb++ {
+								if needle == sl[bb].Sq {
+									ret = needle
+									break
 								}
 							}
-						*/
+						}
 					}
-				}
-				// Each word is recorded in the map once, either with it's primary value or a backup pattern match.  This problem doesn't ask which word, just the number so...
-				if ret < highest && 0 != highest && 2 <= len(winner) {
-					ret = highest
-					fmt.Printf("Added %d\n%v\n", ret, aset)
 				}
 			}
 		}
@@ -386,25 +368,29 @@ func Euler0098(fn string) uint64 {
 	fmt.Println(words)
 	// fmt.Println(patterns[9][0x90][0x876543210])
 
-	return E0098LargestSquareAnagram(patterns, words)
+	return E0098LargestSquareAnagramTransposition(patterns, words)
 }
 
 /*
 	for ii in *\/*.go ; do go fmt "$ii" ; done ; for ii in 98 ; do go fmt $(printf "pe_%04d.go" "$ii") ; time go run $(printf "pe_%04d.go" "$ii") || break ; done
 
 SquarePatterns up to 10000
-map[12816:[{16912 1024} {38928 1089} {38433 1296} {38449 1369} {30273 1764} {38977 1849} {38449 1936} {17184 2304} {16912 2401} {25104 2601} {29728 2704} {38944 2809} {38433 2916} {21280 3025} {37938 3249} {33841 3481} {29473 3721} {38464 4096} {25923 4356} {30273 4761} {21520 5041} {34113 5184} {38194 5329} {30292 5476} {34368 6084} {25633 6241} {30274 6724} {30288 7056} {38755 7396} {38757 7569} {38689 7921} {39012 8649} {38176 9025} {38433 9216} {38464 9604} {38928 9801}]]
 SquarePatterns up to 1000000000
 [map[] map[] map[NO:[NO ON]] map[ACT:[ACT CAT] AET:[EAT TEA] DGO:[DOG GOD] HOW:[HOW WHO] IST:[ITS SIT] NOW:[NOW OWN]] map[ACER:[CARE RACE] ADEL:[DEAL LEAD] AEHT:[HATE HEAT] AELM:[MALE MEAL] AEMN:[MEAN NAME] AENR:[EARN NEAR] AERT:[RATE TEAR] AEST:[EAST SEAT] EFIL:[FILE LIFE] EIMT:[ITEM TIME] ENOT:[NOTE TONE] ERSU:[SURE USER] FMOR:[FORM FROM] GINS:[SIGN SING] HSTU:[SHUT THUS] OPST:[POST SPOT STOP]] map[ABDOR:[BOARD BROAD] AEHPS:[PHASE SHAPE] AEHRT:[EARTH HEART] AEIRS:[ARISE RAISE] AELST:[LEAST STEAL] EEHST:[SHEET THESE] EIQTU:[QUIET QUITE] GHINT:[NIGHT THING] HORTW:[THROW WORTH] HOSTU:[SHOUT SOUTH]] map[ADEGNR:[DANGER GARDEN] CDEIRT:[CREDIT DIRECT] CEENRT:[CENTRE RECENT] CEEPTX:[EXCEPT EXPECT] CEORSU:[COURSE SOURCE] EFMORR:[FORMER REFORM] EGINOR:[IGNORE REGION]] map[] map[ACEINORT:[CREATION REACTION]] map[CDEINORTU:[INTRODUCE REDUCTION]] map[] map[] map[] map[] map[] map[]]
-Euler 98: Anagramic Squares: 923187456
+Euler 98: Anagramic Squares: 18769
 
-real    0m0.120s
-user    0m0.144s
-sys     0m0.079s.
+real    0m0.146s
+user    0m0.199s
+sys     0m0.072s
 */
 func main() {
 	var r uint64
+	pass := true
 	//test
+	r = E0098AnagramTransposition("CARE", "RACE", 0x1296)
+	if 9216 != r {
+		fmt.Printf("Expected 9216 from E0098AnagramTransposition got: %d\n", r)
+	}
 	testISS := []struct{ raw, sorted string }{
 		{"abcdefg", "abcdefg"},
 		{"cccbbbaaa", "aaabbbccc"},
@@ -413,7 +399,6 @@ func main() {
 		{"compile", "ceilmop"},
 		// {"", ""},
 	}
-	pass := true
 	for _, test := range testISS {
 		if test.sorted != InsertSortString(test.raw) {
 			fmt.Printf("FAILED: InsertSortString(%s) expected: %s got: %s\n", test.raw, test.sorted, InsertSortString(test.raw))
@@ -430,9 +415,9 @@ func main() {
 		words[wlen][whash] = append(words[wlen][whash], word)
 	}
 	patterns := SquarePatterns(euler.PowInt(10, uint64(4)))
-	fmt.Println(patterns[4][0x40])
-	r = E0098LargestSquareAnagram(patterns, words)
-	if 9801 != r {
+	// fmt.Println(patterns[4][0x40])
+	r = E0098LargestSquareAnagramTransposition(patterns, words)
+	if 9216 != r {
 		fmt.Printf("Expected 9216 got %d\n", r)
 		pass = false
 	}
@@ -444,7 +429,8 @@ func main() {
 	//run
 	r = Euler0098("0098_words.txt")
 	fmt.Printf("Euler 98: Anagramic Squares: %d\n", r)
-	if 923187456 != r {
+	// NOT correct 923187456
+	if 18769 != r {
 		panic("Did not reach expected value.")
 	}
 }
