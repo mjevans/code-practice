@@ -987,6 +987,23 @@ func UU64Mod(h, l, mod uint64) uint64 {
 	return r
 }
 
+func PowBigInt(base *big.Int, pow uint64) *big.Int {
+	if 1 == pow {
+		return base
+	}
+	// MSB (set) to LSB ; each step will be either np*np OR np*np + n
+	// 100 == n*n, n*n * n*n ; 101 == n*n, n*n n*n * n
+	np := big.NewInt(0).Set(base)
+	for mask := uint64(1) << (64 - BitsLeadingZeros64(pow) - 2); 0 < mask; mask >>= 1 {
+		// fmt.Printf("%05b\n%05b\n\n", pow, mask)
+		np.Mul(np, np) // double
+		if 0 < pow&mask {
+			np.Mul(np, base) // times n
+		}
+	}
+	return np
+}
+
 func BitsPowerOfTwo[INT ~uint | ~uint64](n INT) int {
 	shift := 63 - BitsLeadingZeros64(n)
 	if 0 > shift || 0 != n&^(1<<shift) {
