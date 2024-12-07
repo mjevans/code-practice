@@ -1,0 +1,49 @@
+There was recently a story on 'Hacker News' (News Aggregator) about Debian and username handling POSIX (traditional limits) vs Debian's 'nearly anything goes' options and considerations of Unicode UTF8.
+// kate: space-indent off; indent-width 8; tab-width 8; mixedindent off; indent-mode tab;
+
+TL;DR table for skimmers and future me
+
+	Spot	Key					Value
+INI	#0	ascii/utf8? [^\0"'=\r\n] Trimmed(\s+)	[^\0"'\r\n] Trimmed(\s+)
+TOML	#0	ascii/utf8? [^\0"'=\r\n] Trimmed(\s+)	Seems to require quoted strings, but they allow escapes...
+JSON	#1	Unicode String... (UTF16 escapes)	'types' but Unicode String... (UTF16 escapes)
+Please die XML
+Databases are fine for 'stage 2', if necessary
+
+
+
+This got me thinking; I've worked _informally_ with many flavors config files over decades of computer experience not just as an adult but even from when I was a kid.  As with CSV (also the TSV variant) (a pre-standards specification which later got an RFC to describe it for later programmers) I understand the formats as defacto standards, many of which might have followed some standard officially but had knockoffs that might not have exactly implemented the same limitations or patterns.
+
+Modern format's that probably everyone's heard of... XML and JSON.  After using both almost as long with different daemons and programs, I've come to loath how obtuse XML can be.  JSON's not quite innocent either; pretty printed is fine for human consumption, but it's got some baggage (like UTF-16 support) and can be ornery to parse.  Not that it typically matters for small files, but both are incredibly state machine bound.  It's possible to speculate... but I've never found it to be worth considering past that.  I suspect YAML, another 'modern' format, came about similarly to how ECMAScript (javascript) spawned JSON, only from Python.  That would explain some of the choices such as whitespace sensitivity.
+
+However the first two configuration formats I worked with were even more primitive.
+Shell scripts (DOS batch / command files / /bin/sh (Bornue shell)) and 'INI' files.
+
+# Often a comment sometimes ; before the comment, etc...
+key = value
+sometimes the first space is the separator between key and value.
+
+Wikipedia's page happens to mention most of what I did, and the modern formal version of INI files (TOML) but I hadn't yeard of CUE or UCL; though neither of those has a Wikipedia page. https://en.wikipedia.org/wiki/Configuration_file
+
+
+
+My favorite configuration file format, presently, is likely TOML for formal settings and INI for anything super lightweight.  Both are practically self-documenting if a user opens the file.  I expect any moderately smart person to be able to at least read and understand what is listed without much further instruction; barring obtuse values, but that's a software issue, not a format issue.
+
+https://toml.io/en/
+
+Though the ease of key:value pairs in scripts and INI files is fairly universal, and the kitchen sink of specifics for TOML files are more than many need.  Still, it's nice to have the tools if you do need them.
+
+
+
+JSON is probably my next favorite structured configuration file or data-storage container.  It's plain text, has a pretty-print mode that's fairly human readable and modifiable.  However it also suffers from limitations and many implementation variations.  It _did_ get split out of the common web scripting languages, so while it's nice that... wait their parsers can't parse it directly without eval... yuck.  ANYWAY.  It's familiar to those programmers.  However it also brings along all the horrid warts of some of the worst technical standards whitewashing of the 1990s.  UCS2 / UTF-16 will haunt us all until civilization ends.  If we had a bootstrap civ from zero development kit THAT would be excluded and we'd just tell everyone to live with 8 bit system units, what UTF-8 and WTF-8 are, and then to shift up to some binary format with it's own internal format past that.
+
+JSON lacks a few features that XML was designed with; but just like the majority of the X.500 project (of which, I believe, only X.509 is in common use today) many of the formal bonuses which sold XML in the early 2000s fail to improve the lives of end users.  Features like default value specification, and validation templates.  Sure those _can_ be used, but how often have you ever worked with either of those and thought of them in a positive light?  It sure is ""fun"" when those defaults aren't written out somewhere obvious to document what they are.
+
+XML and JSON, and I'm MOSTLY thinking of 'libvirt' from when I had the misfortune of using it for a while, also have the negative tendency of being re-written; often with valid language features silently dropped from the file.  Goodbye comments and settings I had put into comments for testing.  Tons of fun there.
+
+Clearly, I don't want to assign XML a place anywhere on my list of even configuration files I enjoy working with.  Though if they're what's already in place, don't "fix" what is not broken.   Though if that chance comes up there are a couple refactor candidates I'd like to propose. ;)
+
+
+Finally on my list of favorite structures is third because IMO it's a second stage option.  At the very least a plain text file with the magic config string for the database driver is necessary to store credentials and server location.  However past that it's more than fine to use a database or even an SQLite file to store the rest of the configuration, if such a tool is part of the project already.
+
+Not every program needs a database though, and nearly all non-trivial programs need to evaluate text data already, such as command line arguments, environment variables, of similarly at least initial configuration files.  Those same basic tools often augment the core logic to output results, progress, or errors for humans.
