@@ -1,0 +1,53 @@
+NOTE FOR WORK - if hard coding /usr/bin/X also prefix Y similarly; otherwise user paths might over-ride.
+
+
+
+Still quite useful as it covers up through Python 3.12
+https://stackoverflow.com/a/58500744/825613
+" Unfortunately Vermin has met the same fate as Greg Hewgill's script and misses flagging most modern Python features. – " Newbyte
+Commented Oct 25, 2024 at 18:53
+https://pypi.org/project/vermin/
+
+https://docs.python.org/3/howto/argparse.html
+
+import sys
+if sys.version_info >= (3, 5):
+  # fail
+
+https://docs.python.org/3.9/library/exceptions.html#bltin-exceptions
+
+
+
+
+
+Quick comparison of import getopt, optparse, argparse; # Summary argparse is more user-proofed
+https://docs.python.org/3/library/optparse.html#choosing-an-argument-parser
+
+Great __base example__ code
+
+import argparse
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--output')
+    parser.add_argument('-v', dest='verbose', action='store_true')
+    parser.add_argument('rest', nargs='*')
+    args = parser.parse_args()
+    process(args.rest, output=args.output, verbose=args.verbose)
+#
+
+# Yikes, exit_on_error was _added_ in 3.9 !  That's an obvious miss in earlier versions.
+
+https://docs.python.org/3.9/library/configparser.html
+https://docs.python.org/3.9/library/json.html#module-json
+
+
+https://docs.python.org/3.9/library/socket.html
+
+Socket families of interest: AF_INET / AF_INET6 , AF_CAN (CAN_ISOTP?) , possibly AF_UNIX (fifo / file)
+
+https://superfastpython.com/threading-in-python/
+
+https://docs.python.org/3.9/library/threading.html
+https://docs.python.org/3.9/library/queue.html
+
